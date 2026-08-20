@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "DMAIC Ágil Suite"
+description = "Aplicação web para conduzir projetos DMAIC Ágil em três blocos: Definição, Medição e ciclo iterativo A-I-C, com análise de causas, priorização, planos de ação e monitoramento estatístico."
+version = "1.0.0"
+id = "artifacts/dmaic-agil-suite"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24204
+
+[services.development]
+run = "pnpm --filter @workspace/dmaic-agil-suite run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/dmaic-agil-suite", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/dmaic-agil-suite/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24204"
+BASE_PATH = "/"
