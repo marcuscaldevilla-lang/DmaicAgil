@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: dmaic
+    description: DMAIC Agile project operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /dmaic/pipeline:
+    post:
+      operationId: runDmaicPipeline
+      tags: [dmaic]
+      summary: Generate a complete DMAIC Agile pipeline
+      description: Creates structured Definition, Measurement, and A-I-C sprint artifacts from a project problem statement.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DmaicPipelineInput"
+      responses:
+        "200":
+          description: DMAIC artifacts generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DmaicPipeline"
+        "400":
+          description: Invalid problem statement
+        "502":
+          description: AI generation failed
 components:
   schemas:
     HealthStatus:
@@ -33,4 +58,145 @@ components:
           type: string
       required:
         - status
+    DmaicPipelineInput:
+      type: object
+      required: [problemStatement]
+      properties:
+        problemStatement:
+          type: string
+          minLength: 10
+          maxLength: 4000
+    DmaicCharter:
+      type: object
+      required: [projectTitle, problemStatement, businessCase, expectedSavings]
+      properties:
+        projectTitle: { type: string }
+        problemStatement: { type: string }
+        businessCase: { type: string }
+        expectedSavings: { type: string }
+    DmaicTeam:
+      type: object
+      required: [productOwner, scrumMaster, beltSquadMembers]
+      properties:
+        productOwner: { type: string }
+        scrumMaster: { type: string }
+        beltSquadMembers: { type: string }
+    DmaicVocCqt:
+      type: object
+      required: [vocNeed, issue, ctqMetric]
+      properties:
+        vocNeed: { type: string }
+        issue: { type: string }
+        ctqMetric: { type: string }
+    DmaicIndicator:
+      type: object
+      required: [primaryMetricY, operationalDefinition, targetGoal, baseline]
+      properties:
+        primaryMetricY: { type: string }
+        operationalDefinition: { type: string }
+        targetGoal: { type: string }
+        baseline: { type: string }
+    DmaicSipoc:
+      type: object
+      required: [suppliers, inputs, process, outputs, customers]
+      properties:
+        suppliers:
+          type: array
+          items: { type: string }
+        inputs:
+          type: array
+          items: { type: string }
+        process:
+          type: array
+          items: { type: string }
+        outputs:
+          type: array
+          items: { type: string }
+        customers:
+          type: array
+          items: { type: string }
+    DmaicScope:
+      type: object
+      required: [inScope, outOfScope]
+      properties:
+        inScope:
+          type: array
+          items: { type: string }
+        outOfScope:
+          type: array
+          items: { type: string }
+    DmaicRow:
+      type: object
+      additionalProperties:
+        type: string
+    DmaicPipeline:
+      type: object
+      required:
+        - projectCharter
+        - teamSetup
+        - vocCtq
+        - indicatorsY
+        - sipoc
+        - inOutMatrix
+        - msaValidation
+        - ishikawa
+        - gutPrioritization
+        - vitalXs
+        - hypotheses
+        - fmea
+        - actionPlan
+        - controlPlan
+        - standardizationSop
+      properties:
+        projectCharter:
+          $ref: "#/components/schemas/DmaicCharter"
+        teamSetup:
+          $ref: "#/components/schemas/DmaicTeam"
+        vocCtq:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicVocCqt"
+        indicatorsY:
+          $ref: "#/components/schemas/DmaicIndicator"
+        sipoc:
+          $ref: "#/components/schemas/DmaicSipoc"
+        inOutMatrix:
+          $ref: "#/components/schemas/DmaicScope"
+        msaValidation:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicRow"
+        ishikawa:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+        gutPrioritization:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicRow"
+        vitalXs:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicRow"
+        hypotheses:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicRow"
+        fmea:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicRow"
+        actionPlan:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicRow"
+        controlPlan:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicRow"
+        standardizationSop:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicRow"
 

@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface DmaicPipelineInput {
+  /**
+     * @minLength 10
+     * @maxLength 4000
+     */
+  problemStatement: string;
 }
