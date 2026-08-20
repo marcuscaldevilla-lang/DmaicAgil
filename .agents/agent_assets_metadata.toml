@@ -14,3 +14,17 @@ mtime_ms = 1787254658485
 storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:f55363b6-b539-4aac-b03b-03cd049335d7/b32211bc-38a1-43dd-beb1-a0046605c702/87f2c0fa-ac91-43af-9c73-54f871896743"
 storage_version_token = "1787254663290614"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "tGzeA_nG-eEMyEIo5Nq-S"
+uri = "file://docs/manual-utilizacao-dmaic-agil.pdf"
+type = "pdf"
+title = "Manual de Utilização — DMAIC Ágil Suite (PDF)"
+description = "Manual detalhado em PDF A4 com instruções de uso, fluxo DMAIC, geração por Gemini, análises Pareto e I-MR, boas práticas e solução de problemas."
+logical_id = "afb52110-3fe4-4fc8-8df9-921b91db9472"
+content_hash = "sha256:cf79a04456d4c213b426d7bf45d73e338d8fd13acce5671bdcc18d913b7a1e5f"
+size = 63120
+mtime_ms = 1787254839920
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:f55363b6-b539-4aac-b03b-03cd049335d7/afb52110-3fe4-4fc8-8df9-921b91db9472/0ff4c4bc-ac64-417c-b128-150d7cfa4a0e"
+storage_version_token = "1787254848068169"
+content_type = "application/pdf"
