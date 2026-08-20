@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "aSO_DVW16VlN6Wl7wmYIe"
+uri = "file://docs/manual-utilizacao-dmaic-agil.md"
+type = "text"
+title = "Manual de Utilização — DMAIC Ágil Suite"
+description = "Manual detalhado em português com instruções de uso, fluxo DMAIC, geração por Gemini, análises Pareto e I-MR, interpretação, boas práticas e solução de problemas."
+logical_id = "b32211bc-38a1-43dd-beb1-a0046605c702"
+content_hash = "sha256:79cd4941f4ee2fccca75726534e253541e0ceaa3b9419fef611cb6b8e3e92f6d"
+size = 19891
+mtime_ms = 1787254658485
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:f55363b6-b539-4aac-b03b-03cd049335d7/b32211bc-38a1-43dd-beb1-a0046605c702/87f2c0fa-ac91-43af-9c73-54f871896743"
+storage_version_token = "1787254663290614"
+content_type = "text/markdown"
