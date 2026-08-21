@@ -18,4 +18,6 @@ export * from './dmaicScope';
 export * from './dmaicSipoc';
 export * from './dmaicTeam';
 export * from './dmaicVocCqt';
+export * from './dmaicWorkspace';
+export * from './dmaicWorkspaceInput';
 export * from './healthStatus';

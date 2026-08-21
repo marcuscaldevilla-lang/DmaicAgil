@@ -49,6 +49,41 @@ paths:
           description: Invalid problem statement
         "502":
           description: AI generation failed
+  /dmaic/workspace:
+    get:
+      operationId: getDmaicWorkspace
+      tags: [dmaic]
+      summary: Load the active DMAIC workspace
+      description: Loads the persisted Project Charter and problem statement for the active workspace.
+      responses:
+        "200":
+          description: Persisted workspace, or an empty workspace when none exists yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DmaicWorkspace"
+    put:
+      operationId: saveDmaicWorkspace
+      tags: [dmaic]
+      summary: Save the active DMAIC workspace
+      description: Persists the Project Charter and problem statement in Neon Postgres.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DmaicWorkspaceInput"
+      responses:
+        "200":
+          description: Workspace saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DmaicWorkspace"
+        "400":
+          description: Invalid workspace data
+        "500":
+          description: Workspace persistence failed
 components:
   schemas:
     HealthStatus:
@@ -115,6 +150,27 @@ components:
             $ref: "#/components/schemas/DmaicCharterTeamMember"
         customerRequirements: { type: string }
         businessContributions: { type: string }
+    DmaicWorkspaceInput:
+      type: object
+      required: [problemStatement, projectCharterContext]
+      properties:
+        problemStatement:
+          type: string
+          minLength: 10
+          maxLength: 4000
+        projectCharterContext:
+          $ref: "#/components/schemas/DmaicCharterContext"
+    DmaicWorkspace:
+      type: object
+      required: [projectKey, hasSavedData, problemStatement, projectCharterContext, createdAt, updatedAt]
+      properties:
+        projectKey: { type: string }
+        hasSavedData: { type: boolean }
+        problemStatement: { type: string }
+        projectCharterContext:
+          $ref: "#/components/schemas/DmaicCharterContext"
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     DmaicCharter:
       type: object
       required: [projectTitle, problemStatement, businessCase, expectedSavings]

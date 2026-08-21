@@ -99,3 +99,107 @@ export const RunDmaicPipelineResponse = zod.object({
 })
 
 
+/**
+ * Loads the persisted Project Charter and problem statement for the active workspace.
+ * @summary Load the active DMAIC workspace
+ */
+export const GetDmaicWorkspaceResponse = zod.object({
+  "projectKey": zod.string(),
+  "hasSavedData": zod.boolean(),
+  "problemStatement": zod.string(),
+  "projectCharterContext": zod.object({
+  "projectName": zod.string(),
+  "client": zod.string(),
+  "area": zod.string(),
+  "leader": zod.string(),
+  "sponsor": zod.string(),
+  "date": zod.coerce.date(),
+  "objective": zod.string(),
+  "history": zod.string(),
+  "goalDefinition": zod.string(),
+  "kpis": zod.string(),
+  "includedScope": zod.string(),
+  "excludedScope": zod.string(),
+  "assumptionsAndConstraints": zod.string(),
+  "team": zod.array(zod.object({
+  "role": zod.string(),
+  "name": zod.string(),
+  "position": zod.string(),
+  "areaCompany": zod.string()
+})),
+  "customerRequirements": zod.string(),
+  "businessContributions": zod.string()
+}),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Persists the Project Charter and problem statement in Neon Postgres.
+ * @summary Save the active DMAIC workspace
+ */
+export const saveDmaicWorkspaceBodyProblemStatementMin = 10;
+export const saveDmaicWorkspaceBodyProblemStatementMax = 4000;
+
+
+
+export const SaveDmaicWorkspaceBody = zod.object({
+  "problemStatement": zod.string().min(saveDmaicWorkspaceBodyProblemStatementMin).max(saveDmaicWorkspaceBodyProblemStatementMax),
+  "projectCharterContext": zod.object({
+  "projectName": zod.string(),
+  "client": zod.string(),
+  "area": zod.string(),
+  "leader": zod.string(),
+  "sponsor": zod.string(),
+  "date": zod.coerce.date(),
+  "objective": zod.string(),
+  "history": zod.string(),
+  "goalDefinition": zod.string(),
+  "kpis": zod.string(),
+  "includedScope": zod.string(),
+  "excludedScope": zod.string(),
+  "assumptionsAndConstraints": zod.string(),
+  "team": zod.array(zod.object({
+  "role": zod.string(),
+  "name": zod.string(),
+  "position": zod.string(),
+  "areaCompany": zod.string()
+})),
+  "customerRequirements": zod.string(),
+  "businessContributions": zod.string()
+})
+})
+
+export const SaveDmaicWorkspaceResponse = zod.object({
+  "projectKey": zod.string(),
+  "hasSavedData": zod.boolean(),
+  "problemStatement": zod.string(),
+  "projectCharterContext": zod.object({
+  "projectName": zod.string(),
+  "client": zod.string(),
+  "area": zod.string(),
+  "leader": zod.string(),
+  "sponsor": zod.string(),
+  "date": zod.coerce.date(),
+  "objective": zod.string(),
+  "history": zod.string(),
+  "goalDefinition": zod.string(),
+  "kpis": zod.string(),
+  "includedScope": zod.string(),
+  "excludedScope": zod.string(),
+  "assumptionsAndConstraints": zod.string(),
+  "team": zod.array(zod.object({
+  "role": zod.string(),
+  "name": zod.string(),
+  "position": zod.string(),
+  "areaCompany": zod.string()
+})),
+  "customerRequirements": zod.string(),
+  "businessContributions": zod.string()
+}),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+

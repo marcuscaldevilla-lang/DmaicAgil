@@ -1,0 +1,1 @@
+- [Neon persistence](neon-persistence.md) — Use the dedicated Neon secret and leave Replit’s runtime-managed database variable untouched.

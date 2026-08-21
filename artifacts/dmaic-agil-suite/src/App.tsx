@@ -1,6 +1,6 @@
-import { useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { type DmaicPipeline, useRunDmaicPipeline } from '@workspace/api-client-react';
+import { type DmaicPipeline, useGetDmaicWorkspace, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -74,6 +74,7 @@ type ProjectCharterDraft = {
   businessContributions: string;
 };
 type CharterTextField = Exclude<keyof ProjectCharterDraft, 'team'>;
+type ProjectCharterContext = Omit<ProjectCharterDraft, 'team'> & { team: Array<CharterTeamMember & { role: string }> };
 
 const createProjectCharterDraft = (): ProjectCharterDraft => ({
   projectName: '',
@@ -98,6 +99,34 @@ const createProjectCharterDraft = (): ProjectCharterDraft => ({
   customerRequirements: '',
   businessContributions: '',
 });
+
+const toProjectCharterContext = (charter: ProjectCharterDraft): ProjectCharterContext => ({
+  ...charter,
+  team: [
+    { role: 'Líder', ...charter.team.leader },
+    { role: 'Patrocinador', ...charter.team.sponsor },
+    { role: 'Membros da equipe', ...charter.team.teamMembers },
+    { role: 'Especialistas para suporte técnico', ...charter.team.technicalSupport },
+  ],
+});
+
+const toProjectCharterDraft = (context: ProjectCharterContext): ProjectCharterDraft => {
+  const memberByRole = new Map(context.team.map((member) => [member.role, member]));
+  const getMember = (role: string): CharterTeamMember => {
+    const member = memberByRole.get(role);
+    return member ? { name: member.name, position: member.position, areaCompany: member.areaCompany } : { name: '', position: '', areaCompany: '' };
+  };
+  return {
+    ...context,
+    date: context.date.slice(0, 10),
+    team: {
+      leader: getMember('Líder'),
+      sponsor: getMember('Patrocinador'),
+      teamMembers: getMember('Membros da equipe'),
+      technicalSupport: getMember('Especialistas para suporte técnico'),
+    },
+  };
+};
 
 const areaMeta: Record<Area, { label: string; kicker: string; description: string; color: string }> = {
   overview: { label: 'Visão geral', kicker: 'Command center', description: 'Onde o problema ganha forma, ritmo e dono.', color: 'hsl(var(--primary))' },
@@ -266,7 +295,7 @@ function ProjectCharterForm({ charter, onFieldChange, onTeamChange, onSave }: { 
       <CharterTextarea label="Requisitos do cliente" value={charter.customerRequirements} onChange={(value) => onFieldChange('customerRequirements', value)} testId="textarea-charter-customer-requirements" rows={3} placeholder="Necessidades, critérios de aceitação e pontos inegociáveis para o cliente." />
       <CharterTextarea label="Contribuições para o negócio" value={charter.businessContributions} onChange={(value) => onFieldChange('businessContributions', value)} testId="textarea-charter-business-contributions" rows={3} placeholder="Benefícios esperados: custo, receita, risco, qualidade, experiência ou capacidade." />
     </div>
-    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><p className="text-[11px] text-muted-foreground"><Info size={13} className="mr-1 inline-block align-[-2px]" /> O conteúdo fica nesta sessão e será enviado ao Gemini como contexto ao iniciar o pipeline.</p><Button testId="button-save-charter" onClick={onSave} variant="outline"><Save size={14} /> Salvar charter</Button></div>
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><p className="text-[11px] text-muted-foreground"><Info size={13} className="mr-1 inline-block align-[-2px]" /> Ao salvar, o conteúdo fica no Neon e será enviado ao Gemini como contexto ao iniciar o pipeline.</p><Button testId="button-save-charter" onClick={onSave} variant="outline"><Save size={14} /> Salvar charter</Button></div>
   </section>;
 }
 
@@ -339,12 +368,16 @@ function DataNotes({ tool, pareto, imr }: { tool: Tool; pareto: { name: string; 
 
 function Workspace() {
   const pipelineMutation = useRunDmaicPipeline();
+  const workspaceQuery = useGetDmaicWorkspace();
+  const workspaceMutation = useSaveDmaicWorkspace();
   const [area, setArea] = useState<Area>('overview');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [statement, setStatement] = useState('O tempo entre a entrada da solicitação e a aprovação do crédito varia de 8 a 31 minutos, gerando retrabalho e previsibilidade baixa para as agências no fechamento do mês.');
   const [saved, setSaved] = useState(false);
   const [charter, setCharter] = useState<ProjectCharterDraft>(createProjectCharterDraft);
   const [charterSaved, setCharterSaved] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [workspaceHydrated, setWorkspaceHydrated] = useState(false);
   const [pipelineLoading, setPipelineLoading] = useState(false);
   const [pipelineDone, setPipelineDone] = useState(false);
   const [pipelineData, setPipelineData] = useState<DmaicPipeline | null>(null);
@@ -358,14 +391,39 @@ function Workspace() {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const displayArea = area === 'overview' ? 'overview' : area;
 
-  const saveStatement = () => {
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 2200);
+  useEffect(() => {
+    if (!workspaceQuery.data || workspaceHydrated) return;
+    if (workspaceQuery.data.hasSavedData) {
+      setStatement(workspaceQuery.data.problemStatement);
+      setCharter(toProjectCharterDraft(workspaceQuery.data.projectCharterContext));
+    }
+    setWorkspaceHydrated(true);
+  }, [workspaceHydrated, workspaceQuery.data]);
+
+  const saveWorkspace = (source: 'statement' | 'charter') => {
+    if (statement.trim().length < 10) {
+      setWorkspaceError('Descreva o problema com pelo menos 10 caracteres antes de salvar no Neon.');
+      return;
+    }
+    setWorkspaceError(null);
+    workspaceMutation.mutate(
+      { data: { problemStatement: statement.trim(), projectCharterContext: toProjectCharterContext(charter) } },
+      {
+        onSuccess: () => {
+          if (source === 'statement') {
+            setSaved(true);
+            window.setTimeout(() => setSaved(false), 2200);
+          } else {
+            setCharterSaved(true);
+            window.setTimeout(() => setCharterSaved(false), 2200);
+          }
+        },
+        onError: () => setWorkspaceError('Não foi possível salvar no Neon. Confirme a conexão e tente novamente.'),
+      },
+    );
   };
-  const saveCharter = () => {
-    setCharterSaved(true);
-    window.setTimeout(() => setCharterSaved(false), 2200);
-  };
+  const saveStatement = () => saveWorkspace('statement');
+  const saveCharter = () => saveWorkspace('charter');
   const updateCharter = (field: CharterTextField, value: string) => {
     setCharter((current) => ({ ...current, [field]: value }));
   };
@@ -383,15 +441,7 @@ function Workspace() {
       {
         data: {
           problemStatement: statement.trim(),
-          projectCharterContext: {
-            ...charter,
-            team: [
-              { role: 'Líder', ...charter.team.leader },
-              { role: 'Patrocinador', ...charter.team.sponsor },
-              { role: 'Membros da equipe', ...charter.team.teamMembers },
-              { role: 'Especialistas para suporte técnico', ...charter.team.technicalSupport },
-            ],
-          },
+          projectCharterContext: toProjectCharterContext(charter),
         },
       },
       {
@@ -438,10 +488,12 @@ function Workspace() {
         <div className="mx-auto max-w-[1240px]">
            {pipelineLoading && <div data-testid="status-pipeline-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><RefreshCw size={15} className="animate-spin text-primary" /><span><strong>Montando seu caminho DMAIC...</strong> O Gemini está estruturando os entregáveis para a sessão.</span></div>}
            {pipelineError && <div data-testid="status-pipeline-error" className="reveal mb-6 flex items-center justify-between gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive"><span>{pipelineError}</span><Button testId="button-retry-pipeline" onClick={startPipeline} variant="outline">Tentar novamente</Button></div>}
-           {saved && <div data-testid="status-statement-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Mudança salva localmente.</strong> O time verá o novo enunciado neste workspace.</span></div>}
-           {charterSaved && <div data-testid="status-charter-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Project charter salvo nesta sessão.</strong> Essas informações serão usadas como contexto na geração do pipeline.</span></div>}
+           {workspaceQuery.isLoading && <div data-testid="status-workspace-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-border bg-muted/55 px-4 py-3 text-xs"><RefreshCw size={15} className="animate-spin text-primary" /><span>Carregando o Project Charter salvo...</span></div>}
+           {(workspaceError || workspaceQuery.isError) && <div data-testid="status-workspace-error" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive"><Info size={15} /><span>{workspaceError ?? 'Não foi possível carregar os dados salvos no Neon.'}</span></div>}
+           {saved && <div data-testid="status-statement-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Mudança salva no Neon.</strong> O enunciado estará disponível ao reabrir este workspace.</span></div>}
+           {charterSaved && <div data-testid="status-charter-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Project charter salvo no Neon.</strong> Essas informações serão carregadas ao reabrir este workspace e usadas como contexto na geração do pipeline.</span></div>}
            {area === 'overview' ? <Overview statement={statement} setStatement={setStatement} onSave={saveStatement} charter={charter} onCharterChange={updateCharter} onTeamChange={updateCharterTeam} onSaveCharter={saveCharter} pipelineDone={pipelineDone} onOpenArea={setArea} /> : <SprintView area={area} onOpenTool={openTool} onChangeVital={setVitalId} vitalId={vitalId} csvName={csvName} onUpload={handleUpload} inputRef={fileRef} />}
-           <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-[10px] text-muted-foreground"><span className="mono-label">DMAIC Ágil Suite · sessão local</span><span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> {pipelineData ? 'artefatos gerados por IA · revise com o time' : 'dados de exemplo sinalizados · sem envio externo'}</span></footer>
+            <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-[10px] text-muted-foreground"><span className="mono-label">DMAIC Ágil Suite · workspace no Neon</span><span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> {pipelineData ? 'artefatos gerados por IA · revise com o time' : 'dados de exemplo sinalizados · sem envio externo'}</span></footer>
         </div>
       </main>
     </div>

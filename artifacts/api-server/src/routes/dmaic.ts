@@ -1,10 +1,15 @@
 import { Router, type IRouter } from "express";
+import { eq } from "drizzle-orm";
+import { db, dmaicWorkspaces } from "@workspace/db";
 import {
+  GetDmaicWorkspaceResponse,
   RunDmaicPipelineBody,
   RunDmaicPipelineResponse,
+  SaveDmaicWorkspaceBody,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+const ACTIVE_WORKSPACE_KEY = "active-project";
 
 const DMAIC_SYSTEM_PROMPT = `Você é um Master Black Belt especialista em Lean Seis Sigma e Scrum.
 Crie artefatos acionáveis em português do Brasil para um projeto DMAIC Ágil.
@@ -37,6 +42,114 @@ function parseModelJson(value: string): unknown {
 
   return JSON.parse(withoutFences);
 }
+
+function emptyCharterContext() {
+  return {
+    projectName: "",
+    client: "",
+    area: "Operação",
+    leader: "",
+    sponsor: "",
+    date: new Date().toISOString().slice(0, 10),
+    objective: "",
+    history: "",
+    goalDefinition: "",
+    kpis: "NS atendimento",
+    includedScope: "",
+    excludedScope: "",
+    assumptionsAndConstraints: "",
+    team: [],
+    customerRequirements: "",
+    businessContributions: "",
+  };
+}
+
+function serializeWorkspace(row?: typeof dmaicWorkspaces.$inferSelect) {
+  const now = new Date();
+  if (!row) {
+    return {
+      projectKey: ACTIVE_WORKSPACE_KEY,
+      hasSavedData: false,
+      problemStatement: "",
+      projectCharterContext: emptyCharterContext(),
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
+  }
+
+  return {
+    projectKey: row.projectKey,
+    hasSavedData: true,
+    problemStatement: row.problemStatement,
+    projectCharterContext: row.projectCharterContext,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+router.get("/dmaic/workspace", async (req, res): Promise<void> => {
+  try {
+    const [workspace] = await db
+      .select()
+      .from(dmaicWorkspaces)
+      .where(eq(dmaicWorkspaces.projectKey, ACTIVE_WORKSPACE_KEY));
+    const payload = GetDmaicWorkspaceResponse.safeParse(serializeWorkspace(workspace));
+    if (!payload.success) {
+      req.log.error({ errors: payload.error.flatten() }, "Stored DMAIC workspace has an invalid shape");
+      res.status(500).json({ error: "Não foi possível ler o workspace salvo." });
+      return;
+    }
+    res.json(payload.data);
+  } catch (error) {
+    req.log.error({ error }, "Failed to load DMAIC workspace");
+    res.status(500).json({ error: "Não foi possível carregar o workspace salvo." });
+  }
+});
+
+router.put("/dmaic/workspace", async (req, res): Promise<void> => {
+  const body = SaveDmaicWorkspaceBody.safeParse(req.body);
+  if (!body.success) {
+    req.log.warn({ errors: body.error.flatten() }, "Invalid DMAIC workspace save request");
+    res.status(400).json({ error: "Revise o problem statement e os campos do Project Charter." });
+    return;
+  }
+
+  const projectCharterContext = {
+    ...body.data.projectCharterContext,
+    date: body.data.projectCharterContext.date.toISOString().slice(0, 10),
+  };
+
+  try {
+    const [workspace] = await db
+      .insert(dmaicWorkspaces)
+      .values({
+        projectKey: ACTIVE_WORKSPACE_KEY,
+        problemStatement: body.data.problemStatement,
+        projectCharterContext,
+      })
+      .onConflictDoUpdate({
+        target: dmaicWorkspaces.projectKey,
+        set: {
+          problemStatement: body.data.problemStatement,
+          projectCharterContext,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+
+    const payload = GetDmaicWorkspaceResponse.safeParse(serializeWorkspace(workspace));
+    if (!payload.success) {
+      req.log.error({ errors: payload.error.flatten() }, "Saved DMAIC workspace has an invalid shape");
+      res.status(500).json({ error: "O workspace foi salvo, mas não pôde ser confirmado." });
+      return;
+    }
+    req.log.info("DMAIC workspace saved");
+    res.json(payload.data);
+  } catch (error) {
+    req.log.error({ error }, "Failed to save DMAIC workspace");
+    res.status(500).json({ error: "Não foi possível salvar no Neon. Tente novamente." });
+  }
+});
 
 router.post("/dmaic/pipeline", async (req, res): Promise<void> => {
   const body = RunDmaicPipelineBody.safeParse(req.body);

@@ -44,6 +44,24 @@ export interface DmaicPipelineInput {
   projectCharterContext?: DmaicCharterContext;
 }
 
+export interface DmaicWorkspaceInput {
+  /**
+     * @minLength 10
+     * @maxLength 4000
+     */
+  problemStatement: string;
+  projectCharterContext: DmaicCharterContext;
+}
+
+export interface DmaicWorkspace {
+  projectKey: string;
+  hasSavedData: boolean;
+  problemStatement: string;
+  projectCharterContext: DmaicCharterContext;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DmaicCharter {
   projectTitle: string;
   problemStatement: string;

@@ -22,6 +22,8 @@ import type {
 import type {
   DmaicPipeline,
   DmaicPipelineInput,
+  DmaicWorkspace,
+  DmaicWorkspaceInput,
   HealthStatus
 } from './api.schemas';
 
@@ -200,5 +202,155 @@ export const useRunDmaicPipeline = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRunDmaicPipelineMutationOptions(options));
+    }
+
+export const getGetDmaicWorkspaceUrl = () => {
+
+
+
+
+  return `/api/dmaic/workspace`
+}
+
+/**
+ * Loads the persisted Project Charter and problem statement for the active workspace.
+ * @summary Load the active DMAIC workspace
+ */
+export const getDmaicWorkspace = async ( options?: Parameters<typeof customFetch>[1]): Promise<DmaicWorkspace> => {
+
+  return customFetch<DmaicWorkspace>(getGetDmaicWorkspaceUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDmaicWorkspaceQueryKey = () => {
+    return [
+    `/api/dmaic/workspace`
+    ] as const;
+    }
+
+
+export const getGetDmaicWorkspaceQueryOptions = <TData = Awaited<ReturnType<typeof getDmaicWorkspace>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDmaicWorkspace>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDmaicWorkspaceQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDmaicWorkspace>>> = ({ signal }) => getDmaicWorkspace({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDmaicWorkspace>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDmaicWorkspaceQueryResult = NonNullable<Awaited<ReturnType<typeof getDmaicWorkspace>>>
+export type GetDmaicWorkspaceQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Load the active DMAIC workspace
+ */
+
+export function useGetDmaicWorkspace<TData = Awaited<ReturnType<typeof getDmaicWorkspace>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDmaicWorkspace>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDmaicWorkspaceQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveDmaicWorkspaceUrl = () => {
+
+
+
+
+  return `/api/dmaic/workspace`
+}
+
+/**
+ * Persists the Project Charter and problem statement in Neon Postgres.
+ * @summary Save the active DMAIC workspace
+ */
+export const saveDmaicWorkspace = async (dmaicWorkspaceInput: DmaicWorkspaceInput, options?: Parameters<typeof customFetch>[1]): Promise<DmaicWorkspace> => {
+
+  return customFetch<DmaicWorkspace>(getSaveDmaicWorkspaceUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(dmaicWorkspaceInput)
+  }
+);}
+
+
+
+
+
+export const getSaveDmaicWorkspaceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDmaicWorkspace>>, TError,{data: BodyType<DmaicWorkspaceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveDmaicWorkspace>>, TError,{data: BodyType<DmaicWorkspaceInput>}, TContext> => {
+
+const mutationKey = ['saveDmaicWorkspace'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveDmaicWorkspace>>, {data: BodyType<DmaicWorkspaceInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveDmaicWorkspace(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveDmaicWorkspaceMutationResult = NonNullable<Awaited<ReturnType<typeof saveDmaicWorkspace>>>
+    export type SaveDmaicWorkspaceMutationBody = BodyType<DmaicWorkspaceInput>
+    export type SaveDmaicWorkspaceMutationError = ErrorType<void>
+
+    /**
+ * @summary Save the active DMAIC workspace
+ */
+export const useSaveDmaicWorkspace = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDmaicWorkspace>>, TError,{data: BodyType<DmaicWorkspaceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveDmaicWorkspace>>,
+        TError,
+        {data: BodyType<DmaicWorkspaceInput>},
+        TContext
+      > => {
+      return useMutation(getSaveDmaicWorkspaceMutationOptions(options));
     }
 
