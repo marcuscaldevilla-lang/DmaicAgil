@@ -27,7 +27,30 @@ export const runDmaicPipelineBodyProblemStatementMax = 4000;
 
 
 export const RunDmaicPipelineBody = zod.object({
-  "problemStatement": zod.string().min(runDmaicPipelineBodyProblemStatementMin).max(runDmaicPipelineBodyProblemStatementMax)
+  "problemStatement": zod.string().min(runDmaicPipelineBodyProblemStatementMin).max(runDmaicPipelineBodyProblemStatementMax),
+  "projectCharterContext": zod.object({
+  "projectName": zod.string(),
+  "client": zod.string(),
+  "area": zod.string(),
+  "leader": zod.string(),
+  "sponsor": zod.string(),
+  "date": zod.coerce.date(),
+  "objective": zod.string(),
+  "history": zod.string(),
+  "goalDefinition": zod.string(),
+  "kpis": zod.string(),
+  "includedScope": zod.string(),
+  "excludedScope": zod.string(),
+  "assumptionsAndConstraints": zod.string(),
+  "team": zod.array(zod.object({
+  "role": zod.string(),
+  "name": zod.string(),
+  "position": zod.string(),
+  "areaCompany": zod.string()
+})),
+  "customerRequirements": zod.string(),
+  "businessContributions": zod.string()
+}).optional()
 })
 
 export const RunDmaicPipelineResponse = zod.object({

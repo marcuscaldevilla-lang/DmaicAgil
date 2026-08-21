@@ -9,12 +9,39 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface DmaicCharterTeamMember {
+  role: string;
+  name: string;
+  position: string;
+  areaCompany: string;
+}
+
+export interface DmaicCharterContext {
+  projectName: string;
+  client: string;
+  area: string;
+  leader: string;
+  sponsor: string;
+  date: string;
+  objective: string;
+  history: string;
+  goalDefinition: string;
+  kpis: string;
+  includedScope: string;
+  excludedScope: string;
+  assumptionsAndConstraints: string;
+  team: DmaicCharterTeamMember[];
+  customerRequirements: string;
+  businessContributions: string;
+}
+
 export interface DmaicPipelineInput {
   /**
      * @minLength 10
      * @maxLength 4000
      */
   problemStatement: string;
+  projectCharterContext?: DmaicCharterContext;
 }
 
 export interface DmaicCharter {

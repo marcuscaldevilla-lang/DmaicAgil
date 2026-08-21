@@ -26,7 +26,7 @@ Responda SOMENTE com JSON válido, sem markdown, seguindo exatamente esta estrut
   "controlPlan":[{"parameter":"","specification":"","measurementFreq":"","responsible":"","reactionPlan":""}],
   "standardizationSop":[{"procedureName":"","pokaYokeFeature":"","ocapTrigger":""}]
 }
-Use de 2 a 4 itens por lista. Todos os valores devem ser strings. Seja específico ao problema e realista, mas não invente dados apresentados como medidos; use hipóteses e propostas quando necessário.`;
+Use de 2 a 4 itens por lista. Todos os valores devem ser strings. Seja específico ao problema e realista, mas não invente dados apresentados como medidos; use hipóteses e propostas quando necessário. Quando houver contexto de Project Charter fornecido pela equipe, trate-o como fonte prioritária e reaproveite seus termos, metas, responsáveis e limites.`;
 
 function parseModelJson(value: string): unknown {
   const withoutFences = value
@@ -68,7 +68,7 @@ router.post("/dmaic/pipeline", async (req, res): Promise<void> => {
               role: "user",
               parts: [
                 {
-                  text: `${DMAIC_SYSTEM_PROMPT}\n\nProblema do projeto:\n${body.data.problemStatement}`,
+                  text: `${DMAIC_SYSTEM_PROMPT}\n\nProblema do projeto:\n${body.data.problemStatement}\n\nContexto preenchido no Project Charter:\n${body.data.projectCharterContext ? JSON.stringify(body.data.projectCharterContext, null, 2) : "Nenhum contexto adicional foi preenchido."}`,
                 },
               ],
             },

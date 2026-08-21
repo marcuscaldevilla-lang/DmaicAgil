@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { DmaicCharterContext } from './dmaicCharterContext';
 
 export interface DmaicPipelineInput {
   /**
@@ -12,4 +13,5 @@ export interface DmaicPipelineInput {
      * @maxLength 4000
      */
   problemStatement: string;
+  projectCharterContext?: DmaicCharterContext;
 }

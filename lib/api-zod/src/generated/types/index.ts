@@ -7,6 +7,8 @@
  */
 
 export * from './dmaicCharter';
+export * from './dmaicCharterContext';
+export * from './dmaicCharterTeamMember';
 export * from './dmaicIndicator';
 export * from './dmaicPipeline';
 export * from './dmaicPipelineInput';

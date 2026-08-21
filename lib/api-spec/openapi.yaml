@@ -66,6 +66,55 @@ components:
           type: string
           minLength: 10
           maxLength: 4000
+        projectCharterContext:
+          $ref: "#/components/schemas/DmaicCharterContext"
+    DmaicCharterTeamMember:
+      type: object
+      required: [role, name, position, areaCompany]
+      properties:
+        role: { type: string }
+        name: { type: string }
+        position: { type: string }
+        areaCompany: { type: string }
+    DmaicCharterContext:
+      type: object
+      required:
+        - projectName
+        - client
+        - area
+        - leader
+        - sponsor
+        - date
+        - objective
+        - history
+        - goalDefinition
+        - kpis
+        - includedScope
+        - excludedScope
+        - assumptionsAndConstraints
+        - team
+        - customerRequirements
+        - businessContributions
+      properties:
+        projectName: { type: string }
+        client: { type: string }
+        area: { type: string }
+        leader: { type: string }
+        sponsor: { type: string }
+        date: { type: string, format: date }
+        objective: { type: string }
+        history: { type: string }
+        goalDefinition: { type: string }
+        kpis: { type: string }
+        includedScope: { type: string }
+        excludedScope: { type: string }
+        assumptionsAndConstraints: { type: string }
+        team:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicCharterTeamMember"
+        customerRequirements: { type: string }
+        businessContributions: { type: string }
     DmaicCharter:
       type: object
       required: [projectTitle, problemStatement, businessCase, expectedSavings]
