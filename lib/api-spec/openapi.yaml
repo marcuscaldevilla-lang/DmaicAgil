@@ -179,6 +179,29 @@ components:
         problemStatement: { type: string }
         businessCase: { type: string }
         expectedSavings: { type: string }
+    DmaicGeneratedCharter:
+      type: object
+      description: Editable Project Charter suggestions generated from the problem statement.
+      required:
+        - objective
+        - history
+        - goalDefinition
+        - kpis
+        - includedScope
+        - excludedScope
+        - assumptionsAndConstraints
+        - customerRequirements
+        - businessContributions
+      properties:
+        objective: { type: string }
+        history: { type: string }
+        goalDefinition: { type: string }
+        kpis: { type: string }
+        includedScope: { type: string }
+        excludedScope: { type: string }
+        assumptionsAndConstraints: { type: string }
+        customerRequirements: { type: string }
+        businessContributions: { type: string }
     DmaicTeam:
       type: object
       required: [productOwner, scrumMaster, beltSquadMembers]
@@ -237,6 +260,7 @@ components:
     DmaicPipeline:
       type: object
       required:
+        - generatedCharter
         - projectCharter
         - teamSetup
         - vocCtq
@@ -253,6 +277,8 @@ components:
         - controlPlan
         - standardizationSop
       properties:
+        generatedCharter:
+          $ref: "#/components/schemas/DmaicGeneratedCharter"
         projectCharter:
           $ref: "#/components/schemas/DmaicCharter"
         teamSetup:

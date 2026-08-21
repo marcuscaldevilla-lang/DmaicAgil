@@ -54,6 +54,17 @@ export const RunDmaicPipelineBody = zod.object({
 })
 
 export const RunDmaicPipelineResponse = zod.object({
+  "generatedCharter": zod.object({
+  "objective": zod.string(),
+  "history": zod.string(),
+  "goalDefinition": zod.string(),
+  "kpis": zod.string(),
+  "includedScope": zod.string(),
+  "excludedScope": zod.string(),
+  "assumptionsAndConstraints": zod.string(),
+  "customerRequirements": zod.string(),
+  "businessContributions": zod.string()
+}).describe('Editable Project Charter suggestions generated from the problem statement.'),
   "projectCharter": zod.object({
   "projectTitle": zod.string(),
   "problemStatement": zod.string(),

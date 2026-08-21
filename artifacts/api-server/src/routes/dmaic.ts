@@ -15,6 +15,7 @@ const DMAIC_SYSTEM_PROMPT = `Você é um Master Black Belt especialista em Lean 
 Crie artefatos acionáveis em português do Brasil para um projeto DMAIC Ágil.
 Responda SOMENTE com JSON válido, sem markdown, seguindo exatamente esta estrutura:
 {
+  "generatedCharter":{"objective":"","history":"","goalDefinition":"","kpis":"","includedScope":"","excludedScope":"","assumptionsAndConstraints":"","customerRequirements":"","businessContributions":""},
   "projectCharter":{"projectTitle":"","problemStatement":"","businessCase":"","expectedSavings":""},
   "teamSetup":{"productOwner":"","scrumMaster":"","beltSquadMembers":""},
   "vocCtq":[{"vocNeed":"","issue":"","ctqMetric":""}],
@@ -31,7 +32,7 @@ Responda SOMENTE com JSON válido, sem markdown, seguindo exatamente esta estrut
   "controlPlan":[{"parameter":"","specification":"","measurementFreq":"","responsible":"","reactionPlan":""}],
   "standardizationSop":[{"procedureName":"","pokaYokeFeature":"","ocapTrigger":""}]
 }
-Use de 2 a 4 itens por lista. Todos os valores devem ser strings. Seja específico ao problema e realista, mas não invente dados apresentados como medidos; use hipóteses e propostas quando necessário. Quando houver contexto de Project Charter fornecido pela equipe, trate-o como fonte prioritária e reaproveite seus termos, metas, responsáveis e limites.`;
+Use de 2 a 4 itens por lista. Todos os valores devem ser strings. Em "generatedCharter", preencha todos os nove campos com sugestões diretamente derivadas do problema informado. Seja específico ao problema e realista, mas não invente dados apresentados como medidos; quando faltarem dados, formule hipóteses, limites e metas explicitamente como propostas para validação. Quando houver contexto de Project Charter fornecido pela equipe, trate-o como fonte prioritária e reaproveite seus termos, metas, responsáveis e limites.`;
 
 function parseModelJson(value: string): unknown {
   const withoutFences = value

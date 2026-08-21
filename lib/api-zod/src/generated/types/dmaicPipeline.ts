@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DmaicCharter } from './dmaicCharter';
+import type { DmaicGeneratedCharter } from './dmaicGeneratedCharter';
 import type { DmaicIndicator } from './dmaicIndicator';
 import type { DmaicPipelineIshikawa } from './dmaicPipelineIshikawa';
 import type { DmaicRow } from './dmaicRow';
@@ -15,6 +16,7 @@ import type { DmaicTeam } from './dmaicTeam';
 import type { DmaicVocCqt } from './dmaicVocCqt';
 
 export interface DmaicPipeline {
+  generatedCharter: DmaicGeneratedCharter;
   projectCharter: DmaicCharter;
   teamSetup: DmaicTeam;
   vocCtq: DmaicVocCqt[];

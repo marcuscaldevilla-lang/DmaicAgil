@@ -69,6 +69,21 @@ export interface DmaicCharter {
   expectedSavings: string;
 }
 
+/**
+ * Editable Project Charter suggestions generated from the problem statement.
+ */
+export interface DmaicGeneratedCharter {
+  objective: string;
+  history: string;
+  goalDefinition: string;
+  kpis: string;
+  includedScope: string;
+  excludedScope: string;
+  assumptionsAndConstraints: string;
+  customerRequirements: string;
+  businessContributions: string;
+}
+
 export interface DmaicTeam {
   productOwner: string;
   scrumMaster: string;
@@ -106,6 +121,7 @@ export interface DmaicRow {[key: string]: string}
 export type DmaicPipelineIshikawa = {[key: string]: string[]};
 
 export interface DmaicPipeline {
+  generatedCharter: DmaicGeneratedCharter;
   projectCharter: DmaicCharter;
   teamSetup: DmaicTeam;
   vocCtq: DmaicVocCqt[];
