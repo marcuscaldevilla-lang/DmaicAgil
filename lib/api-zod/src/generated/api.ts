@@ -247,3 +247,36 @@ export const SaveDmaicWorkspaceResponse = zod.object({
 })
 
 
+/**
+ * Generates a Gemini interpretation from the currently selected local indicator observations.
+ * @summary Generate an exploratory time-series diagnosis
+ */
+export const runDmaicExploratoryDiagnosisBodyIndicatorMax = 120;
+
+export const runDmaicExploratoryDiagnosisBodyTimeColumnMax = 120;
+
+export const runDmaicExploratoryDiagnosisBodyPointsItemPeriodMax = 120;
+
+export const runDmaicExploratoryDiagnosisBodyPointsMin = 2;
+export const runDmaicExploratoryDiagnosisBodyPointsMax = 240;
+
+
+
+export const RunDmaicExploratoryDiagnosisBody = zod.object({
+  "indicator": zod.string().min(1).max(runDmaicExploratoryDiagnosisBodyIndicatorMax),
+  "timeColumn": zod.string().max(runDmaicExploratoryDiagnosisBodyTimeColumnMax).optional(),
+  "points": zod.array(zod.object({
+  "period": zod.string().max(runDmaicExploratoryDiagnosisBodyPointsItemPeriodMax),
+  "value": zod.number()
+})).min(runDmaicExploratoryDiagnosisBodyPointsMin).max(runDmaicExploratoryDiagnosisBodyPointsMax)
+})
+
+export const runDmaicExploratoryDiagnosisResponseDiagnosisMax = 8000;
+
+
+
+export const RunDmaicExploratoryDiagnosisResponse = zod.object({
+  "diagnosis": zod.string().min(1).max(runDmaicExploratoryDiagnosisResponseDiagnosisMax)
+})
+
+

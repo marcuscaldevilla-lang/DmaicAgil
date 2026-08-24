@@ -3,6 +3,8 @@ import { eq } from "drizzle-orm";
 import { db, dmaicWorkspaces } from "@workspace/db";
 import {
   GetDmaicWorkspaceResponse,
+  RunDmaicExploratoryDiagnosisBody,
+  RunDmaicExploratoryDiagnosisResponse,
   RunDmaicPipelineBody,
   RunDmaicPipelineResponse,
   SaveDmaicWorkspaceBody,
@@ -33,6 +35,31 @@ Responda SOMENTE com JSON válido, sem markdown, seguindo exatamente esta estrut
   "standardizationSop":[{"procedureName":"","pokaYokeFeature":"","ocapTrigger":""}]
 }
 Use de 2 a 4 itens por lista. Todos os valores devem ser strings. Em "generatedCharter", preencha todos os nove campos com sugestões diretamente derivadas do problema informado. Seja específico ao problema e realista, mas não invente dados apresentados como medidos; quando faltarem dados, formule hipóteses, limites e metas explicitamente como propostas para validação. Quando houver contexto de Project Charter fornecido pela equipe, trate-o como fonte prioritária e reaproveite seus termos, metas, responsáveis e limites.`;
+
+const EXPLORATORY_SYSTEM_PROMPT = `Você é um Master Black Belt em Lean Six Sigma.
+Analise a série temporal fornecida em português do Brasil e escreva um diagnóstico técnico curto e didático.
+Avalie tendência de alta ou baixa, estabilidade, saltos, possíveis ciclos e pontos que merecem investigação.
+Interprete o comportamento ao longo dos períodos sem afirmar causalidade ou inventar fatos.
+Use de 2 a 4 parágrafos, sem markdown e sem repetir toda a tabela.`;
+
+const DIAGNOSIS_WINDOW_MS = 10 * 60 * 1000;
+const DIAGNOSIS_MAX_REQUESTS_PER_WINDOW = 6;
+const diagnosisRequests = new Map<string, { count: number; windowStartedAt: number }>();
+
+function canGenerateExploratoryDiagnosis(clientKey: string): boolean {
+  const now = Date.now();
+  for (const [key, record] of diagnosisRequests) {
+    if (now - record.windowStartedAt >= DIAGNOSIS_WINDOW_MS) diagnosisRequests.delete(key);
+  }
+  const current = diagnosisRequests.get(clientKey);
+  if (!current || now - current.windowStartedAt >= DIAGNOSIS_WINDOW_MS) {
+    diagnosisRequests.set(clientKey, { count: 1, windowStartedAt: now });
+    return true;
+  }
+  if (current.count >= DIAGNOSIS_MAX_REQUESTS_PER_WINDOW) return false;
+  current.count += 1;
+  return true;
+}
 
 function parseModelJson(value: string): unknown {
   const withoutFences = value
@@ -153,6 +180,91 @@ router.put("/dmaic/workspace", async (req, res): Promise<void> => {
   } catch (error) {
     req.log.error({ error }, "Failed to save DMAIC workspace");
     res.status(500).json({ error: "Não foi possível salvar no Neon. Tente novamente." });
+  }
+});
+
+router.post("/dmaic/exploratory-diagnosis", async (req, res): Promise<void> => {
+  const body = RunDmaicExploratoryDiagnosisBody.safeParse(req.body);
+  if (!body.success) {
+    req.log.warn({ errors: body.error.flatten() }, "Invalid exploratory diagnosis request");
+    res.status(400).json({ error: "Informe um indicador e pelo menos duas observações numéricas." });
+    return;
+  }
+
+  const clientKey = req.ip || req.socket.remoteAddress || "unknown";
+  if (!canGenerateExploratoryDiagnosis(clientKey)) {
+    req.log.warn({ clientKey }, "Exploratory diagnosis rate limit reached");
+    res.status(429).json({ error: "Você atingiu o limite temporário de diagnósticos. Aguarde alguns minutos antes de tentar novamente." });
+    return;
+  }
+
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    req.log.error("GOOGLE_API_KEY is not configured");
+    res.status(503).json({ error: "A integração Gemini ainda não está configurada." });
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  text: `${EXPLORATORY_SYSTEM_PROMPT}\n\nIndicador: ${body.data.indicator}\nColuna temporal: ${body.data.timeColumn ?? "não informada"}\nSérie selecionada em ordem cronológica:\n${JSON.stringify(body.data.points)}`,
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 1200,
+          },
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const details = await response.text();
+      req.log.error(
+        { status: response.status, details: details.slice(0, 500) },
+        "Gemini exploratory diagnosis request failed",
+      );
+      res.status(502).json({ error: "Não foi possível gerar o diagnóstico agora. Tente novamente." });
+      return;
+    }
+
+    const payload = (await response.json()) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    const diagnosis = payload.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    if (!diagnosis) {
+      req.log.error("Gemini returned no exploratory diagnosis");
+      res.status(502).json({ error: "O diagnóstico retornou uma resposta vazia. Tente novamente." });
+      return;
+    }
+
+    const parsed = RunDmaicExploratoryDiagnosisResponse.safeParse({ diagnosis });
+    if (!parsed.success) {
+      req.log.error({ errors: parsed.error.flatten() }, "Gemini returned an invalid exploratory diagnosis");
+      res.status(502).json({ error: "O diagnóstico ficou incompleto. Tente novamente." });
+      return;
+    }
+
+    req.log.info("DMAIC exploratory diagnosis generated");
+    res.json(parsed.data);
+  } catch (error) {
+    req.log.error({ error }, "Failed to generate exploratory diagnosis");
+    res.status(502).json({ error: "Ocorreu um erro ao gerar o diagnóstico. Tente novamente." });
   }
 });
 

@@ -84,6 +84,33 @@ paths:
           description: Invalid workspace data
         "500":
           description: Workspace persistence failed
+  /dmaic/exploratory-diagnosis:
+    post:
+      operationId: runDmaicExploratoryDiagnosis
+      tags: [dmaic]
+      summary: Generate an exploratory time-series diagnosis
+      description: Generates a Gemini interpretation from the currently selected local indicator observations.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DmaicExploratoryDiagnosisInput"
+      responses:
+        "200":
+          description: Exploratory diagnosis generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DmaicExploratoryDiagnosis"
+        "400":
+          description: Invalid exploratory analysis data
+        "429":
+          description: Exploratory diagnosis rate limit reached
+        "503":
+          description: Gemini integration is not configured
+        "502":
+          description: AI generation failed
 components:
   schemas:
     HealthStatus:
@@ -103,6 +130,29 @@ components:
           maxLength: 4000
         projectCharterContext:
           $ref: "#/components/schemas/DmaicCharterContext"
+    DmaicExploratoryPoint:
+      type: object
+      required: [period, value]
+      properties:
+        period: { type: string, maxLength: 120 }
+        value: { type: number }
+    DmaicExploratoryDiagnosisInput:
+      type: object
+      required: [indicator, points]
+      properties:
+        indicator: { type: string, minLength: 1, maxLength: 120 }
+        timeColumn: { type: string, maxLength: 120 }
+        points:
+          type: array
+          minItems: 2
+          maxItems: 240
+          items:
+            $ref: "#/components/schemas/DmaicExploratoryPoint"
+    DmaicExploratoryDiagnosis:
+      type: object
+      required: [diagnosis]
+      properties:
+        diagnosis: { type: string, minLength: 1, maxLength: 8000 }
     DmaicCharterTeamMember:
       type: object
       required: [role, name, position, areaCompany]

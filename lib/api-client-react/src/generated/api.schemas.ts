@@ -44,6 +44,35 @@ export interface DmaicPipelineInput {
   projectCharterContext?: DmaicCharterContext;
 }
 
+export interface DmaicExploratoryPoint {
+  /** @maxLength 120 */
+  period: string;
+  value: number;
+}
+
+export interface DmaicExploratoryDiagnosisInput {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  indicator: string;
+  /** @maxLength 120 */
+  timeColumn?: string;
+  /**
+     * @minItems 2
+     * @maxItems 240
+     */
+  points: DmaicExploratoryPoint[];
+}
+
+export interface DmaicExploratoryDiagnosis {
+  /**
+     * @minLength 1
+     * @maxLength 8000
+     */
+  diagnosis: string;
+}
+
 /**
  * Editable Project Charter suggestions generated from the problem statement.
  */

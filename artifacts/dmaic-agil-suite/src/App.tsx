@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { type DmaicPipeline, useGetDmaicWorkspace, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
+import { type DmaicPipeline, useGetDmaicWorkspace, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -80,6 +80,9 @@ type InputDataset = { fileName: string; headers: string[]; rows: Record<string, 
 type ContinuousAnalysis = { kind: 'continuous'; indicator: string; rows: number; values: number[]; mean: number; median: number; minimum: number; maximum: number; standardDeviation: number; normality: string; normalityDetail: string };
 type DiscreteAnalysis = { kind: 'discrete'; indicator: string; rows: number; categoryCount: number; topCategory: string; topCategoryCount: number; distribution: { label: string; count: number; percentage: number }[] };
 type IndicatorAnalysis = ContinuousAnalysis | DiscreteAnalysis;
+type ExploratoryPoint = { period: string; value: number };
+type ExploratorySummary = { points: ExploratoryPoint[]; minimum: number; q1: number; median: number; q3: number; maximum: number; iqr: number; mean: number };
+const DIAGNOSIS_POINT_LIMIT = 240;
 
 const createProjectCharterDraft = (): ProjectCharterDraft => ({
   projectName: '',
@@ -406,6 +409,44 @@ function summarizeIndicator(dataset: InputDataset, indicator: string, months: nu
   return { kind: 'discrete', indicator, rows: rawValues.length, categoryCount: counts.size, topCategory: topCategory?.label ?? 'Sem dados', topCategoryCount: topCategory?.count ?? 0, distribution };
 }
 
+function percentile(sorted: number[], proportion: number): number {
+  if (!sorted.length) return 0;
+  const position = (sorted.length - 1) * proportion;
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  if (lower === upper) return sorted[lower];
+  return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
+}
+
+function formatExploratoryPeriod(row: Record<string, string>, dataset: InputDataset, index: number): string {
+  const rawDate = dataset.dateColumn ? row[dataset.dateColumn] : '';
+  const date = rawDate ? parseDateValue(rawDate) : null;
+  if (!date) return `Observação ${index + 1}`;
+  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: '2-digit', timeZone: 'UTC' }).format(date).replace('.', '');
+}
+
+function buildExploratorySummary(dataset: InputDataset, analysis: IndicatorAnalysis, months: number): ExploratorySummary | null {
+  if (analysis.kind !== 'continuous') return null;
+  const points = rowsForLastMonths(dataset, months)
+    .map((row, index) => {
+      const value = parseNumericValue(row[analysis.indicator]);
+      return value === null ? null : { period: formatExploratoryPeriod(row, dataset, index), value };
+    })
+    .filter((point): point is ExploratoryPoint => point !== null);
+  if (!points.length) return null;
+  const values = points.map((point) => point.value);
+  const sorted = [...values].sort((a, b) => a - b);
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const q1 = percentile(sorted, 0.25);
+  const q3 = percentile(sorted, 0.75);
+  return { points, minimum: sorted[0], q1, median: percentile(sorted, 0.5), q3, maximum: sorted[sorted.length - 1], iqr: q3 - q1, mean };
+}
+
+function samplePointsForDiagnosis(points: ExploratoryPoint[]): ExploratoryPoint[] {
+  if (points.length <= DIAGNOSIS_POINT_LIMIT) return points;
+  return Array.from({ length: DIAGNOSIS_POINT_LIMIT }, (_, index) => points[Math.round((index * (points.length - 1)) / (DIAGNOSIS_POINT_LIMIT - 1))]);
+}
+
 function IconBadge({ icon: Icon, tone = 'primary' }: { icon: LucideIcon; tone?: 'primary' | 'accent' | 'chart-3' | 'chart-4' }) {
   const toneClasses = { primary: 'bg-primary/10 text-primary', accent: 'bg-accent/15 text-accent-foreground', 'chart-3': 'bg-chart-3/10 text-chart-3', 'chart-4': 'bg-chart-4/10 text-chart-4' };
   return <span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${toneClasses[tone]}`}><Icon size={17} strokeWidth={1.8} /></span>;
@@ -542,6 +583,102 @@ function SprintView({ area, onOpenTool, onChangeVital, vitalId, inputDataset, in
   </div>;
 }
 
+function ExploratoryLineChart({ summary, indicator }: { summary: ExploratorySummary; indicator: string }) {
+  const width = 700;
+  const height = 230;
+  const padding = { top: 18, right: 18, bottom: 34, left: 48 };
+  const values = summary.points.map((point) => point.value);
+  const minimum = Math.min(...values, summary.mean);
+  const maximum = Math.max(...values, summary.mean);
+  const range = Math.max(maximum - minimum, 1);
+  const xFor = (index: number) => padding.left + (index / Math.max(values.length - 1, 1)) * (width - padding.left - padding.right);
+  const yFor = (value: number) => padding.top + (1 - (value - minimum) / range) * (height - padding.top - padding.bottom);
+  const points = values.map((value, index) => `${xFor(index)},${yFor(value)}`).join(' ');
+  const labels = [0, Math.floor((values.length - 1) / 2), values.length - 1].filter((value, index, list) => list.indexOf(value) === index);
+  return <div data-testid="chart-exploratory-time-series" className="rounded-xl border border-border bg-card p-3">
+    <div className="mb-3 flex items-center justify-between gap-3"><div><p className="mono-label text-chart-3">Série temporal</p><h4 className="mt-1 text-sm font-bold">{indicator} ao longo do período</h4></div><span className="mono-label text-muted-foreground">{summary.points.length} pontos</span></div>
+    <svg viewBox={`0 0 ${width} ${height}`} className="h-auto w-full overflow-visible" role="img" aria-label={`Série temporal de ${indicator}`}>
+      <line x1={padding.left} x2={width - padding.right} y1={yFor(summary.mean)} y2={yFor(summary.mean)} stroke="hsl(var(--accent))" strokeDasharray="5 5" />
+      <polyline fill="none" stroke="hsl(var(--chart-3))" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" points={points} />
+      {summary.points.map((point, index) => <circle key={`${point.period}-${index}`} cx={xFor(index)} cy={yFor(point.value)} r="3.8" fill="hsl(var(--chart-3))"><title>{`${point.period}: ${formatMetric(point.value)}`}</title></circle>)}
+      <text x={width - padding.right} y={yFor(summary.mean) - 7} textAnchor="end" className="fill-accent-foreground text-[10px]">média {formatMetric(summary.mean)}</text>
+      {labels.map((index) => <text key={index} x={xFor(index)} y={height - 8} textAnchor={index === 0 ? 'start' : index === values.length - 1 ? 'end' : 'middle'} className="fill-muted-foreground text-[10px]">{summary.points[index].period}</text>)}
+    </svg>
+  </div>;
+}
+
+function ExploratoryBoxPlot({ summary, indicator }: { summary: ExploratorySummary; indicator: string }) {
+  const width = 420;
+  const height = 250;
+  const plotTop = 22;
+  const plotBottom = 220;
+  const range = Math.max(summary.maximum - summary.minimum, 1);
+  const yFor = (value: number) => plotBottom - ((value - summary.minimum) / range) * (plotBottom - plotTop);
+  const x = 150;
+  return <div data-testid="chart-exploratory-boxplot" className="rounded-xl border border-border bg-card p-3">
+    <div className="mb-3"><p className="mono-label text-primary">Distribuição</p><h4 className="mt-1 text-sm font-bold">Boxplot de {indicator}</h4></div>
+    <svg viewBox={`0 0 ${width} ${height + 26}`} className="h-auto w-full" role="img" aria-label={`Boxplot de ${indicator}`}>
+      <line x1={x} x2={x} y1={yFor(summary.minimum)} y2={yFor(summary.maximum)} stroke="hsl(var(--primary))" strokeWidth="2" />
+      <line x1={x - 25} x2={x + 25} y1={yFor(summary.minimum)} y2={yFor(summary.minimum)} stroke="hsl(var(--primary))" strokeWidth="2" />
+      <line x1={x - 25} x2={x + 25} y1={yFor(summary.maximum)} y2={yFor(summary.maximum)} stroke="hsl(var(--primary))" strokeWidth="2" />
+      <rect x={x - 42} y={yFor(summary.q3)} width="84" height={Math.max(yFor(summary.q1) - yFor(summary.q3), 3)} rx="6" fill="hsl(var(--primary) / .18)" stroke="hsl(var(--primary))" strokeWidth="2" />
+      <line x1={x - 42} x2={x + 42} y1={yFor(summary.median)} y2={yFor(summary.median)} stroke="hsl(var(--accent))" strokeWidth="3" />
+      {[['Máximo', summary.maximum], ['Q3', summary.q3], ['Mediana', summary.median], ['Q1', summary.q1], ['Mínimo', summary.minimum]].map(([label, value]) => <text key={String(label)} x={x + 58} y={yFor(Number(value)) + 4} className="fill-muted-foreground text-[10px]">{label} · {formatMetric(Number(value))}</text>)}
+    </svg>
+  </div>;
+}
+
+function ExploratoryAnalysisPanel({ dataset, analysis, months }: { dataset: InputDataset; analysis: IndicatorAnalysis; months: number }) {
+  const summary = buildExploratorySummary(dataset, analysis, months);
+  const diagnosisMutation = useRunDmaicExploratoryDiagnosis();
+  const diagnosisPoints = summary ? samplePointsForDiagnosis(summary.points) : [];
+  const diagnosisIsSampled = diagnosisPoints.length < (summary?.points.length ?? 0);
+  const analysisKey = `${dataset.fileName}:${analysis.indicator}:${months}:${summary?.points.map((point) => `${point.period}:${point.value}`).join('|') ?? ''}`;
+  useEffect(() => {
+    diagnosisMutation.reset();
+  }, [analysisKey]);
+
+  if (analysis.kind !== 'continuous' || !summary) {
+    return <section data-testid="panel-exploratory-analysis" className="mt-5 rounded-xl border border-amber-500/25 bg-amber-500/5 p-5">
+      <div className="flex items-start gap-3"><Info size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="mono-label text-amber-700">Análise exploratória</p><h3 className="mt-1 font-serif text-lg font-bold">Série temporal & estatística descritiva</h3><p className="mt-2 text-xs leading-relaxed text-muted-foreground">Esta leitura exige um indicador numérico contínuo. Para indicadores categóricos, use a distribuição e o Pareto acima.</p></div></div>
+    </section>;
+  }
+
+  const runDiagnosis = () => diagnosisMutation.mutate({
+    data: {
+      indicator: analysis.indicator,
+      timeColumn: dataset.dateColumn ?? undefined,
+      points: diagnosisPoints,
+    },
+  });
+  return <section data-testid="panel-exploratory-analysis" className="mt-5 rounded-xl border border-primary/15 bg-primary/5 p-5">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div><p className="mono-label text-primary">Análise exploratória</p><h3 className="mt-1 font-serif text-xl font-bold">Análise Exploratória & Estatística Descritiva</h3><p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-muted-foreground">Leitura da série atual, calculada localmente a partir de {summary.points.length} observações de <strong>{analysis.indicator}</strong>.</p></div>
+      <StatusPill tone="green">Dados do CSV · local</StatusPill>
+    </div>
+    <div className="mt-5 grid gap-3 xl:grid-cols-[1.35fr_.85fr]"><ExploratoryLineChart summary={summary} indicator={analysis.indicator} /><ExploratoryBoxPlot summary={summary} indicator={analysis.indicator} /></div>
+    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      {[
+        ['Mínimo', summary.minimum, 'stat-exploratory-minimum'],
+        ['Q1 · 25%', summary.q1, 'stat-exploratory-q1'],
+        ['Mediana', summary.median, 'stat-exploratory-median'],
+        ['Q3 · 75%', summary.q3, 'stat-exploratory-q3'],
+        ['Máximo', summary.maximum, 'stat-exploratory-maximum'],
+        ['IQR', summary.iqr, 'stat-exploratory-iqr'],
+      ].map(([label, value, testId]) => <div key={String(label)} data-testid={String(testId)} className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">{label}</p><p className="mt-1 font-mono text-sm font-bold">{formatMetric(Number(value))}</p></div>)}
+    </div>
+    <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      <div data-testid="text-exploratory-lower-interpretation" className="rounded-xl border border-border bg-background p-4"><p className="text-xs font-bold">25% inferiores</p><p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">A região entre {formatMetric(summary.minimum)} e {formatMetric(summary.q1)} representa aproximadamente o quarto inferior das observações.</p></div>
+      <div data-testid="text-exploratory-upper-interpretation" className="rounded-xl border border-border bg-background p-4"><p className="text-xs font-bold">25% superiores</p><p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">A região entre {formatMetric(summary.q3)} e {formatMetric(summary.maximum)} representa aproximadamente o quarto superior das observações.</p></div>
+    </div>
+    <div className="mt-4 rounded-xl border border-primary/20 bg-background p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="mono-label text-primary">Diagnóstico opcional</p><p className="mt-1 text-xs text-muted-foreground">Peça ao Gemini uma leitura de tendência, estabilidade, ciclos e saltos da série selecionada.</p>{diagnosisIsSampled && <p className="mt-1 text-[11px] text-muted-foreground">Para manter a leitura focada, o Gemini recebe uma amostra cronológica de {DIAGNOSIS_POINT_LIMIT} pontos; os gráficos e estatísticas usam todas as {summary.points.length} observações.</p>}</div><Button testId="button-generate-exploratory-diagnosis" onClick={runDiagnosis} disabled={diagnosisMutation.isPending || diagnosisPoints.length < 2} variant="outline">{diagnosisMutation.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}{diagnosisMutation.isPending ? 'Analisando...' : 'Gerar diagnóstico Gemini'}</Button></div>
+      {diagnosisMutation.isError && <p data-testid="status-exploratory-diagnosis-error" className="mt-3 rounded-lg bg-destructive/5 p-3 text-xs text-destructive">{diagnosisMutation.error instanceof Error ? diagnosisMutation.error.message.replace(/^HTTP \d+ [^:]+:\s*/, '') : 'Não foi possível obter o diagnóstico textual agora. A análise estatística local continua disponível.'}</p>}
+      {diagnosisMutation.data?.diagnosis && <div data-testid="text-exploratory-diagnosis" className="mt-4 border-t border-border pt-4 text-sm leading-relaxed text-muted-foreground"><p className="mb-2 text-xs font-bold text-foreground">Leitura do comportamento da série</p>{diagnosisMutation.data.diagnosis.split(/\n{2,}/).map((paragraph, index) => <p key={index} className="mb-2 last:mb-0">{paragraph}</p>)}</div>}
+    </div>
+  </section>;
+}
+
 function InputDataPanel({ dataset, analysis, error, months, onMonthsChange, selectedIndicator, onIndicatorChange, onUpload, inputRef }: { dataset: InputDataset | null; analysis: IndicatorAnalysis | null; error: string | null; months: number; onMonthsChange: (months: number) => void; selectedIndicator: string; onIndicatorChange: (indicator: string) => void; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; inputRef: { current: HTMLInputElement | null } }) {
   return <section data-testid="panel-input-data" className="reveal-4 panel rounded-xl border-dashed p-5">
     <div className="flex flex-wrap items-start justify-between gap-4">
@@ -552,11 +689,12 @@ function InputDataPanel({ dataset, analysis, error, months, onMonthsChange, sele
     {dataset && <div className="mt-5 grid gap-3 rounded-xl border border-border bg-background/60 p-4 md:grid-cols-[1fr_150px]">
       <label className="block"><span className="mb-1.5 block text-[11px] font-bold text-muted-foreground">Indicador a analisar</span><select data-testid="select-analysis-indicator" value={selectedIndicator} onChange={(event) => onIndicatorChange(event.target.value)} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-xs font-bold outline-none focus:border-primary/60">{dataset.indicatorColumns.map((indicator) => <option key={indicator} value={indicator}>{indicator}</option>)}</select></label>
       <label className="block"><span className="mb-1.5 block text-[11px] font-bold text-muted-foreground">Últimos N meses</span><input data-testid="input-analysis-months" type="number" min="1" max="120" value={months} onChange={(event) => onMonthsChange(Math.min(120, Math.max(1, Number(event.target.value) || 1)))} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-xs font-bold outline-none focus:border-primary/60" /></label>
-    </div>}
+     </div>}
     {dataset && analysis && <div data-testid="panel-analysis-summary" className="mt-4 rounded-xl border border-primary/15 bg-primary/5 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="mono-label text-primary">Resumo do indicador</p><h4 className="mt-1 text-sm font-bold">{analysis.indicator}</h4></div><div className="flex items-center gap-2"><StatusPill tone="green">{analysis.kind === 'continuous' ? 'Contínuo' : 'Discreto'}</StatusPill><span data-testid="text-analysis-rows" className="mono-label text-muted-foreground">{analysis.rows} observações · {dataset.dateColumn ? `últimos ${months} meses` : 'sem coluna de período'}</span></div></div>
       {analysis.kind === 'continuous' ? <><div className="mt-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">{[['Média', analysis.mean, 'stat-analysis-mean'], ['Mediana', analysis.median, 'stat-analysis-median'], ['Mínimo', analysis.minimum, 'stat-analysis-min'], ['Máximo', analysis.maximum, 'stat-analysis-max'], ['Desvio-padrão', analysis.standardDeviation, 'stat-analysis-standard-deviation']].map(([label, value, testId]) => <div key={String(label)} data-testid={String(testId)} className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">{label}</p><p className="mt-1 font-mono text-sm font-bold">{formatMetric(Number(value))}</p></div>)}<div data-testid="stat-analysis-normality" className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Normalidade</p><p className={`mt-1 text-xs font-bold ${analysis.normality === 'Não normal' ? 'text-destructive' : 'text-primary'}`}>{analysis.normality}</p></div></div><p data-testid="text-analysis-normality-detail" className="mt-3 text-[11px] text-muted-foreground">{analysis.normalityDetail}</p></> : <><div className="mt-4 grid gap-2 sm:grid-cols-3"><div data-testid="stat-analysis-top-category" className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Categoria dominante</p><p className="mt-1 truncate text-sm font-bold">{analysis.topCategory}</p></div><div className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Ocorrências</p><p className="mt-1 font-mono text-sm font-bold">{analysis.topCategoryCount}</p></div><div className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Categorias</p><p className="mt-1 font-mono text-sm font-bold">{analysis.categoryCount}</p></div></div><div className="mt-4 space-y-2">{analysis.distribution.map((item) => <div key={item.label} className="grid grid-cols-[minmax(0,1fr)_48px] items-center gap-3 text-[11px]"><div><div className="mb-1 flex justify-between gap-2"><span className="truncate font-semibold">{item.label}</span><span className="mono-label text-muted-foreground">{item.percentage.toFixed(1)}%</span></div><div className="h-2 overflow-hidden rounded-r bg-muted"><div className="h-full rounded-r bg-accent" style={{ width: `${item.percentage}%` }} /></div></div><span className="text-right font-mono font-bold">{item.count}</span></div>)}</div><p className="mt-3 text-[11px] text-muted-foreground">Média, mediana, mínimo, máximo, desvio-padrão e normalidade não se aplicam a este indicador categórico.</p></>}
     </div>}
+     {dataset && analysis && <ExploratoryAnalysisPanel dataset={dataset} analysis={analysis} months={months} />}
     <p className="mt-4 text-[11px] text-muted-foreground"><Info size={13} className="mr-1 inline-block align-[-2px]" /> O arquivo é processado localmente no navegador. A coluna de data, quando identificada, define o recorte dos últimos N meses.</p>
   </section>;
 }

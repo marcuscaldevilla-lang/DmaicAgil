@@ -20,6 +20,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  DmaicExploratoryDiagnosis,
+  DmaicExploratoryDiagnosisInput,
   DmaicPipeline,
   DmaicPipelineInput,
   DmaicWorkspace,
@@ -352,5 +354,77 @@ export const useSaveDmaicWorkspace = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getSaveDmaicWorkspaceMutationOptions(options));
+    }
+
+export const getRunDmaicExploratoryDiagnosisUrl = () => {
+
+
+
+
+  return `/api/dmaic/exploratory-diagnosis`
+}
+
+/**
+ * Generates a Gemini interpretation from the currently selected local indicator observations.
+ * @summary Generate an exploratory time-series diagnosis
+ */
+export const runDmaicExploratoryDiagnosis = async (dmaicExploratoryDiagnosisInput: DmaicExploratoryDiagnosisInput, options?: Parameters<typeof customFetch>[1]): Promise<DmaicExploratoryDiagnosis> => {
+
+  return customFetch<DmaicExploratoryDiagnosis>(getRunDmaicExploratoryDiagnosisUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(dmaicExploratoryDiagnosisInput)
+  }
+);}
+
+
+
+
+
+export const getRunDmaicExploratoryDiagnosisMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runDmaicExploratoryDiagnosis>>, TError,{data: BodyType<DmaicExploratoryDiagnosisInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runDmaicExploratoryDiagnosis>>, TError,{data: BodyType<DmaicExploratoryDiagnosisInput>}, TContext> => {
+
+const mutationKey = ['runDmaicExploratoryDiagnosis'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runDmaicExploratoryDiagnosis>>, {data: BodyType<DmaicExploratoryDiagnosisInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  runDmaicExploratoryDiagnosis(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunDmaicExploratoryDiagnosisMutationResult = NonNullable<Awaited<ReturnType<typeof runDmaicExploratoryDiagnosis>>>
+    export type RunDmaicExploratoryDiagnosisMutationBody = BodyType<DmaicExploratoryDiagnosisInput>
+    export type RunDmaicExploratoryDiagnosisMutationError = ErrorType<void>
+
+    /**
+ * @summary Generate an exploratory time-series diagnosis
+ */
+export const useRunDmaicExploratoryDiagnosis = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runDmaicExploratoryDiagnosis>>, TError,{data: BodyType<DmaicExploratoryDiagnosisInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runDmaicExploratoryDiagnosis>>,
+        TError,
+        {data: BodyType<DmaicExploratoryDiagnosisInput>},
+        TContext
+      > => {
+      return useMutation(getRunDmaicExploratoryDiagnosisMutationOptions(options));
     }
 
