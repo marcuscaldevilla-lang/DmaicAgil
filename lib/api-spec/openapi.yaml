@@ -211,6 +211,10 @@ components:
         - team
         - customerRequirements
         - businessContributions
+        - businessContributionsQuantitative
+        - businessContributionsQualitative
+        - financialGainValue
+        - financialInformation
       properties:
         projectName: { type: string }
         client: { type: string }
@@ -231,6 +235,10 @@ components:
             $ref: "#/components/schemas/DmaicCharterTeamMember"
         customerRequirements: { type: string }
         businessContributions: { type: string }
+        businessContributionsQuantitative: { type: string }
+        businessContributionsQualitative: { type: string }
+        financialGainValue: { type: string }
+        financialInformation: { type: string }
     DmaicWorkspaceInput:
       type: object
       required: [problemStatement, projectCharterContext, aiCharterSuggestions, expectedRevision]
@@ -304,6 +312,9 @@ components:
         - assumptionsAndConstraints
         - customerRequirements
         - businessContributions
+        - businessContributionsQuantitative
+        - businessContributionsQualitative
+        - financialGainValue
       properties:
         objective: { type: string }
         history: { type: string }
@@ -314,6 +325,9 @@ components:
         assumptionsAndConstraints: { type: string }
         customerRequirements: { type: string }
         businessContributions: { type: string }
+        businessContributionsQuantitative: { type: string }
+        businessContributionsQualitative: { type: string }
+        financialGainValue: { type: string }
     DmaicTeam:
       type: object
       required: [productOwner, scrumMaster, beltSquadMembers]

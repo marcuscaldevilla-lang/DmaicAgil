@@ -24,4 +24,8 @@ export interface DmaicCharterContext {
   team: DmaicCharterTeamMember[];
   customerRequirements: string;
   businessContributions: string;
+  businessContributionsQuantitative: string;
+  businessContributionsQualitative: string;
+  financialGainValue: string;
+  financialInformation: string;
 }

@@ -19,4 +19,7 @@ export interface DmaicGeneratedCharter {
   assumptionsAndConstraints: string;
   customerRequirements: string;
   businessContributions: string;
+  businessContributionsQuantitative: string;
+  businessContributionsQualitative: string;
+  financialGainValue: string;
 }

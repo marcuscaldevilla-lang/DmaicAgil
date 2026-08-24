@@ -16,7 +16,7 @@ const DMAIC_SYSTEM_PROMPT = `Você é um Master Black Belt especialista em Lean 
 Crie artefatos acionáveis em português do Brasil para um projeto DMAIC Ágil.
 Responda SOMENTE com JSON válido, sem markdown, seguindo exatamente esta estrutura:
 {
-  "generatedCharter":{"objective":"","history":"","goalDefinition":"","kpis":"","includedScope":"","excludedScope":"","assumptionsAndConstraints":"","customerRequirements":"","businessContributions":""},
+  "generatedCharter":{"objective":"","history":"","goalDefinition":"","kpis":"","includedScope":"","excludedScope":"","assumptionsAndConstraints":"","customerRequirements":"","businessContributions":"","businessContributionsQuantitative":"","businessContributionsQualitative":"","financialGainValue":""},
   "projectCharter":{"projectTitle":"","problemStatement":"","businessCase":"","expectedSavings":""},
   "teamSetup":{"productOwner":"","scrumMaster":"","beltSquadMembers":""},
   "vocCtq":[{"vocNeed":"","issue":"","ctqMetric":""}],
@@ -33,7 +33,7 @@ Responda SOMENTE com JSON válido, sem markdown, seguindo exatamente esta estrut
   "controlPlan":[{"parameter":"","specification":"","measurementFreq":"","responsible":"","reactionPlan":""}],
   "standardizationSop":[{"procedureName":"","pokaYokeFeature":"","ocapTrigger":""}]
 }
-Use de 2 a 4 itens por lista. Todos os valores devem ser strings. Em "generatedCharter", preencha todos os nove campos com sugestões diretamente derivadas do problema informado. Seja específico ao problema e realista, mas não invente dados apresentados como medidos; quando faltarem dados, formule hipóteses, limites e metas explicitamente como propostas para validação. Quando houver contexto de Project Charter fornecido pela equipe, trate-o como fonte prioritária e reaproveite seus termos, metas, responsáveis e limites.`;
+Use de 2 a 4 itens por lista. Todos os valores devem ser strings. Em "generatedCharter", preencha todos os doze campos com sugestões diretamente derivadas do problema informado. As contribuições quantitativas, qualitativas e o ganho financeiro devem ser claramente tratados como estimativas/propostas para validação; nunca invente um valor financeiro confirmado. Também não invente economias, custos, receitas, ROI ou payback em nenhum outro campo. Se as informações financeiras coletadas não forem fornecidas, diga que o valor precisa ser validado com a fonte financeira responsável. O campo de informações financeiras coletadas é factual e pertence ao time, não à IA. Seja específico ao problema e realista, mas não invente dados apresentados como medidos; quando faltarem dados, formule hipóteses, limites e metas explicitamente como propostas para validação. Quando houver contexto de Project Charter fornecido pela equipe, trate-o como fonte prioritária e reaproveite seus termos, metas, responsáveis, limites e informações financeiras coletadas.`;
 
 const EXPLORATORY_SYSTEM_PROMPT = `Você é um Master Black Belt em Lean Six Sigma, com experiência em análise estatística aplicada.
 Elabore um diagnóstico detalhado em português do Brasil sobre a série temporal e as estatísticas fornecidas.
@@ -127,7 +127,52 @@ function emptyCharterContext() {
     team: [],
     customerRequirements: "",
     businessContributions: "",
+    businessContributionsQuantitative: "",
+    businessContributionsQualitative: "",
+    financialGainValue: "",
+    financialInformation: "",
   };
+}
+
+function normalizeCharterContext(context: unknown) {
+  const source = context && typeof context === "object" ? context as Record<string, unknown> : {};
+  return {
+    ...source,
+    businessContributions: typeof source.businessContributions === "string" ? source.businessContributions : "",
+    businessContributionsQuantitative: typeof source.businessContributionsQuantitative === "string" ? source.businessContributionsQuantitative : "",
+    businessContributionsQualitative: typeof source.businessContributionsQualitative === "string" ? source.businessContributionsQualitative : "",
+    financialGainValue: typeof source.financialGainValue === "string" ? source.financialGainValue : "",
+    financialInformation: typeof source.financialInformation === "string" ? source.financialInformation : "",
+  };
+}
+
+function normalizeGeneratedCharterSuggestions(suggestions: unknown, financialInformation: string | undefined) {
+  if (!suggestions || typeof suggestions !== "object") return suggestions;
+  const source = suggestions as Record<string, unknown>;
+  return {
+    ...source,
+    businessContributions: createBusinessContributionSuggestion("summary"),
+    businessContributionsQuantitative: createBusinessContributionSuggestion("quantitative"),
+    businessContributionsQualitative: createBusinessContributionSuggestion("qualitative"),
+    financialGainValue: createFinancialGainSuggestion(financialInformation),
+  };
+}
+
+export function createFinancialGainSuggestion(financialInformation: string | undefined): string {
+  if (!financialInformation?.trim()) {
+    return "Valor a validar com Financeiro. Não há informações financeiras coletadas suficientes para propor um ganho.";
+  }
+  return "Estimativa/proposta da IA para validação com Financeiro. Use exclusivamente as informações financeiras coletadas no Charter e confirme fonte, período, moeda, premissas e cálculo antes de registrar um valor.";
+}
+
+function createBusinessContributionSuggestion(kind: "summary" | "quantitative" | "qualitative"): string {
+  if (kind === "quantitative") {
+    return "Proposta da IA para validação: descreva impactos mensuráveis ligados à VOC, à meta e ao escopo. Registre qualquer impacto financeiro somente depois da validação com Financeiro.";
+  }
+  if (kind === "qualitative") {
+    return "Proposta da IA para validação: descreva ganhos não financeiros para cliente, operação, qualidade ou risco, sempre ligados à VOC e ao escopo.";
+  }
+  return "Proposta da IA para validação: relacione o benefício do projeto à VOC, à meta e ao escopo. Valores financeiros devem ser confirmados pelo time responsável.";
 }
 
 function parseProjectKey(value: unknown): number | null {
@@ -151,12 +196,13 @@ function serializeWorkspace(row?: typeof dmaicWorkspaces.$inferSelect) {
     };
   }
 
+  const projectCharterContext = normalizeCharterContext(row.projectCharterContext);
   return {
     projectKey: row.projectKey,
     hasSavedData: true,
     problemStatement: row.problemStatement,
-    projectCharterContext: row.projectCharterContext,
-    aiCharterSuggestions: row.aiCharterSuggestions,
+    projectCharterContext,
+    aiCharterSuggestions: normalizeGeneratedCharterSuggestions(row.aiCharterSuggestions, projectCharterContext.financialInformation),
     revision: row.revision,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -213,6 +259,10 @@ router.put("/dmaic/workspace", async (req, res): Promise<void> => {
     ...body.data.projectCharterContext,
     date: body.data.projectCharterContext.date.toISOString().slice(0, 10),
   };
+  const aiCharterSuggestions = normalizeGeneratedCharterSuggestions(
+    body.data.aiCharterSuggestions,
+    projectCharterContext.financialInformation,
+  );
   const expectedRevision = body.data.expectedRevision;
   const projectKey = body.data.projectKey;
   if (expectedRevision > 0 && !projectKey) {
@@ -224,7 +274,7 @@ router.put("/dmaic/workspace", async (req, res): Promise<void> => {
     const values = {
       problemStatement: body.data.problemStatement,
       projectCharterContext,
-      aiCharterSuggestions: body.data.aiCharterSuggestions,
+      aiCharterSuggestions,
     };
     let workspace: typeof dmaicWorkspaces.$inferSelect | undefined;
 
@@ -447,8 +497,24 @@ router.post("/dmaic/pipeline", async (req, res): Promise<void> => {
       return;
     }
 
+    const safePipeline = {
+      ...pipeline.data,
+      projectCharter: {
+        ...pipeline.data.projectCharter,
+        expectedSavings: createFinancialGainSuggestion(body.data.projectCharterContext?.financialInformation),
+        businessCase: "Caso de negócio a validar pela equipe. Relacione a VOC, a meta e o escopo; qualquer impacto financeiro depende de confirmação com Financeiro.",
+      },
+      generatedCharter: {
+        ...pipeline.data.generatedCharter,
+        financialGainValue: createFinancialGainSuggestion(body.data.projectCharterContext?.financialInformation),
+        businessContributions: createBusinessContributionSuggestion("summary"),
+        businessContributionsQuantitative: createBusinessContributionSuggestion("quantitative"),
+        businessContributionsQualitative: createBusinessContributionSuggestion("qualitative"),
+      },
+    };
+
     req.log.info("DMAIC pipeline generated");
-    res.json(pipeline.data);
+    res.json(safePipeline);
   } catch (error) {
     const cause = error instanceof Error && error.cause instanceof Error
       ? { name: error.cause.name, message: error.cause.message }

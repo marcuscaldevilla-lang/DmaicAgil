@@ -72,10 +72,14 @@ type ProjectCharterDraft = {
   team: Record<CharterTeamRole, CharterTeamMember>;
   customerRequirements: string;
   businessContributions: string;
+  businessContributionsQuantitative: string;
+  businessContributionsQualitative: string;
+  financialGainValue: string;
+  financialInformation: string;
 };
 type CharterTextField = Exclude<keyof ProjectCharterDraft, 'team'>;
 type ProjectCharterContext = Omit<ProjectCharterDraft, 'team'> & { team: Array<CharterTeamMember & { role: string }> };
-type GeneratedCharterFields = Pick<ProjectCharterDraft, 'objective' | 'history' | 'goalDefinition' | 'kpis' | 'includedScope' | 'excludedScope' | 'assumptionsAndConstraints' | 'customerRequirements' | 'businessContributions'>;
+type GeneratedCharterFields = Pick<ProjectCharterDraft, 'objective' | 'history' | 'goalDefinition' | 'kpis' | 'includedScope' | 'excludedScope' | 'assumptionsAndConstraints' | 'customerRequirements' | 'businessContributions' | 'businessContributionsQuantitative' | 'businessContributionsQualitative' | 'financialGainValue'>;
 type WorkspaceSaveSource = 'statement' | 'charter' | 'suggestions';
 type WorkspaceSaveData = { projectKey?: number; problemStatement: string; projectCharterContext: ProjectCharterContext; aiCharterSuggestions: GeneratedCharterFields | null };
 type WorkspaceSaveAttempt = { source: WorkspaceSaveSource; data: WorkspaceSaveData; charterToPersist?: ProjectCharterDraft; expectedRevision?: number };
@@ -98,8 +102,10 @@ type ExploratorySummary = { points: ExploratoryPoint[]; minimum: number; q1: num
 const DIAGNOSIS_POINT_LIMIT = 240;
 const WORKSPACE_DRAFT_STORAGE_KEY = 'dmaic-agil-suite.workspace-draft.v1';
 const DEFAULT_PROBLEM_STATEMENT = 'O tempo entre a entrada da solicitação e a aprovação do crédito varia de 8 a 31 minutos, gerando retrabalho e previsibilidade baixa para as agências no fechamento do mês.';
-const charterTextFields = ['projectName', 'client', 'area', 'leader', 'sponsor', 'date', 'objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions'] as const satisfies readonly CharterTextField[];
-const generatedCharterFields = ['objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions'] as const satisfies readonly (keyof GeneratedCharterFields)[];
+const charterTextFields = ['projectName', 'client', 'area', 'leader', 'sponsor', 'date', 'objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions', 'businessContributionsQuantitative', 'businessContributionsQualitative', 'financialGainValue', 'financialInformation'] as const satisfies readonly CharterTextField[];
+const legacyCharterTextFields = ['projectName', 'client', 'area', 'leader', 'sponsor', 'date', 'objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions'] as const;
+const generatedCharterFields = ['objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions', 'businessContributionsQuantitative', 'businessContributionsQualitative', 'financialGainValue'] as const satisfies readonly (keyof GeneratedCharterFields)[];
+const legacyGeneratedCharterFields = ['objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions'] as const;
 
 function getWorkspaceConflict(error: unknown): DmaicWorkspace | null {
   if (!error || typeof error !== 'object' || !('status' in error) || error.status !== 409 || !('data' in error)) return null;
@@ -132,6 +138,10 @@ const createProjectCharterDraft = (): ProjectCharterDraft => ({
   },
   customerRequirements: '',
   businessContributions: '',
+  businessContributionsQuantitative: '',
+  businessContributionsQualitative: '',
+  financialGainValue: '',
+  financialInformation: '',
 });
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -147,8 +157,12 @@ function parseProjectCharterDraft(value: unknown): ProjectCharterDraft | null {
   if (!isObject(value) || !isObject(value.team)) return null;
   const textValues = {} as Record<CharterTextField, string>;
   for (const field of charterTextFields) {
-    if (typeof value[field] !== 'string') return null;
-    textValues[field] = value[field];
+    if (typeof value[field] === 'string') {
+      textValues[field] = value[field];
+      continue;
+    }
+    if (legacyCharterTextFields.includes(field as typeof legacyCharterTextFields[number])) return null;
+    textValues[field] = '';
   }
   const leader = parseCharterTeamMember(value.team.leader);
   const sponsor = parseCharterTeamMember(value.team.sponsor);
@@ -163,8 +177,12 @@ function parseGeneratedCharterFields(value: unknown): GeneratedCharterFields | n
   if (!isObject(value)) return null;
   const fields = {} as GeneratedCharterFields;
   for (const field of generatedCharterFields) {
-    if (typeof value[field] !== 'string') return null;
-    fields[field] = value[field];
+    if (typeof value[field] === 'string') {
+      fields[field] = value[field];
+      continue;
+    }
+    if (legacyGeneratedCharterFields.includes(field as typeof legacyGeneratedCharterFields[number])) return null;
+    fields[field] = '';
   }
   return fields;
 }
@@ -686,7 +704,7 @@ function ProjectCharterForm({ charter, onFieldChange, onTeamChange, onSave, hasA
   ];
   return <section data-testid="section-project-charter" className="reveal-3 panel rounded-2xl p-5 sm:p-6">
     <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-5"><div><p className="mono-label text-primary">Contrato de projeto</p><h3 className="mt-2 font-serif text-xl font-bold">Project charter</h3><p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-muted-foreground">Registre o acordo de foco, resultado, fronteiras e pessoas antes de aprofundar a análise.</p></div><StatusPill tone={hasAiSuggestions ? 'green' : 'amber'}>{hasAiSuggestions ? 'Sugestões da IA · editáveis' : 'Preenchimento guiado'}</StatusPill></div>
-    {hasAiSuggestions && <div data-testid="status-charter-ai-suggestions" className="mt-5 flex gap-3 rounded-xl border border-primary/20 bg-primary/7 p-4 text-xs leading-relaxed"><Sparkles size={16} className="mt-0.5 shrink-0 text-primary" /><p><strong>Campos sugeridos pela IA.</strong> Objetivo, histórico, meta, KPIs, escopo, premissas, requisitos e contribuições foram propostos a partir do Problem statement. Revise, ajuste e salve o Charter quando estiver pronto.</p></div>}
+    {hasAiSuggestions && <div data-testid="status-charter-ai-suggestions" className="mt-5 flex gap-3 rounded-xl border border-primary/20 bg-primary/7 p-4 text-xs leading-relaxed"><Sparkles size={16} className="mt-0.5 shrink-0 text-primary" /><p><strong>Campos sugeridos pela IA.</strong> Objetivo, histórico, meta, KPIs, escopo, premissas, requisitos, contribuições e ganho financeiro são propostas para validação. As informações financeiras coletadas continuam sendo responsabilidade do time; revise, ajuste e salve o Charter quando estiver pronto.</p></div>}
     <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <CharterInput label="Projeto" value={charter.projectName} onChange={(value) => onFieldChange('projectName', value)} testId="input-charter-project-name" placeholder="Ex.: Redução de lead time" />
       <CharterInput label="Cliente" value={charter.client} onChange={(value) => onFieldChange('client', value)} testId="input-charter-client" placeholder="Ex.: Agências parceiras" />
@@ -713,7 +731,16 @@ function ProjectCharterForm({ charter, onFieldChange, onTeamChange, onSave, hasA
     </div>
     <div className="mt-5 grid gap-4 lg:grid-cols-2">
       <CharterTextarea label="Requisitos do cliente" value={charter.customerRequirements} onChange={(value) => onFieldChange('customerRequirements', value)} testId="textarea-charter-customer-requirements" rows={3} placeholder="Necessidades, critérios de aceitação e pontos inegociáveis para o cliente." />
-      <CharterTextarea label="Contribuições para o negócio" value={charter.businessContributions} onChange={(value) => onFieldChange('businessContributions', value)} testId="textarea-charter-business-contributions" rows={3} placeholder="Benefícios esperados: custo, receita, risco, qualidade, experiência ou capacidade." />
+      <CharterTextarea label="Contribuições para o negócio — resumo" value={charter.businessContributions} onChange={(value) => onFieldChange('businessContributions', value)} testId="textarea-charter-business-contributions" rows={3} placeholder="Como o projeto apoia o negócio, sempre conectado à VOC, à meta e ao escopo." />
+    </div>
+    <div data-testid="section-charter-business-value" className="mt-6 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+      <div className="mb-4"><p className="mono-label text-primary">Valor para o negócio</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Registre apenas impactos relacionados à VOC e ao escopo. Separe fatos coletados de estimativas; não invente valores financeiros que ainda não foram confirmados.</p></div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <CharterTextarea label="Contribuições quantitativas" value={charter.businessContributionsQuantitative} onChange={(value) => onFieldChange('businessContributionsQuantitative', value)} testId="textarea-charter-business-contributions-quantitative" rows={4} placeholder="Ex.: reduzir 20% do retrabalho, liberar 80 h/mês, elevar o atendimento de 82% para 92%." />
+        <CharterTextarea label="Contribuições qualitativas" value={charter.businessContributionsQualitative} onChange={(value) => onFieldChange('businessContributionsQualitative', value)} testId="textarea-charter-business-contributions-qualitative" rows={4} placeholder="Ex.: mais previsibilidade para o cliente, menor esforço operacional e decisão mais segura." />
+        <CharterTextarea label="Valor do ganho financeiro esperado" value={charter.financialGainValue} onChange={(value) => onFieldChange('financialGainValue', value)} testId="textarea-charter-financial-gain-value" rows={4} placeholder="Qual será o ganho se a meta for alcançada? Informe valor estimado, moeda e período; marque como estimativa quando aplicável." />
+        <CharterTextarea label="Informações financeiras coletadas" value={charter.financialInformation} onChange={(value) => onFieldChange('financialInformation', value)} testId="textarea-charter-financial-information" rows={4} placeholder="Base da estimativa ou valor confirmado: fonte, período, moeda, volume, custo unitário, premissas e responsável pela validação. Este campo não é preenchido pela IA." />
+      </div>
     </div>
     <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><p className="text-[11px] text-muted-foreground"><Info size={13} className="mr-1 inline-block align-[-2px]" /> Ao salvar, o conteúdo fica no Neon e será enviado ao Gemini como contexto ao iniciar o pipeline.</p><Button testId="button-save-charter" onClick={onSave} variant="outline"><Save size={14} /> Salvar charter</Button></div>
   </section>;
