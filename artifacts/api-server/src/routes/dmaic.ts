@@ -46,6 +46,8 @@ Considere que os gráficos e estatísticas podem conter todas as observações, 
 const DIAGNOSIS_WINDOW_MS = 10 * 60 * 1000;
 const DIAGNOSIS_MAX_REQUESTS_PER_WINDOW = 6;
 const diagnosisRequests = new Map<string, { count: number; windowStartedAt: number }>();
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+const RETRYABLE_GEMINI_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
 
 function completeDiagnosisText(value: string): string {
   const text = value.trim();
@@ -68,6 +70,34 @@ function canGenerateExploratoryDiagnosis(clientKey: string): boolean {
   if (current.count >= DIAGNOSIS_MAX_REQUESTS_PER_WINDOW) return false;
   current.count += 1;
   return true;
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function requestGemini(apiKey: string, body: unknown): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch(GEMINI_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(60_000),
+      });
+      if (response.ok || !RETRYABLE_GEMINI_STATUS_CODES.has(response.status) || attempt === 1) return response;
+      await response.body?.cancel();
+    } catch (error) {
+      lastError = error;
+      if (attempt === 1) throw error;
+    }
+    await wait(800);
+  }
+  throw lastError instanceof Error ? lastError : new Error("Gemini request could not be completed.");
 }
 
 function parseModelJson(value: string): unknown {
@@ -256,15 +286,7 @@ router.post("/dmaic/exploratory-diagnosis", async (req, res): Promise<void> => {
   }
 
   try {
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
+    const response = await requestGemini(apiKey, {
           contents: [
             {
               role: "user",
@@ -279,9 +301,7 @@ router.post("/dmaic/exploratory-diagnosis", async (req, res): Promise<void> => {
             temperature: 0.2,
             maxOutputTokens: 4096,
           },
-        }),
-      },
-    );
+        });
 
     if (!response.ok) {
       const details = await response.text();
@@ -316,7 +336,18 @@ router.post("/dmaic/exploratory-diagnosis", async (req, res): Promise<void> => {
     req.log.info("DMAIC exploratory diagnosis generated");
     res.json(parsed.data);
   } catch (error) {
-    req.log.error({ error }, "Failed to generate exploratory diagnosis");
+    const cause = error instanceof Error && error.cause instanceof Error
+      ? { name: error.cause.name, message: error.cause.message }
+      : undefined;
+    req.log.error(
+      {
+        err: error,
+        errorName: error instanceof Error ? error.name : undefined,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        cause,
+      },
+      "Failed to generate exploratory diagnosis",
+    );
     res.status(502).json({ error: "Ocorreu um erro ao gerar o diagnóstico. Tente novamente." });
   }
 });
@@ -337,15 +368,7 @@ router.post("/dmaic/pipeline", async (req, res): Promise<void> => {
   }
 
   try {
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
+    const response = await requestGemini(apiKey, {
           contents: [
             {
               role: "user",
@@ -361,9 +384,7 @@ router.post("/dmaic/pipeline", async (req, res): Promise<void> => {
             temperature: 0.25,
             maxOutputTokens: 8192,
           },
-        }),
-      },
-    );
+        });
 
     if (!response.ok) {
       const details = await response.text();
@@ -399,7 +420,18 @@ router.post("/dmaic/pipeline", async (req, res): Promise<void> => {
     req.log.info("DMAIC pipeline generated");
     res.json(pipeline.data);
   } catch (error) {
-    req.log.error({ error }, "Failed to generate DMAIC pipeline");
+    const cause = error instanceof Error && error.cause instanceof Error
+      ? { name: error.cause.name, message: error.cause.message }
+      : undefined;
+    req.log.error(
+      {
+        err: error,
+        errorName: error instanceof Error ? error.name : undefined,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        cause,
+      },
+      "Failed to generate DMAIC pipeline",
+    );
     res.status(502).json({ error: "Ocorreu um erro ao gerar o pipeline. Tente novamente." });
   }
 });

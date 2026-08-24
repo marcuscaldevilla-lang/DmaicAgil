@@ -1192,7 +1192,7 @@ function Workspace() {
           );
         },
         onError: () => {
-          setPipelineError('Não foi possível gerar o pipeline agora. Verifique a chave Gemini e tente novamente.');
+          setPipelineError('Não foi possível gerar o pipeline agora. A integração Gemini pode estar indisponível temporariamente; tente novamente em instantes.');
         },
         onSettled: () => setPipelineLoading(false),
       },
