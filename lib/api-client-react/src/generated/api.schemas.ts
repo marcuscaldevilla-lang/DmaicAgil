@@ -114,6 +114,11 @@ export interface DmaicGeneratedCharter {
 
 export interface DmaicWorkspaceInput {
   /**
+     * Numeric project code returned after the first save. Omit it when creating a new project.
+     * @minimum 1
+     */
+  projectKey?: number;
+  /**
      * @minLength 10
      * @maxLength 4000
      */
@@ -129,7 +134,8 @@ export interface DmaicWorkspaceInput {
 }
 
 export interface DmaicWorkspace {
-  projectKey: string;
+  /** Automatically generated numeric project code, or null before the first save. */
+  projectKey: number | null;
   hasSavedData: boolean;
   problemStatement: string;
   projectCharterContext: DmaicCharterContext;
@@ -207,4 +213,12 @@ export interface DmaicPipeline {
   controlPlan: DmaicRow[];
   standardizationSop: DmaicRow[];
 }
+
+export type GetDmaicWorkspaceParams = {
+/**
+ * Numeric project code to load. When omitted, the most recently updated project is returned.
+ * @minimum 1
+ */
+projectKey?: number;
+};
 

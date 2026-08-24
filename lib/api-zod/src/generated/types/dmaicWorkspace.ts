@@ -9,7 +9,8 @@ import type { DmaicCharterContext } from './dmaicCharterContext';
 import type { DmaicGeneratedCharter } from './dmaicGeneratedCharter';
 
 export interface DmaicWorkspace {
-  projectKey: string;
+  /** Automatically generated numeric project code, or null before the first save. */
+  projectKey: number | null;
   hasSavedData: boolean;
   problemStatement: string;
   projectCharterContext: DmaicCharterContext;

@@ -1,7 +1,7 @@
 import { integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 export const dmaicWorkspaces = pgTable("dmaic_workspaces", {
-  projectKey: text("project_key").primaryKey(),
+  projectKey: integer("project_key").generatedAlwaysAsIdentity().primaryKey(),
   problemStatement: text("problem_statement").notNull(),
   projectCharterContext: jsonb("project_charter_context").notNull(),
   aiCharterSuggestions: jsonb("ai_charter_suggestions"),

@@ -114,12 +114,20 @@ export const RunDmaicPipelineResponse = zod.object({
  * Loads the persisted Project Charter, problem statement, and any AI suggestions still awaiting review.
  * @summary Load the active DMAIC workspace
  */
+
+
+
+export const GetDmaicWorkspaceQueryParams = zod.object({
+  "projectKey": zod.coerce.number().min(1).optional().describe('Numeric project code to load. When omitted, the most recently updated project is returned.')
+})
+
+
 export const getDmaicWorkspaceResponseRevisionMin = 0;
 
 
 
 export const GetDmaicWorkspaceResponse = zod.object({
-  "projectKey": zod.string(),
+  "projectKey": zod.union([zod.number().min(1),zod.null()]).describe('Automatically generated numeric project code, or null before the first save.'),
   "hasSavedData": zod.boolean(),
   "problemStatement": zod.string(),
   "projectCharterContext": zod.object({
@@ -166,6 +174,7 @@ export const GetDmaicWorkspaceResponse = zod.object({
  * Persists the Project Charter, problem statement, and the review status of AI suggestions in Neon Postgres.
  * @summary Save the active DMAIC workspace
  */
+
 export const saveDmaicWorkspaceBodyProblemStatementMin = 10;
 export const saveDmaicWorkspaceBodyProblemStatementMax = 4000;
 
@@ -174,6 +183,7 @@ export const saveDmaicWorkspaceBodyExpectedRevisionMin = 0;
 
 
 export const SaveDmaicWorkspaceBody = zod.object({
+  "projectKey": zod.number().min(1).optional().describe('Numeric project code returned after the first save. Omit it when creating a new project.'),
   "problemStatement": zod.string().min(saveDmaicWorkspaceBodyProblemStatementMin).max(saveDmaicWorkspaceBodyProblemStatementMax),
   "projectCharterContext": zod.object({
   "projectName": zod.string(),
@@ -212,12 +222,13 @@ export const SaveDmaicWorkspaceBody = zod.object({
   "expectedRevision": zod.number().min(saveDmaicWorkspaceBodyExpectedRevisionMin).describe('Monotonic version returned by the last workspace read or save. Send 0 when creating the workspace for the first time.')
 })
 
+
 export const saveDmaicWorkspaceResponseRevisionMin = 0;
 
 
 
 export const SaveDmaicWorkspaceResponse = zod.object({
-  "projectKey": zod.string(),
+  "projectKey": zod.union([zod.number().min(1),zod.null()]).describe('Automatically generated numeric project code, or null before the first save.'),
   "hasSavedData": zod.boolean(),
   "problemStatement": zod.string(),
   "projectCharterContext": zod.object({

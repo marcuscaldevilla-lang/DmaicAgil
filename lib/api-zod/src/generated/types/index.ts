@@ -26,4 +26,5 @@ export * from './dmaicVocCqt';
 export * from './dmaicWorkspace';
 export * from './dmaicWorkspaceConflict';
 export * from './dmaicWorkspaceInput';
+export * from './getDmaicWorkspaceParams';
 export * from './healthStatus';

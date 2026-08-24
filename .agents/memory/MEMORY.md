@@ -2,3 +2,4 @@
 - [CSV input integrity](csv-input-integrity.md) — Select one delimiter per file and reject mismatched rows before analyzing Brazilian numeric data.
 - [OpenAPI Zod codegen](openapi-zod-codegen.md) — Avoid integer schemas until the generator no longer emits an incompatible Zod call.
 - [Local draft recovery](local-draft-recovery.md) — Local browser drafts must be compared against Neon revision, never auto-overwritten.
+- [DMAIC project codes](dmaic-project-codes.md) — Neon generates numeric project codes on first Problem Statement save; clients reuse the returned code.

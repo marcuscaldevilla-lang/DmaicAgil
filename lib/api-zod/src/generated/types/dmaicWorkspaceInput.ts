@@ -10,6 +10,11 @@ import type { DmaicGeneratedCharter } from './dmaicGeneratedCharter';
 
 export interface DmaicWorkspaceInput {
   /**
+     * Numeric project code returned after the first save. Omit it when creating a new project.
+     * @minimum 1
+     */
+  projectKey?: number;
+  /**
      * @minLength 10
      * @maxLength 4000
      */

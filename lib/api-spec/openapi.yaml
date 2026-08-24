@@ -55,6 +55,14 @@ paths:
       tags: [dmaic]
       summary: Load the active DMAIC workspace
       description: Loads the persisted Project Charter, problem statement, and any AI suggestions still awaiting review.
+      parameters:
+        - in: query
+          name: projectKey
+          description: Numeric project code to load. When omitted, the most recently updated project is returned.
+          required: false
+          schema:
+            type: number
+            minimum: 1
       responses:
         "200":
           description: Persisted workspace, or an empty workspace when none exists yet
@@ -227,6 +235,10 @@ components:
       type: object
       required: [problemStatement, projectCharterContext, aiCharterSuggestions, expectedRevision]
       properties:
+        projectKey:
+          description: Numeric project code returned after the first save. Omit it when creating a new project.
+          type: number
+          minimum: 1
         problemStatement:
           type: string
           minLength: 10
@@ -246,7 +258,12 @@ components:
       type: object
       required: [projectKey, hasSavedData, problemStatement, projectCharterContext, aiCharterSuggestions, revision, createdAt, updatedAt]
       properties:
-        projectKey: { type: string }
+        projectKey:
+          description: Automatically generated numeric project code, or null before the first save.
+          anyOf:
+            - type: number
+              minimum: 1
+            - type: "null"
         hasSavedData: { type: boolean }
         problemStatement: { type: string }
         projectCharterContext:

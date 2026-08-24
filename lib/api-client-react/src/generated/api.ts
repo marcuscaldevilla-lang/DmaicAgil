@@ -27,6 +27,7 @@ import type {
   DmaicWorkspace,
   DmaicWorkspaceConflict,
   DmaicWorkspaceInput,
+  GetDmaicWorkspaceParams,
   HealthStatus
 } from './api.schemas';
 
@@ -207,21 +208,28 @@ export const useRunDmaicPipeline = <TError = ErrorType<void>,
       return useMutation(getRunDmaicPipelineMutationOptions(options));
     }
 
-export const getGetDmaicWorkspaceUrl = () => {
+export const getGetDmaicWorkspaceUrl = (params?: GetDmaicWorkspaceParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/dmaic/workspace`
+  return stringifiedParams.length > 0 ? `/api/dmaic/workspace?${stringifiedParams}` : `/api/dmaic/workspace`
 }
 
 /**
  * Loads the persisted Project Charter, problem statement, and any AI suggestions still awaiting review.
  * @summary Load the active DMAIC workspace
  */
-export const getDmaicWorkspace = async ( options?: Parameters<typeof customFetch>[1]): Promise<DmaicWorkspace> => {
+export const getDmaicWorkspace = async (params?: GetDmaicWorkspaceParams, options?: Parameters<typeof customFetch>[1]): Promise<DmaicWorkspace> => {
 
-  return customFetch<DmaicWorkspace>(getGetDmaicWorkspaceUrl(),
+  return customFetch<DmaicWorkspace>(getGetDmaicWorkspaceUrl(params),
   {
     ...options,
     method: 'GET'
@@ -234,23 +242,23 @@ export const getDmaicWorkspace = async ( options?: Parameters<typeof customFetch
 
 
 
-export const getGetDmaicWorkspaceQueryKey = () => {
+export const getGetDmaicWorkspaceQueryKey = (params?: GetDmaicWorkspaceParams,) => {
     return [
-    `/api/dmaic/workspace`
+    `/api/dmaic/workspace`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetDmaicWorkspaceQueryOptions = <TData = Awaited<ReturnType<typeof getDmaicWorkspace>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDmaicWorkspace>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetDmaicWorkspaceQueryOptions = <TData = Awaited<ReturnType<typeof getDmaicWorkspace>>, TError = ErrorType<unknown>>(params?: GetDmaicWorkspaceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDmaicWorkspace>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetDmaicWorkspaceQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetDmaicWorkspaceQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDmaicWorkspace>>> = ({ signal }) => getDmaicWorkspace({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDmaicWorkspace>>> = ({ signal }) => getDmaicWorkspace(params, { signal, ...requestOptions });
 
 
 
@@ -268,11 +276,11 @@ export type GetDmaicWorkspaceQueryError = ErrorType<unknown>
  */
 
 export function useGetDmaicWorkspace<TData = Awaited<ReturnType<typeof getDmaicWorkspace>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDmaicWorkspace>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetDmaicWorkspaceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDmaicWorkspace>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetDmaicWorkspaceQueryOptions(options)
+  const queryOptions = getGetDmaicWorkspaceQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
