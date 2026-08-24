@@ -6,12 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DmaicCharterContext } from './dmaicCharterContext';
+import type { DmaicGeneratedCharter } from './dmaicGeneratedCharter';
 
 export interface DmaicWorkspace {
   projectKey: string;
   hasSavedData: boolean;
   problemStatement: string;
   projectCharterContext: DmaicCharterContext;
+  /** AI-generated Charter content that remains pending team review, or null after confirmation. */
+  aiCharterSuggestions: DmaicGeneratedCharter | null;
   createdAt: Date;
   updatedAt: Date;
 }

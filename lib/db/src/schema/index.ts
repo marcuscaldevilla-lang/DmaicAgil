@@ -4,6 +4,7 @@ export const dmaicWorkspaces = pgTable("dmaic_workspaces", {
   projectKey: text("project_key").primaryKey(),
   problemStatement: text("problem_statement").notNull(),
   projectCharterContext: jsonb("project_charter_context").notNull(),
+  aiCharterSuggestions: jsonb("ai_charter_suggestions"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

@@ -44,31 +44,6 @@ export interface DmaicPipelineInput {
   projectCharterContext?: DmaicCharterContext;
 }
 
-export interface DmaicWorkspaceInput {
-  /**
-     * @minLength 10
-     * @maxLength 4000
-     */
-  problemStatement: string;
-  projectCharterContext: DmaicCharterContext;
-}
-
-export interface DmaicWorkspace {
-  projectKey: string;
-  hasSavedData: boolean;
-  problemStatement: string;
-  projectCharterContext: DmaicCharterContext;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface DmaicCharter {
-  projectTitle: string;
-  problemStatement: string;
-  businessCase: string;
-  expectedSavings: string;
-}
-
 /**
  * Editable Project Charter suggestions generated from the problem statement.
  */
@@ -82,6 +57,35 @@ export interface DmaicGeneratedCharter {
   assumptionsAndConstraints: string;
   customerRequirements: string;
   businessContributions: string;
+}
+
+export interface DmaicWorkspaceInput {
+  /**
+     * @minLength 10
+     * @maxLength 4000
+     */
+  problemStatement: string;
+  projectCharterContext: DmaicCharterContext;
+  /** AI-generated Charter content that remains pending team review. Send null when the Charter is confirmed. */
+  aiCharterSuggestions: DmaicGeneratedCharter | null;
+}
+
+export interface DmaicWorkspace {
+  projectKey: string;
+  hasSavedData: boolean;
+  problemStatement: string;
+  projectCharterContext: DmaicCharterContext;
+  /** AI-generated Charter content that remains pending team review, or null after confirmation. */
+  aiCharterSuggestions: DmaicGeneratedCharter | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DmaicCharter {
+  projectTitle: string;
+  problemStatement: string;
+  businessCase: string;
+  expectedSavings: string;
 }
 
 export interface DmaicTeam {

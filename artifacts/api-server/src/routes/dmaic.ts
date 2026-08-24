@@ -73,6 +73,7 @@ function serializeWorkspace(row?: typeof dmaicWorkspaces.$inferSelect) {
       hasSavedData: false,
       problemStatement: "",
       projectCharterContext: emptyCharterContext(),
+      aiCharterSuggestions: null,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     };
@@ -83,6 +84,7 @@ function serializeWorkspace(row?: typeof dmaicWorkspaces.$inferSelect) {
     hasSavedData: true,
     problemStatement: row.problemStatement,
     projectCharterContext: row.projectCharterContext,
+    aiCharterSuggestions: row.aiCharterSuggestions,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -127,12 +129,14 @@ router.put("/dmaic/workspace", async (req, res): Promise<void> => {
         projectKey: ACTIVE_WORKSPACE_KEY,
         problemStatement: body.data.problemStatement,
         projectCharterContext,
+        aiCharterSuggestions: body.data.aiCharterSuggestions,
       })
       .onConflictDoUpdate({
         target: dmaicWorkspaces.projectKey,
         set: {
           problemStatement: body.data.problemStatement,
           projectCharterContext,
+          aiCharterSuggestions: body.data.aiCharterSuggestions,
           updatedAt: new Date(),
         },
       })

@@ -213,7 +213,7 @@ export const getGetDmaicWorkspaceUrl = () => {
 }
 
 /**
- * Loads the persisted Project Charter and problem statement for the active workspace.
+ * Loads the persisted Project Charter, problem statement, and any AI suggestions still awaiting review.
  * @summary Load the active DMAIC workspace
  */
 export const getDmaicWorkspace = async ( options?: Parameters<typeof customFetch>[1]): Promise<DmaicWorkspace> => {
@@ -291,7 +291,7 @@ export const getSaveDmaicWorkspaceUrl = () => {
 }
 
 /**
- * Persists the Project Charter and problem statement in Neon Postgres.
+ * Persists the Project Charter, problem statement, and the review status of AI suggestions in Neon Postgres.
  * @summary Save the active DMAIC workspace
  */
 export const saveDmaicWorkspace = async (dmaicWorkspaceInput: DmaicWorkspaceInput, options?: Parameters<typeof customFetch>[1]): Promise<DmaicWorkspace> => {

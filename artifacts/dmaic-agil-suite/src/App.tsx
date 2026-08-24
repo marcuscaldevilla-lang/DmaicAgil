@@ -615,6 +615,7 @@ function DataNotes({ tool, pareto, imr, source }: { tool: Tool; pareto: { name: 
   return <div><p className="mono-label text-primary">Notas do método</p><h3 className="mt-2 font-serif text-lg font-bold">Como ler este resultado</h3><p className="mt-3 text-sm leading-relaxed text-muted-foreground">{source === 'upload' ? 'Esta visualização usa o indicador selecionado do CSV e é calculada localmente no navegador.' : 'Esta visualização usa dados de exemplo e cálculos executados localmente. Troque o arquivo no bloco de upload para explorar seu próprio processo sem enviar dados para um servidor.'}</p><div className="mt-5 space-y-3"><div className="rounded-xl border border-border p-4"><div className="flex gap-3"><Database size={16} className="mt-0.5 text-primary" /><div><p className="text-xs font-bold">Fonte</p><p className="mt-1 text-[11px] text-muted-foreground">{sourceDetail}</p></div></div></div><div className="rounded-xl border border-border p-4"><div className="flex gap-3"><ClipboardCheck size={16} className="mt-0.5 text-chart-3" /><div><p className="text-xs font-bold">Próxima pergunta</p><p className="mt-1 text-[11px] text-muted-foreground">O padrão se mantém quando o time muda o turno ou o volume de entrada?</p></div></div></div></div></div>;
 }
 
+// hint: Structural and logic conflict. Both design and behavior differ.
 function Workspace() {
   const pipelineMutation = useRunDmaicPipeline();
   const workspaceQuery = useGetDmaicWorkspace();
@@ -629,7 +630,8 @@ function Workspace() {
   const [workspaceHydrated, setWorkspaceHydrated] = useState(false);
   const [pipelineLoading, setPipelineLoading] = useState(false);
   const [pipelineDone, setPipelineDone] = useState(false);
-  const [charterSuggestedByAi, setCharterSuggestedByAi] = useState(false);
+  const [confirmedCharter, setConfirmedCharter] = useState<ProjectCharterDraft>(createProjectCharterDraft);
+  const [aiCharterSuggestions, setAiCharterSuggestions] = useState<GeneratedCharterFields | null>(null);
   const [pipelineData, setPipelineData] = useState<DmaicPipeline | null>(null);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
@@ -640,6 +642,8 @@ function Workspace() {
   const [csvError, setCsvError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const uploadVersionRef = useRef(0);
+  const charterReviewVersionRef = useRef(0);
+  const workspaceSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const displayArea = area === 'overview' ? 'overview' : area;
   const inputAnalysis = useMemo(() => inputDataset ? summarizeIndicator(inputDataset, selectedIndicator, analysisMonths) : null, [analysisMonths, inputDataset, selectedIndicator]);
   const pareto = useMemo(() => !inputDataset ? initialPareto : inputAnalysis?.kind === 'discrete' ? inputAnalysis.distribution.map((item) => ({ name: item.label, value: item.count })) : null, [inputAnalysis, inputDataset]);
@@ -649,25 +653,48 @@ function Workspace() {
     if (!workspaceQuery.data || workspaceHydrated) return;
     if (workspaceQuery.data.hasSavedData) {
       setStatement(workspaceQuery.data.problemStatement);
-      setCharter(toProjectCharterDraft(workspaceQuery.data.projectCharterContext));
+      const persistedCharter = toProjectCharterDraft(workspaceQuery.data.projectCharterContext);
+      const pendingSuggestions = workspaceQuery.data.aiCharterSuggestions;
+      setConfirmedCharter(persistedCharter);
+      setCharter(pendingSuggestions ? applyGeneratedCharterFields(persistedCharter, pendingSuggestions) : persistedCharter);
+      setAiCharterSuggestions(pendingSuggestions);
     }
     setWorkspaceHydrated(true);
   }, [workspaceHydrated, workspaceQuery.data]);
+
+  const queueWorkspaceSave = (
+    data: { problemStatement: string; projectCharterContext: ProjectCharterContext; aiCharterSuggestions: GeneratedCharterFields | null },
+    callbacks: { onSuccess?: () => void; onError: () => void },
+  ) => {
+    const queuedSave = workspaceSaveQueueRef.current
+      .catch(() => undefined)
+      .then(() => workspaceMutation.mutateAsync({ data }));
+    workspaceSaveQueueRef.current = queuedSave.then(() => undefined, () => undefined);
+    void queuedSave.then(() => callbacks.onSuccess?.()).catch(callbacks.onError);
+  };
 
   const saveWorkspace = (source: 'statement' | 'charter') => {
     if (statement.trim().length < 10) {
       setWorkspaceError('Descreva o problema com pelo menos 10 caracteres antes de salvar no Neon.');
       return;
     }
+    if (source === 'charter') charterReviewVersionRef.current += 1;
     setWorkspaceError(null);
-    workspaceMutation.mutate(
-      { data: { problemStatement: statement.trim(), projectCharterContext: toProjectCharterContext(charter) } },
+    const charterToPersist = source === 'charter' ? charter : confirmedCharter;
+    queueWorkspaceSave(
+      {
+        problemStatement: statement.trim(),
+        projectCharterContext: toProjectCharterContext(charterToPersist),
+        aiCharterSuggestions: source === 'charter' ? null : aiCharterSuggestions,
+      },
       {
         onSuccess: () => {
           if (source === 'statement') {
             setSaved(true);
             window.setTimeout(() => setSaved(false), 2200);
           } else {
+            setConfirmedCharter(charter);
+            setAiCharterSuggestions(null);
             setCharterSaved(true);
             window.setTimeout(() => setCharterSaved(false), 2200);
           }
@@ -691,6 +718,7 @@ function Workspace() {
     }
     setPipelineError(null);
     setPipelineLoading(true);
+    const generationReviewVersion = charterReviewVersionRef.current;
     pipelineMutation.mutate(
       {
         data: {
@@ -700,11 +728,25 @@ function Workspace() {
       },
       {
         onSuccess: (data) => {
+          if (generationReviewVersion !== charterReviewVersionRef.current) {
+            setPipelineError('O Charter foi confirmado durante a geração. Inicie o pipeline novamente para usar a versão revisada.');
+            return;
+          }
           setPipelineData(data);
           setCharter((current) => applyGeneratedCharterFields(current, data.generatedCharter));
-          setCharterSuggestedByAi(true);
+          setAiCharterSuggestions(data.generatedCharter);
           setPipelineDone(true);
           setArea('overview');
+          queueWorkspaceSave(
+            {
+              problemStatement: statement.trim(),
+              projectCharterContext: toProjectCharterContext(confirmedCharter),
+              aiCharterSuggestions: data.generatedCharter,
+            },
+            {
+              onError: () => setWorkspaceError('As sugestões foram geradas, mas não puderam ser protegidas no Neon. Salve o Charter para tentar novamente.'),
+            },
+          );
         },
         onError: () => {
           setPipelineError('Não foi possível gerar o pipeline agora. Verifique a chave Gemini e tente novamente.');
@@ -760,7 +802,7 @@ function Workspace() {
            {(workspaceError || workspaceQuery.isError) && <div data-testid="status-workspace-error" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive"><Info size={15} /><span>{workspaceError ?? 'Não foi possível carregar os dados salvos no Neon.'}</span></div>}
            {saved && <div data-testid="status-statement-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Mudança salva no Neon.</strong> O enunciado estará disponível ao reabrir este workspace.</span></div>}
            {charterSaved && <div data-testid="status-charter-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Project charter salvo no Neon.</strong> Essas informações serão carregadas ao reabrir este workspace e usadas como contexto na geração do pipeline.</span></div>}
-           {area === 'overview' ? <Overview statement={statement} setStatement={setStatement} onSave={saveStatement} charter={charter} onCharterChange={updateCharter} onTeamChange={updateCharterTeam} onSaveCharter={saveCharter} pipelineDone={pipelineDone} hasAiSuggestions={charterSuggestedByAi} onOpenArea={setArea} /> : <SprintView area={area} onOpenTool={openTool} onChangeVital={setVitalId} vitalId={vitalId} inputDataset={inputDataset} inputAnalysis={inputAnalysis} inputError={csvError} analysisMonths={analysisMonths} onAnalysisMonthsChange={setAnalysisMonths} selectedIndicator={selectedIndicator} onSelectedIndicatorChange={setSelectedIndicator} onUpload={handleUpload} inputRef={fileRef} />}
+           {area === 'overview' ? <Overview statement={statement} setStatement={setStatement} onSave={saveStatement} charter={charter} onCharterChange={updateCharter} onTeamChange={updateCharterTeam} onSaveCharter={saveCharter} pipelineDone={pipelineDone} hasAiSuggestions={Boolean(aiCharterSuggestions)} onOpenArea={setArea} /> : <SprintView area={area} onOpenTool={openTool} onChangeVital={setVitalId} vitalId={vitalId} inputDataset={inputDataset} inputAnalysis={inputAnalysis} inputError={csvError} analysisMonths={analysisMonths} onAnalysisMonthsChange={setAnalysisMonths} selectedIndicator={selectedIndicator} onSelectedIndicatorChange={setSelectedIndicator} onUpload={handleUpload} inputRef={fileRef} />}
             <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-[10px] text-muted-foreground"><span className="mono-label">DMAIC Ágil Suite · workspace no Neon</span><span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> {pipelineData ? 'artefatos gerados por IA · revise com o time' : 'dados de exemplo sinalizados · sem envio externo'}</span></footer>
         </div>
       </main>
@@ -768,6 +810,191 @@ function Workspace() {
      {selectedTool && <DetailDrawer tool={selectedTool} onClose={() => setSelectedTool(null)} pareto={pareto} imr={imr} inputAnalysis={inputAnalysis} hasInputDataset={Boolean(inputDataset)} csvError={csvError} onRetry={retryUpload} pipeline={pipelineData} />}
   </div>;
 }
+/*
+ * Alternative pre-rebase Workspace implementation retained temporarily while
+ * the active implementation above receives the Charter persistence changes.
+ * It is intentionally inactive.
+ */
+/*
+function Workspace() {
+  const pipelineMutation = useRunDmaicPipeline();
+  const workspaceQuery = useGetDmaicWorkspace();
+  const workspaceMutation = useSaveDmaicWorkspace();
+  const [area, setArea] = useState<Area>('overview');
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [statement, setStatement] = useState('O tempo entre a entrada da solicitação e a aprovação do crédito varia de 8 a 31 minutos, gerando retrabalho e previsibilidade baixa para as agências no fechamento do mês.');
+  const [saved, setSaved] = useState(false);
+  const [charter, setCharter] = useState<ProjectCharterDraft>(createProjectCharterDraft);
+  const [charterSaved, setCharterSaved] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [workspaceHydrated, setWorkspaceHydrated] = useState(false);
+  const [pipelineLoading, setPipelineLoading] = useState(false);
+  const [pipelineDone, setPipelineDone] = useState(false);
+  const [confirmedCharter, setConfirmedCharter] = useState<ProjectCharterDraft>(createProjectCharterDraft);
+  const [aiCharterSuggestions, setAiCharterSuggestions] = useState<GeneratedCharterFields | null>(null);
+  const [pipelineData, setPipelineData] = useState<DmaicPipeline | null>(null);
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
+  const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
+  const [vitalId, setVitalId] = useState('x1');
+  const [csvName, setCsvName] = useState<string | null>(null);
+  const [csvError, setCsvError] = useState<string | null>(null);
+  const [pareto, setPareto] = useState(initialPareto);
+  const [imr, setImr] = useState(initialImr);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const charterReviewVersionRef = useRef(0);
+  const workspaceSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const displayArea = area === 'overview' ? 'overview' : area;
+
+  useEffect(() => {
+    if (!workspaceQuery.data || workspaceHydrated) return;
+    if (workspaceQuery.data.hasSavedData) {
+      setStatement(workspaceQuery.data.problemStatement);
+      const persistedCharter = toProjectCharterDraft(workspaceQuery.data.projectCharterContext);
+      const pendingSuggestions = workspaceQuery.data.aiCharterSuggestions;
+      setConfirmedCharter(persistedCharter);
+      setCharter(pendingSuggestions ? applyGeneratedCharterFields(persistedCharter, pendingSuggestions) : persistedCharter);
+      setAiCharterSuggestions(pendingSuggestions);
+    }
+    setWorkspaceHydrated(true);
+  }, [workspaceHydrated, workspaceQuery.data]);
+
+  const queueWorkspaceSave = (
+    data: { problemStatement: string; projectCharterContext: ProjectCharterContext; aiCharterSuggestions: GeneratedCharterFields | null },
+    callbacks: { onSuccess?: () => void; onError: () => void },
+  ) => {
+    const queuedSave = workspaceSaveQueueRef.current
+      .catch(() => undefined)
+      .then(() => workspaceMutation.mutateAsync({ data }));
+    workspaceSaveQueueRef.current = queuedSave.then(() => undefined, () => undefined);
+    void queuedSave.then(() => callbacks.onSuccess?.()).catch(callbacks.onError);
+  };
+
+  const saveWorkspace = (source: 'statement' | 'charter') => {
+    if (statement.trim().length < 10) {
+      setWorkspaceError('Descreva o problema com pelo menos 10 caracteres antes de salvar no Neon.');
+      return;
+    }
+    if (source === 'charter') charterReviewVersionRef.current += 1;
+    setWorkspaceError(null);
+    const charterToPersist = source === 'charter' ? charter : confirmedCharter;
+    queueWorkspaceSave(
+      {
+        problemStatement: statement.trim(),
+        projectCharterContext: toProjectCharterContext(charterToPersist),
+        aiCharterSuggestions: source === 'charter' ? null : aiCharterSuggestions,
+      },
+      {
+        onSuccess: () => {
+          if (source === 'statement') {
+            setSaved(true);
+            window.setTimeout(() => setSaved(false), 2200);
+          } else {
+            setConfirmedCharter(charter);
+            setAiCharterSuggestions(null);
+            setCharterSaved(true);
+            window.setTimeout(() => setCharterSaved(false), 2200);
+          }
+        },
+        onError: () => setWorkspaceError('Não foi possível salvar no Neon. Confirme a conexão e tente novamente.'),
+      },
+    );
+  };
+  const saveStatement = () => saveWorkspace('statement');
+  const saveCharter = () => saveWorkspace('charter');
+  const updateCharter = (field: CharterTextField, value: string) => {
+    setCharter((current) => ({ ...current, [field]: value }));
+  };
+  const updateCharterTeam = (role: CharterTeamRole, field: keyof CharterTeamMember, value: string) => {
+    setCharter((current) => ({ ...current, team: { ...current.team, [role]: { ...current.team[role], [field]: value } } }));
+  };
+  const startPipeline = () => {
+    if (statement.trim().length < 10) {
+      setPipelineError('Descreva o problema com pelo menos 10 caracteres para iniciar o pipeline.');
+      return;
+    }
+    setPipelineError(null);
+    setPipelineLoading(true);
+    const generationReviewVersion = charterReviewVersionRef.current;
+    pipelineMutation.mutate(
+      {
+        data: {
+          problemStatement: statement.trim(),
+          projectCharterContext: toProjectCharterContext(charter),
+        },
+      },
+      {
+        onSuccess: (data) => {
+          if (generationReviewVersion !== charterReviewVersionRef.current) {
+            setPipelineError('O Charter foi confirmado durante a geração. Inicie o pipeline novamente para usar a versão revisada.');
+            return;
+          }
+          setPipelineData(data);
+          setCharter((current) => applyGeneratedCharterFields(current, data.generatedCharter));
+          setAiCharterSuggestions(data.generatedCharter);
+          setPipelineDone(true);
+          setArea('overview');
+          queueWorkspaceSave(
+            {
+              problemStatement: statement.trim(),
+              projectCharterContext: toProjectCharterContext(confirmedCharter),
+              aiCharterSuggestions: data.generatedCharter,
+            },
+            {
+              onError: () => setWorkspaceError('As sugestões foram geradas, mas não puderam ser protegidas no Neon. Salve o Charter para tentar novamente.'),
+            },
+          );
+        },
+        onError: () => {
+          setPipelineError('Não foi possível gerar o pipeline agora. Verifique a chave Gemini e tente novamente.');
+        },
+        onSettled: () => setPipelineLoading(false),
+      },
+    );
+  };
+  const handleUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setCsvError(null);
+    if (!file.name.toLowerCase().endsWith('.csv')) { setCsvError('Use um arquivo com extensão .csv para calcular as análises.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result ?? '');
+      const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      if (lines.length < 2) { setCsvError('O CSV precisa ter cabeçalho e pelo menos uma linha de dados.'); return; }
+      const rows = lines.slice(1).map((line) => line.split(/[;,]/).map((value) => value.trim()));
+      const numeric = rows.map((row) => Number(row.find((value) => value !== '' && !Number.isNaN(Number(value)))?.replace(',', '.'))).filter((value) => Number.isFinite(value));
+      if (numeric.length >= 3) setImr(numeric.slice(0, 40));
+      const counts = new Map<string, number>();
+      rows.forEach((row) => { const key = row.find((value) => value && Number.isNaN(Number(value))) ?? 'Categoria sem nome'; counts.set(key, (counts.get(key) ?? 0) + 1); });
+      if (counts.size > 0) setPareto(Array.from(counts.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8));
+      setCsvName(file.name);
+    };
+    reader.onerror = () => setCsvError('O navegador não conseguiu ler este arquivo. Tente exportar o CSV novamente.');
+    reader.readAsText(file);
+  };
+  const retryUpload = () => { setCsvError(null); fileRef.current?.click(); };
+  const openTool = (tool: Tool) => setSelectedTool(tool);
+  return <div className="flex min-h-[100dvh] bg-background text-foreground">
+    <Sidebar area={displayArea} setArea={setArea} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
+    {mobileOpen && <button data-testid="button-sidebar-overlay" aria-label="Fechar menu" className="fixed inset-0 z-20 bg-sidebar/30 lg:hidden" onClick={() => setMobileOpen(false)} />}
+    <div className="flex min-w-0 flex-1 flex-col"><Topbar area={displayArea} setMobileOpen={setMobileOpen} onStart={startPipeline} pipelineLoading={pipelineLoading} />
+      <main className="dmaic-grid flex-1 overflow-x-hidden px-5 py-7 sm:px-8 sm:py-9">
+        <div className="mx-auto max-w-[1240px]">
+           {pipelineLoading && <div data-testid="status-pipeline-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><RefreshCw size={15} className="animate-spin text-primary" /><span><strong>Montando seu caminho DMAIC...</strong> O Gemini está estruturando os entregáveis para a sessão.</span></div>}
+           {pipelineError && <div data-testid="status-pipeline-error" className="reveal mb-6 flex items-center justify-between gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive"><span>{pipelineError}</span><Button testId="button-retry-pipeline" onClick={startPipeline} variant="outline">Tentar novamente</Button></div>}
+           {workspaceQuery.isLoading && <div data-testid="status-workspace-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-border bg-muted/55 px-4 py-3 text-xs"><RefreshCw size={15} className="animate-spin text-primary" /><span>Carregando o Project Charter salvo...</span></div>}
+           {(workspaceError || workspaceQuery.isError) && <div data-testid="status-workspace-error" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive"><Info size={15} /><span>{workspaceError ?? 'Não foi possível carregar os dados salvos no Neon.'}</span></div>}
+           {saved && <div data-testid="status-statement-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Mudança salva no Neon.</strong> O enunciado estará disponível ao reabrir este workspace.</span></div>}
+           {charterSaved && <div data-testid="status-charter-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Project charter salvo no Neon.</strong> Essas informações serão carregadas ao reabrir este workspace e usadas como contexto na geração do pipeline.</span></div>}
+           {area === 'overview' ? <Overview statement={statement} setStatement={setStatement} onSave={saveStatement} charter={charter} onCharterChange={updateCharter} onTeamChange={updateCharterTeam} onSaveCharter={saveCharter} pipelineDone={pipelineDone} hasAiSuggestions={Boolean(aiCharterSuggestions)} onOpenArea={setArea} /> : <SprintView area={area} onOpenTool={openTool} onChangeVital={setVitalId} vitalId={vitalId} csvName={csvName} onUpload={handleUpload} inputRef={fileRef} />}
+            <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-[10px] text-muted-foreground"><span className="mono-label">DMAIC Ágil Suite · workspace no Neon</span><span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> {pipelineData ? 'artefatos gerados por IA · revise com o time' : 'dados de exemplo sinalizados · sem envio externo'}</span></footer>
+        </div>
+      </main>
+    </div>
+     {selectedTool && <DetailDrawer tool={selectedTool} onClose={() => setSelectedTool(null)} pareto={pareto} imr={imr} csvError={csvError} onRetry={retryUpload} pipeline={pipelineData} />}
+  </div>;
+}
+*/
 
 function Router() {
   return (

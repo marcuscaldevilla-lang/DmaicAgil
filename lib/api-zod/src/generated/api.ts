@@ -111,7 +111,7 @@ export const RunDmaicPipelineResponse = zod.object({
 
 
 /**
- * Loads the persisted Project Charter and problem statement for the active workspace.
+ * Loads the persisted Project Charter, problem statement, and any AI suggestions still awaiting review.
  * @summary Load the active DMAIC workspace
  */
 export const GetDmaicWorkspaceResponse = zod.object({
@@ -141,13 +141,24 @@ export const GetDmaicWorkspaceResponse = zod.object({
   "customerRequirements": zod.string(),
   "businessContributions": zod.string()
 }),
+  "aiCharterSuggestions": zod.union([zod.object({
+  "objective": zod.string(),
+  "history": zod.string(),
+  "goalDefinition": zod.string(),
+  "kpis": zod.string(),
+  "includedScope": zod.string(),
+  "excludedScope": zod.string(),
+  "assumptionsAndConstraints": zod.string(),
+  "customerRequirements": zod.string(),
+  "businessContributions": zod.string()
+}).describe('Editable Project Charter suggestions generated from the problem statement.'),zod.null()]).describe('AI-generated Charter content that remains pending team review, or null after confirmation.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
 
 
 /**
- * Persists the Project Charter and problem statement in Neon Postgres.
+ * Persists the Project Charter, problem statement, and the review status of AI suggestions in Neon Postgres.
  * @summary Save the active DMAIC workspace
  */
 export const saveDmaicWorkspaceBodyProblemStatementMin = 10;
@@ -179,7 +190,18 @@ export const SaveDmaicWorkspaceBody = zod.object({
 })),
   "customerRequirements": zod.string(),
   "businessContributions": zod.string()
-})
+}),
+  "aiCharterSuggestions": zod.union([zod.object({
+  "objective": zod.string(),
+  "history": zod.string(),
+  "goalDefinition": zod.string(),
+  "kpis": zod.string(),
+  "includedScope": zod.string(),
+  "excludedScope": zod.string(),
+  "assumptionsAndConstraints": zod.string(),
+  "customerRequirements": zod.string(),
+  "businessContributions": zod.string()
+}).describe('Editable Project Charter suggestions generated from the problem statement.'),zod.null()]).describe('AI-generated Charter content that remains pending team review. Send null when the Charter is confirmed.')
 })
 
 export const SaveDmaicWorkspaceResponse = zod.object({
@@ -209,6 +231,17 @@ export const SaveDmaicWorkspaceResponse = zod.object({
   "customerRequirements": zod.string(),
   "businessContributions": zod.string()
 }),
+  "aiCharterSuggestions": zod.union([zod.object({
+  "objective": zod.string(),
+  "history": zod.string(),
+  "goalDefinition": zod.string(),
+  "kpis": zod.string(),
+  "includedScope": zod.string(),
+  "excludedScope": zod.string(),
+  "assumptionsAndConstraints": zod.string(),
+  "customerRequirements": zod.string(),
+  "businessContributions": zod.string()
+}).describe('Editable Project Charter suggestions generated from the problem statement.'),zod.null()]).describe('AI-generated Charter content that remains pending team review, or null after confirmation.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
