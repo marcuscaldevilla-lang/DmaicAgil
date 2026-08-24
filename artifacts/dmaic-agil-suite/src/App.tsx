@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { type DmaicPipeline, useGetDmaicWorkspace, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -76,6 +76,10 @@ type ProjectCharterDraft = {
 type CharterTextField = Exclude<keyof ProjectCharterDraft, 'team'>;
 type ProjectCharterContext = Omit<ProjectCharterDraft, 'team'> & { team: Array<CharterTeamMember & { role: string }> };
 type GeneratedCharterFields = Pick<ProjectCharterDraft, 'objective' | 'history' | 'goalDefinition' | 'kpis' | 'includedScope' | 'excludedScope' | 'assumptionsAndConstraints' | 'customerRequirements' | 'businessContributions'>;
+type InputDataset = { fileName: string; headers: string[]; rows: Record<string, string>[]; dateColumn: string | null; indicatorColumns: string[] };
+type ContinuousAnalysis = { kind: 'continuous'; indicator: string; rows: number; values: number[]; mean: number; median: number; minimum: number; maximum: number; standardDeviation: number; normality: string; normalityDetail: string };
+type DiscreteAnalysis = { kind: 'discrete'; indicator: string; rows: number; categoryCount: number; topCategory: string; topCategoryCount: number; distribution: { label: string; count: number; percentage: number }[] };
+type IndicatorAnalysis = ContinuousAnalysis | DiscreteAnalysis;
 
 const createProjectCharterDraft = (): ProjectCharterDraft => ({
   projectName: '',
@@ -199,6 +203,209 @@ const initialPareto = [
 
 const initialImr = [42, 45, 43, 49, 46, 44, 47, 51, 50, 54, 48, 52, 53, 55, 51, 49, 56, 58, 54, 57, 60, 55, 53, 59];
 
+const formatMetric = (value: number) => {
+  const rounded = Math.round((value + Number.EPSILON) * 100) / 100;
+  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(rounded);
+};
+
+function detectCsvDelimiter(text: string): string {
+  const candidates = [';', ',', '\t'];
+  const counts = new Map(candidates.map((delimiter) => [delimiter, 0]));
+  let quoted = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === '"') {
+      if (quoted && text[index + 1] === '"') index += 1;
+      else quoted = !quoted;
+      continue;
+    }
+    if (!quoted && (character === '\n' || character === '\r')) break;
+    if (!quoted && counts.has(character)) counts.set(character, (counts.get(character) ?? 0) + 1);
+  }
+  const detected = candidates.map((delimiter) => ({ delimiter, count: counts.get(delimiter) ?? 0 })).sort((left, right) => right.count - left.count)[0];
+  if (!detected || detected.count < 1) throw new Error('Não foi possível identificar o separador do CSV. Use vírgula, ponto e vírgula ou tabulação.');
+  return detected.delimiter;
+}
+
+function parseCsvRecords(text: string, delimiter: string): string[][] {
+  const records: string[][] = [];
+  let record: string[] = [];
+  let field = '';
+  let quoted = false;
+  let closedQuote = false;
+  let fieldWasQuoted = false;
+  const finishField = () => {
+    record.push(field.trim());
+    field = '';
+    closedQuote = false;
+    fieldWasQuoted = false;
+  };
+  const finishRecord = () => {
+    if (record.length === 0 && field === '' && !fieldWasQuoted) return;
+    finishField();
+    records.push(record);
+    record = [];
+  };
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (quoted) {
+      if (character === '"') {
+        if (text[index + 1] === '"') {
+          field += '"';
+          index += 1;
+        } else {
+          quoted = false;
+          closedQuote = true;
+        }
+      } else if (character === '\r' && text[index + 1] === '\n') {
+        field += '\n';
+        index += 1;
+      } else {
+        field += character;
+      }
+      continue;
+    }
+    if (closedQuote) {
+      if (character === delimiter) {
+        finishField();
+      } else if (character === '\n') {
+        finishRecord();
+      } else if (character === '\r') {
+        if (text[index + 1] === '\n') index += 1;
+        finishRecord();
+      } else {
+        throw new Error('Há texto após uma aspa de fechamento. Confira as aspas do CSV.');
+      }
+      continue;
+    }
+    if (character === '"') {
+      if (field !== '') throw new Error('Há aspas fora do início de um campo. Confira as aspas do CSV.');
+      quoted = true;
+      fieldWasQuoted = true;
+    } else if (character === delimiter) {
+      finishField();
+    } else if (character === '\n') {
+      finishRecord();
+    } else if (character === '\r') {
+      if (text[index + 1] === '\n') index += 1;
+      finishRecord();
+    } else {
+      field += character;
+    }
+  }
+  if (quoted) throw new Error('Há aspas não fechadas no CSV. Corrija o arquivo antes de continuar.');
+  if (record.length > 0 || field !== '' || fieldWasQuoted || closedQuote) finishRecord();
+  return records;
+}
+
+function parseNumericValue(value: string): number | null {
+  const normalized = value.trim().replace(/\s/g, '').replace(/^R\$/i, '').replace(/%$/, '');
+  if (!normalized) return null;
+  let numberValue: number;
+  if (normalized.includes(',')) {
+    if (!/^-?(?:\d{1,3}(?:\.\d{3})+|\d+),\d+$/.test(normalized)) return null;
+    numberValue = Number(normalized.replace(/\./g, '').replace(',', '.'));
+  } else if (/^-?\d{1,3}(?:\.\d{3})+$/.test(normalized)) {
+    numberValue = Number(normalized.replace(/\./g, ''));
+  } else if (/^-?\d+(?:\.\d+)?$/.test(normalized)) {
+    numberValue = Number(normalized);
+  } else {
+    return null;
+  }
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function validUtcDate(year: number, month: number, day = 1): Date | null {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? date : null;
+}
+
+function parseDateValue(value: string): Date | null {
+  const normalized = value.trim();
+  if (!normalized) return null;
+  const yearMonth = normalized.match(/^(\d{4})[-/](\d{1,2})$/);
+  if (yearMonth) return validUtcDate(Number(yearMonth[1]), Number(yearMonth[2]));
+  const isoDate = normalized.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (isoDate) return validUtcDate(Number(isoDate[1]), Number(isoDate[2]), Number(isoDate[3]));
+  const brazilian = normalized.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})$/);
+  if (brazilian) {
+    const year = Number(brazilian[3]) < 100 ? Number(brazilian[3]) + 2000 : Number(brazilian[3]);
+    return validUtcDate(year, Number(brazilian[2]), Number(brazilian[1]));
+  }
+  return null;
+}
+
+function parseInputCsv(text: string, fileName: string): InputDataset {
+  const delimiter = detectCsvDelimiter(text);
+  const records = parseCsvRecords(text, delimiter);
+  if (records.length < 2) throw new Error('O CSV precisa ter cabeçalho e pelo menos uma linha de dados.');
+  const headers = records[0].map((header, index) => header || `Coluna ${index + 1}`);
+  const rows = records.slice(1).map((values, index) => {
+    if (values.length !== headers.length) {
+      throw new Error(`O registro ${index + 2} tem ${values.length} campos, mas o cabeçalho tem ${headers.length}. Confira o separador e as aspas do CSV.`);
+    }
+    return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
+  });
+  const dateColumn = headers.find((header) => {
+    const normalized = header.toLowerCase();
+    const namedDate = /data|date|mês|mes|month|período|period/.test(normalized);
+    const validDates = rows.filter((row) => parseDateValue(row[header]) !== null).length;
+    return validDates / rows.length >= 0.7 && (namedDate || validDates / rows.length >= 0.9);
+  }) ?? null;
+  const indicatorColumns = headers.filter((header) => header !== dateColumn && rows.some((row) => row[header] !== ''));
+  if (indicatorColumns.length === 0) throw new Error('Não encontrei colunas de indicadores no CSV.');
+  return { fileName, headers, rows, dateColumn, indicatorColumns };
+}
+
+function isContinuousIndicator(dataset: InputDataset, indicator: string): boolean {
+  const values = dataset.rows.map((row) => row[indicator]).filter(Boolean);
+  const numeric = values.map(parseNumericValue).filter((value): value is number => value !== null);
+  const normalized = indicator.toLowerCase();
+  const discreteHint = /id|código|codigo|categoria|tipo|status|flag|classe|class|faixa/.test(normalized);
+  return !discreteHint && numeric.length >= 2 && numeric.length / Math.max(values.length, 1) >= 0.8;
+}
+
+function rowsForLastMonths(dataset: InputDataset, months: number): Record<string, string>[] {
+  if (!dataset.dateColumn) return dataset.rows;
+  const datedRows = dataset.rows
+    .map((row) => ({ row, date: parseDateValue(row[dataset.dateColumn as string]) }))
+    .filter((entry): entry is { row: Record<string, string>; date: Date } => entry.date !== null);
+  if (!datedRows.length) return dataset.rows;
+  const latest = new Date(Math.max(...datedRows.map((entry) => entry.date.getTime())));
+  const cutoff = new Date(Date.UTC(latest.getUTCFullYear(), latest.getUTCMonth() - Math.max(months, 1) + 1, 1));
+  return datedRows.filter((entry) => entry.date >= cutoff).sort((left, right) => left.date.getTime() - right.date.getTime()).map((entry) => entry.row);
+}
+
+function summarizeIndicator(dataset: InputDataset, indicator: string, months: number): IndicatorAnalysis | null {
+  if (!indicator || !dataset.indicatorColumns.includes(indicator)) return null;
+  const rows = rowsForLastMonths(dataset, months);
+  const rawValues = rows.map((row) => row[indicator]).filter(Boolean);
+  if (isContinuousIndicator(dataset, indicator)) {
+    const values = rawValues.map(parseNumericValue).filter((value): value is number => value !== null);
+    if (!values.length) return null;
+    const ordered = [...values].sort((a, b) => a - b);
+    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+    const median = ordered.length % 2 === 0 ? (ordered[ordered.length / 2 - 1] + ordered[ordered.length / 2]) / 2 : ordered[Math.floor(ordered.length / 2)];
+    const variance = values.length > 1 ? values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1) : 0;
+    const standardDeviation = Math.sqrt(variance);
+    if (values.length < 8 || standardDeviation === 0) {
+      return { kind: 'continuous', indicator, rows: values.length, values, mean, median, minimum: ordered[0], maximum: ordered[ordered.length - 1], standardDeviation, normality: 'Indisponível', normalityDetail: values.length < 8 ? 'Amostra menor que 8 observações.' : 'Não há variação suficiente para testar a normalidade.' };
+    }
+    const skewness = values.reduce((sum, value) => sum + ((value - mean) / standardDeviation) ** 3, 0) / values.length;
+    const kurtosis = values.reduce((sum, value) => sum + ((value - mean) / standardDeviation) ** 4, 0) / values.length - 3;
+    const jarqueBera = (values.length / 6) * (skewness ** 2 + (kurtosis ** 2) / 4);
+    const pValue = Math.exp(-jarqueBera / 2);
+    const normality = pValue >= 0.05 ? 'Provavelmente normal' : 'Não normal';
+    return { kind: 'continuous', indicator, rows: values.length, values, mean, median, minimum: ordered[0], maximum: ordered[ordered.length - 1], standardDeviation, normality, normalityDetail: `Teste Jarque–Bera · p = ${pValue.toFixed(3)} · significância de 5%` };
+  }
+  const counts = new Map<string, number>();
+  rawValues.forEach((value) => counts.set(value, (counts.get(value) ?? 0) + 1));
+  const distribution = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([label, count]) => ({ label, count, percentage: (count / rawValues.length) * 100 }));
+  const topCategory = distribution[0];
+  return { kind: 'discrete', indicator, rows: rawValues.length, categoryCount: counts.size, topCategory: topCategory?.label ?? 'Sem dados', topCategoryCount: topCategory?.count ?? 0, distribution };
+}
+
 function IconBadge({ icon: Icon, tone = 'primary' }: { icon: LucideIcon; tone?: 'primary' | 'accent' | 'chart-3' | 'chart-4' }) {
   const toneClasses = { primary: 'bg-primary/10 text-primary', accent: 'bg-accent/15 text-accent-foreground', 'chart-3': 'bg-chart-3/10 text-chart-3', 'chart-4': 'bg-chart-4/10 text-chart-4' };
   return <span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${toneClasses[tone]}`}><Icon size={17} strokeWidth={1.8} /></span>;
@@ -321,45 +528,79 @@ function ToolCard({ tool, onOpen }: { tool: Tool; onOpen: (tool: Tool) => void }
   return <button data-testid={`card-tool-${tool.id}`} onClick={() => onOpen(tool)} className="group panel flex min-h-[154px] flex-col rounded-xl p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/45"><div className="flex items-start justify-between"><span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: `hsl(${tool.accent} / .12)`, color: `hsl(${tool.accent})` }}><Icon size={17} strokeWidth={1.8} /></span><span className="opacity-0 transition-opacity group-hover:opacity-100"><ArrowRight size={16} className="text-primary" /></span></div><div className="mt-auto pt-5"><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-bold">{tool.title}</h3>{tool.tag && <span className="rounded bg-muted px-1.5 py-0.5 mono-label text-muted-foreground">{tool.tag}</span>}</div><p className="mt-1 text-[11px] text-muted-foreground">{tool.subtitle}</p><p className="mt-3 mono-label text-primary">{tool.status}</p></div></button>;
 }
 
-function SprintView({ area, onOpenTool, onChangeVital, vitalId, csvName, onUpload, inputRef }: { area: 'definition' | 'measurement' | 'aic'; onOpenTool: (tool: Tool) => void; onChangeVital: (id: string) => void; vitalId: string; csvName: string | null; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; inputRef: { current: HTMLInputElement | null } }) {
+function SprintView({ area, onOpenTool, onChangeVital, vitalId, inputDataset, inputAnalysis, inputError, analysisMonths, onAnalysisMonthsChange, selectedIndicator, onSelectedIndicatorChange, onUpload, inputRef }: { area: 'definition' | 'measurement' | 'aic'; onOpenTool: (tool: Tool) => void; onChangeVital: (id: string) => void; vitalId: string; inputDataset: InputDataset | null; inputAnalysis: IndicatorAnalysis | null; inputError: string | null; analysisMonths: number; onAnalysisMonthsChange: (months: number) => void; selectedIndicator: string; onSelectedIndicatorChange: (indicator: string) => void; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; inputRef: { current: HTMLInputElement | null } }) {
   const meta = areaMeta[area];
   const selectedVital = vitalXs.find((vital) => vital.id === vitalId) ?? vitalXs[0];
   return <div className="space-y-7">
     <div className="reveal flex flex-wrap items-end justify-between gap-4"><div><p className="mono-label mb-2" style={{ color: meta.color }}>{meta.kicker}</p><h2 className="font-serif text-3xl font-bold tracking-tight sm:text-4xl">{meta.label}</h2><p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">{meta.description}</p></div><div className="flex items-center gap-2"><StatusPill tone="green">Em andamento</StatusPill><button data-testid="button-sprint-options" onClick={() => onOpenTool(tools[area][0])} className="rounded-lg border border-border bg-card p-2 text-muted-foreground hover:text-foreground"><MoreHorizontal size={17} /></button></div></div>
     {area === 'measurement' && <div className="reveal-2 panel flex flex-wrap items-center justify-between gap-4 rounded-xl border-l-4 border-l-chart-3 p-4"><div className="flex items-center gap-3"><IconBadge icon={Gauge} tone="chart-3" /><div><p className="text-sm font-bold">Indicador Y em foco</p><p className="mt-0.5 text-xs text-muted-foreground">Tempo total até aprovação · <span className="font-bold text-foreground">12,8 min</span> mediana</p></div></div><div className="flex items-center gap-2"><label htmlFor="vital-select" className="mono-label text-muted-foreground">Vital X</label><select id="vital-select" data-testid="select-vital-x" value={vitalId} onChange={(event) => onChangeVital(event.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold outline-none focus:border-primary/50">{vitalXs.map((vital) => <option key={vital.id} value={vital.id}>{vital.label}</option>)}</select></div></div>}
     {area === 'measurement' && <div className="reveal-3 panel rounded-xl p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="mono-label text-chart-3">Vital X selecionado</p><h3 className="mt-2 font-serif text-xl font-bold">{selectedVital.label}</h3><p className="mt-1 text-xs text-muted-foreground">{selectedVital.note} · janela de 30 dias</p></div><div className="text-right"><p className="font-serif text-2xl font-bold">{selectedVital.value}</p><p className="mt-1 text-[11px] font-bold text-primary">{selectedVital.delta} vs. baseline</p></div></div><div className="mt-5 grid h-14 grid-cols-12 items-end gap-1.5 border-b border-border pb-0 sm:grid-cols-24">{[30,36,34,42,38,45,40,49,46,54,51,48,58,53,56,62,59,64,57,68,61,65,72,66].map((height, index) => <div key={index} className="rounded-t-sm bg-chart-3/60 transition-all hover:bg-chart-3" style={{ height: `${height}%` }} />)}</div><div className="mt-2 flex justify-between mono-label text-muted-foreground"><span>01 mai</span><span>30 mai</span></div></div>}
+     {(area === 'definition' || area === 'measurement') && <InputDataPanel dataset={inputDataset} analysis={inputAnalysis} error={inputError} months={analysisMonths} onMonthsChange={onAnalysisMonthsChange} selectedIndicator={selectedIndicator} onIndicatorChange={onSelectedIndicatorChange} onUpload={onUpload} inputRef={inputRef} />}
     <div className="reveal-2 flex items-center justify-between"><div><SectionHeading eyebrow={area === 'definition' ? 'Entregáveis de enquadramento' : area === 'measurement' ? 'Entregáveis de evidência' : 'Entregáveis de mudança'} title={area === 'definition' ? 'Dê nome ao problema certo' : area === 'measurement' ? 'Meça sem adivinhar' : 'Faça a solução pegar'} /></div><Button testId={`button-add-${area}`} onClick={() => onOpenTool(tools[area][0])} variant="outline"><Plus size={14} /> Adicionar item</Button></div>
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{tools[area].map((tool) => <ToolCard key={tool.id} tool={tool} onOpen={onOpenTool} />)}</div>
-    {area === 'measurement' && <DataUpload csvName={csvName} onUpload={onUpload} inputRef={inputRef} />}
     {area === 'aic' && <div className="reveal-4 grid gap-4 lg:grid-cols-[1.1fr_.9fr]"><div className="panel rounded-xl p-5"><div className="flex items-center justify-between"><div><p className="mono-label text-chart-4">Hipóteses em teste</p><h3 className="mt-2 font-serif text-lg font-bold">Do provável ao comprovado</h3></div><TestTube2 size={18} className="text-chart-4" /></div><div className="mt-5 space-y-4">{[{ name: 'H1 · Padronização da triagem', status: 'Em teste', pct: 68 }, { name: 'H2 · Regra de aprovação automática', status: 'Próximo', pct: 32 }, { name: 'H3 · Balanceamento da célula', status: 'Backlog', pct: 12 }].map((item) => <div key={item.name}><div className="flex justify-between gap-3 text-xs"><span className="font-semibold">{item.name}</span><span className="mono-label text-muted-foreground">{item.status}</span></div><div className="mt-2 h-1.5 rounded-full bg-muted"><div className="h-full rounded-full bg-chart-4" style={{ width: `${item.pct}%` }} /></div></div>)}</div></div><div className="panel rounded-xl bg-accent/10 p-5"><p className="mono-label text-accent-foreground">Próximo checkpoint</p><h3 className="mt-2 font-serif text-lg font-bold">Review de controle</h3><p className="mt-2 text-xs leading-relaxed text-muted-foreground">Quinta, 06 jun · 14:30<br />Validar plano de reação e dono do SOP.</p><Button testId="button-schedule-review" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} variant="dark" className="mt-5">Abrir agenda <ArrowRight size={14} /></Button></div></div>}
   </div>;
 }
 
-function DataUpload({ csvName, onUpload, inputRef }: { csvName: string | null; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; inputRef: { current: HTMLInputElement | null } }) {
-  return <div className="reveal-4 panel rounded-xl border-dashed p-5"><div className="flex flex-wrap items-center justify-between gap-4"><div className="flex items-center gap-3"><IconBadge icon={CloudUpload} tone="accent" /><div><h3 className="text-sm font-bold">Dados locais para análise</h3><p className="mt-1 text-xs text-muted-foreground">{csvName ? `Arquivo processado: ${csvName}` : 'Carregue um CSV para recalcular Pareto e I-MR no navegador.'}</p></div></div><label data-testid="button-upload-csv" className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-bold transition-colors hover:border-primary/45 hover:bg-primary/5"><Upload size={14} /> {csvName ? 'Trocar CSV' : 'Carregar CSV'}<input ref={inputRef} data-testid="input-upload-csv" type="file" accept=".csv,text/csv" onChange={onUpload} className="sr-only" /></label></div></div>;
+function InputDataPanel({ dataset, analysis, error, months, onMonthsChange, selectedIndicator, onIndicatorChange, onUpload, inputRef }: { dataset: InputDataset | null; analysis: IndicatorAnalysis | null; error: string | null; months: number; onMonthsChange: (months: number) => void; selectedIndicator: string; onIndicatorChange: (indicator: string) => void; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; inputRef: { current: HTMLInputElement | null } }) {
+  return <section data-testid="panel-input-data" className="reveal-4 panel rounded-xl border-dashed p-5">
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex items-start gap-3"><IconBadge icon={CloudUpload} tone="accent" /><div><p className="mono-label text-accent-foreground">Entrada da Sprint 1</p><h3 className="mt-1.5 text-sm font-bold">Dados para análise</h3><p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">{dataset ? `${dataset.fileName} · ${dataset.rows.length} linhas · ${dataset.headers.length} colunas` : 'Carregue um CSV para selecionar o indicador e medir o comportamento do processo.'}</p></div></div>
+      <label data-testid="button-upload-csv" className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-bold transition-colors hover:border-primary/45 hover:bg-primary/5"><Upload size={14} /> {dataset ? 'Trocar CSV' : 'Carregar CSV'}<input ref={inputRef} data-testid="input-upload-csv" type="file" accept=".csv,text/csv" onChange={onUpload} className="sr-only" /></label>
+    </div>
+    {error && <div data-testid="status-input-data-error" className="mt-4 flex gap-3 rounded-xl border border-destructive/25 bg-destructive/5 p-4 text-xs text-destructive"><Info size={16} className="mt-0.5 shrink-0" /><p>{error}</p></div>}
+    {dataset && <div className="mt-5 grid gap-3 rounded-xl border border-border bg-background/60 p-4 md:grid-cols-[1fr_150px]">
+      <label className="block"><span className="mb-1.5 block text-[11px] font-bold text-muted-foreground">Indicador a analisar</span><select data-testid="select-analysis-indicator" value={selectedIndicator} onChange={(event) => onIndicatorChange(event.target.value)} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-xs font-bold outline-none focus:border-primary/60">{dataset.indicatorColumns.map((indicator) => <option key={indicator} value={indicator}>{indicator}</option>)}</select></label>
+      <label className="block"><span className="mb-1.5 block text-[11px] font-bold text-muted-foreground">Últimos N meses</span><input data-testid="input-analysis-months" type="number" min="1" max="120" value={months} onChange={(event) => onMonthsChange(Math.min(120, Math.max(1, Number(event.target.value) || 1)))} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-xs font-bold outline-none focus:border-primary/60" /></label>
+    </div>}
+    {dataset && analysis && <div data-testid="panel-analysis-summary" className="mt-4 rounded-xl border border-primary/15 bg-primary/5 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="mono-label text-primary">Resumo do indicador</p><h4 className="mt-1 text-sm font-bold">{analysis.indicator}</h4></div><div className="flex items-center gap-2"><StatusPill tone="green">{analysis.kind === 'continuous' ? 'Contínuo' : 'Discreto'}</StatusPill><span data-testid="text-analysis-rows" className="mono-label text-muted-foreground">{analysis.rows} observações · {dataset.dateColumn ? `últimos ${months} meses` : 'sem coluna de período'}</span></div></div>
+      {analysis.kind === 'continuous' ? <><div className="mt-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">{[['Média', analysis.mean, 'stat-analysis-mean'], ['Mediana', analysis.median, 'stat-analysis-median'], ['Mínimo', analysis.minimum, 'stat-analysis-min'], ['Máximo', analysis.maximum, 'stat-analysis-max'], ['Desvio-padrão', analysis.standardDeviation, 'stat-analysis-standard-deviation']].map(([label, value, testId]) => <div key={String(label)} data-testid={String(testId)} className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">{label}</p><p className="mt-1 font-mono text-sm font-bold">{formatMetric(Number(value))}</p></div>)}<div data-testid="stat-analysis-normality" className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Normalidade</p><p className={`mt-1 text-xs font-bold ${analysis.normality === 'Não normal' ? 'text-destructive' : 'text-primary'}`}>{analysis.normality}</p></div></div><p data-testid="text-analysis-normality-detail" className="mt-3 text-[11px] text-muted-foreground">{analysis.normalityDetail}</p></> : <><div className="mt-4 grid gap-2 sm:grid-cols-3"><div data-testid="stat-analysis-top-category" className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Categoria dominante</p><p className="mt-1 truncate text-sm font-bold">{analysis.topCategory}</p></div><div className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Ocorrências</p><p className="mt-1 font-mono text-sm font-bold">{analysis.topCategoryCount}</p></div><div className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Categorias</p><p className="mt-1 font-mono text-sm font-bold">{analysis.categoryCount}</p></div></div><div className="mt-4 space-y-2">{analysis.distribution.map((item) => <div key={item.label} className="grid grid-cols-[minmax(0,1fr)_48px] items-center gap-3 text-[11px]"><div><div className="mb-1 flex justify-between gap-2"><span className="truncate font-semibold">{item.label}</span><span className="mono-label text-muted-foreground">{item.percentage.toFixed(1)}%</span></div><div className="h-2 overflow-hidden rounded-r bg-muted"><div className="h-full rounded-r bg-accent" style={{ width: `${item.percentage}%` }} /></div></div><span className="text-right font-mono font-bold">{item.count}</span></div>)}</div><p className="mt-3 text-[11px] text-muted-foreground">Média, mediana, mínimo, máximo, desvio-padrão e normalidade não se aplicam a este indicador categórico.</p></>}
+    </div>}
+    <p className="mt-4 text-[11px] text-muted-foreground"><Info size={13} className="mr-1 inline-block align-[-2px]" /> O arquivo é processado localmente no navegador. A coluna de data, quando identificada, define o recorte dos últimos N meses.</p>
+  </section>;
 }
 
-function DetailDrawer({ tool, onClose, pareto, imr, csvError, onRetry, pipeline }: { tool: Tool; onClose: () => void; pareto: { name: string; value: number }[]; imr: number[]; csvError: string | null; onRetry: () => void; pipeline: DmaicPipeline | null }) {
+function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDataset, csvError, onRetry, pipeline }: { tool: Tool; onClose: () => void; pareto: { name: string; value: number }[] | null; imr: number[] | null; inputAnalysis: IndicatorAnalysis | null; hasInputDataset: boolean; csvError: string | null; onRetry: () => void; pipeline: DmaicPipeline | null }) {
   const [tab, setTab] = useState<'preview' | 'data'>('preview');
   const isPareto = tool.id === 'pareto';
   const isImr = tool.id === 'imr';
-  const total = pareto.reduce((sum, item) => sum + item.value, 0);
-  const cumulative = pareto.reduce<{ name: string; value: number; pct: number }[]>((result, item) => { const prior = result[result.length - 1]?.pct ?? 0; result.push({ ...item, pct: prior + (item.value / total) * 100 }); return result; }, []);
-  const max = Math.max(...imr);
-  const min = Math.min(...imr);
-   return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}><section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-[560px] flex-col overflow-y-auto border-l border-border bg-background shadow-2xl"><div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur"><div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">{pipeline ? 'Gerado com IA' : tool.tag ?? 'Entregável gerado'}</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div><div className="border-b border-border px-5 pt-4"><div className="flex gap-5"><button data-testid="tab-preview" onClick={() => setTab('preview')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'preview' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Visualização</button><button data-testid="tab-data" onClick={() => setTab('data')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'data' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Dados & notas</button></div></div><div className="flex-1 p-5">{csvError && (isPareto || isImr) ? <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-destructive" /><div><p className="text-sm font-bold text-destructive">Não foi possível ler o arquivo</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{csvError}</p><Button testId="button-retry-upload" onClick={onRetry} variant="outline" className="mt-3"><RefreshCw size={13} /> Tentar com outro arquivo</Button></div></div></div> : tab === 'preview' ? <>{isPareto ? <ParetoChart data={pareto} cumulative={cumulative} /> : isImr ? <ImrChart data={imr} min={min} max={max} /> : <GenericPreview tool={tool} pipeline={pipeline} />}</> : <DataNotes tool={tool} pareto={pareto} imr={imr} />}</div><div className="border-t border-border bg-card px-5 py-4"><div className="flex items-center justify-between gap-3"><span className="mono-label text-muted-foreground">{pipeline ? 'Conteúdo gerado por Gemini' : 'Conteúdo de exemplo · local'}</span><Button testId="button-export-tool" variant="outline"><FileText size={14} /> Exportar visão</Button></div></div></section></div>;
+  const isAnalysisTool = isPareto || isImr;
+  const hasCompatibleData = isPareto ? Boolean(pareto) : isImr ? Boolean(imr) : true;
+  const total = pareto?.reduce((sum, item) => sum + item.value, 0) ?? 0;
+  const cumulative = (pareto ?? []).reduce<{ name: string; value: number; pct: number }[]>((result, item) => { const prior = result[result.length - 1]?.pct ?? 0; result.push({ ...item, pct: prior + (item.value / Math.max(total, 1)) * 100 }); return result; }, []);
+  const source = hasInputDataset ? 'upload' : 'example';
+  const unavailableMessage = !inputAnalysis
+    ? 'Não há observações disponíveis para o indicador e período selecionados.'
+    : isPareto
+      ? 'O Pareto é aplicável somente a indicadores discretos ou categóricos. Selecione um indicador compatível.'
+      : inputAnalysis.kind === 'continuous' && inputAnalysis.values.length < 2
+        ? 'O I-MR precisa de pelo menos duas observações sequenciais no recorte selecionado.'
+        : 'O I-MR é aplicável somente a indicadores contínuos. Selecione um indicador numérico compatível.';
+  return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}><section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-[560px] flex-col overflow-y-auto border-l border-border bg-background shadow-2xl"><div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur"><div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">{pipeline ? 'Gerado com IA' : tool.tag ?? 'Entregável gerado'}</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div><div className="border-b border-border px-5 pt-4"><div className="flex gap-5"><button data-testid="tab-preview" onClick={() => setTab('preview')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'preview' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Visualização</button><button data-testid="tab-data" onClick={() => setTab('data')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'data' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Dados & notas</button></div></div><div className="flex-1 p-5">{csvError && isAnalysisTool ? <div data-testid="status-tool-csv-error" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-destructive" /><div><p className="text-sm font-bold text-destructive">Não foi possível ler o arquivo</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{csvError}</p><Button testId="button-retry-upload" onClick={onRetry} variant="outline" className="mt-3"><RefreshCw size={13} /> Tentar com outro arquivo</Button></div></div></div> : isAnalysisTool && !hasCompatibleData ? <div data-testid="status-tool-no-data" className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold">Visualização indisponível</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{unavailableMessage}</p></div></div></div> : tab === 'preview' ? <>{isPareto && pareto ? <ParetoChart data={pareto} cumulative={cumulative} source={source} /> : isImr && imr ? <ImrChart data={imr} source={source} /> : <GenericPreview tool={tool} pipeline={pipeline} />}</> : <DataNotes tool={tool} pareto={pareto} imr={imr} source={source} />}</div><div className="border-t border-border bg-card px-5 py-4"><div className="flex items-center justify-between gap-3"><span className="mono-label text-muted-foreground">{pipeline ? 'Conteúdo gerado por Gemini' : hasInputDataset && isAnalysisTool ? hasCompatibleData ? 'Dados do CSV · local' : 'Sem dados compatíveis' : 'Conteúdo de exemplo · local'}</span><Button testId="button-export-tool" variant="outline"><FileText size={14} /> Exportar visão</Button></div></div></section></div>;
 }
 
-function ParetoChart({ data, cumulative }: { data: { name: string; value: number }[]; cumulative: { name: string; value: number; pct: number }[] }) {
+function ParetoChart({ data, cumulative, source }: { data: { name: string; value: number }[]; cumulative: { name: string; value: number; pct: number }[]; source: 'example' | 'upload' }) {
   const max = Math.max(...data.map((item) => item.value));
-  return <div><div className="mb-5 flex items-start justify-between"><div><p className="mono-label text-accent-foreground">Exemplo gerado</p><h3 className="mt-2 font-serif text-lg font-bold">Onde a fila realmente pesa</h3><p className="mt-1 text-xs text-muted-foreground">Pareto · causas por ocorrência</p></div><FileBarChart size={20} className="text-accent-foreground" /></div><div className="rounded-xl border border-border bg-card p-4"><div className="space-y-3">{data.map((item, index) => <div key={item.name} className="grid grid-cols-[minmax(0,1fr)_38px] items-center gap-3"><div><div className="mb-1 flex justify-between gap-2 text-[11px]"><span className="truncate font-semibold">{item.name}</span><span className="mono-label text-muted-foreground">{cumulative[index]?.pct.toFixed(0)}%</span></div><div className="h-5 overflow-hidden rounded-r-md bg-muted"><div className={`h-full rounded-r-md ${index === 0 ? 'bg-accent' : 'bg-primary/70'}`} style={{ width: `${(item.value / max) * 100}%` }} /></div></div><span className="text-right font-mono text-xs font-bold">{item.value}</span></div>)}</div><div className="mt-5 flex justify-between border-t border-border pt-3 mono-label text-muted-foreground"><span>Ocorrências</span><span>{data.reduce((sum, item) => sum + item.value, 0)} total</span></div></div></div>;
+  return <div><div className="mb-5 flex items-start justify-between"><div><p className="mono-label text-accent-foreground">{source === 'upload' ? 'Dados do CSV' : 'Exemplo gerado'}</p><h3 className="mt-2 font-serif text-lg font-bold">Onde a fila realmente pesa</h3><p className="mt-1 text-xs text-muted-foreground">Pareto · causas por ocorrência</p></div><FileBarChart size={20} className="text-accent-foreground" /></div><div className="rounded-xl border border-border bg-card p-4"><div className="space-y-3">{data.map((item, index) => <div key={item.name} className="grid grid-cols-[minmax(0,1fr)_38px] items-center gap-3"><div><div className="mb-1 flex justify-between gap-2 text-[11px]"><span className="truncate font-semibold">{item.name}</span><span className="mono-label text-muted-foreground">{cumulative[index]?.pct.toFixed(0)}%</span></div><div className="h-5 overflow-hidden rounded-r-md bg-muted"><div className={`h-full rounded-r-md ${index === 0 ? 'bg-accent' : 'bg-primary/70'}`} style={{ width: `${(item.value / max) * 100}%` }} /></div></div><span className="text-right font-mono text-xs font-bold">{item.value}</span></div>)}</div><div className="mt-5 flex justify-between border-t border-border pt-3 mono-label text-muted-foreground"><span>Ocorrências</span><span>{data.reduce((sum, item) => sum + item.value, 0)} total</span></div></div></div>;
 }
 
-function ImrChart({ data, min, max }: { data: number[]; min: number; max: number }) {
+function ImrChart({ data, source }: { data: number[]; source: 'example' | 'upload' }) {
   const width = 480;
   const height = 190;
-  const points = data.map((value, index) => `${(index / (data.length - 1)) * width},${height - ((value - min + 2) / (max - min + 4)) * height}`).join(' ');
-  return <div><div className="mb-5 flex items-start justify-between"><div><p className="mono-label text-chart-3">Exemplo gerado</p><h3 className="mt-2 font-serif text-lg font-bold">A variação está respirando?</h3><p className="mt-1 text-xs text-muted-foreground">I-MR · sequência de 24 medições</p></div><Activity size={20} className="text-chart-3" /></div><div className="rounded-xl border border-border bg-card p-3"><svg viewBox={`0 0 ${width} ${height + 25}`} className="h-auto w-full overflow-visible"><line x1="0" x2={width} y1={height * .42} y2={height * .42} stroke="hsl(var(--primary) / .35)" strokeDasharray="4 4" /><line x1="0" x2={width} y1={height * .72} y2={height * .72} stroke="hsl(var(--destructive) / .35)" strokeDasharray="4 4" /><polyline fill="none" stroke="hsl(var(--chart-3))" strokeWidth="2.5" points={points} />{data.map((value, index) => <circle key={index} cx={(index / (data.length - 1)) * width} cy={height - ((value - min + 2) / (max - min + 4)) * height} r="3.5" fill="hsl(var(--chart-3))" />)}</svg><div className="mt-2 flex justify-between mono-label text-muted-foreground"><span>LSC · 62,1</span><span>média · 51,4</span><span>LIC · 42,8</span></div></div><div className="mt-4 grid grid-cols-3 gap-2"><div className="rounded-lg bg-muted p-3"><p className="mono-label text-muted-foreground">Média</p><p className="mt-1 font-mono text-sm font-bold">51,4</p></div><div className="rounded-lg bg-primary/8 p-3"><p className="mono-label text-primary">Sinais</p><p className="mt-1 font-mono text-sm font-bold text-primary">0</p></div><div className="rounded-lg bg-accent/12 p-3"><p className="mono-label text-accent-foreground">Amplitude média</p><p className="mt-1 font-mono text-sm font-bold">4,8</p></div></div></div>;
+  const mean = data.reduce((sum, value) => sum + value, 0) / data.length;
+  const movingRanges = data.slice(1).map((value, index) => Math.abs(value - data[index]));
+  const meanMovingRange = movingRanges.reduce((sum, value) => sum + value, 0) / movingRanges.length;
+  const upperControl = mean + 2.66 * meanMovingRange;
+  const lowerControl = mean - 2.66 * meanMovingRange;
+  const allValues = [...data, upperControl, lowerControl];
+  const domainMin = Math.min(...allValues);
+  const domainMax = Math.max(...allValues);
+  const domainPadding = Math.max((domainMax - domainMin) * 0.12, 1);
+  const yFor = (value: number) => height - ((value - (domainMin - domainPadding)) / (domainMax - domainMin + domainPadding * 2)) * height;
+  const points = data.map((value, index) => `${(index / (data.length - 1)) * width},${yFor(value)}`).join(' ');
+  const signals = data.filter((value) => value > upperControl || value < lowerControl).length;
+  return <div><div className="mb-5 flex items-start justify-between"><div><p className="mono-label text-chart-3">{source === 'upload' ? 'Dados do CSV' : 'Exemplo gerado'}</p><h3 className="mt-2 font-serif text-lg font-bold">A variação está respirando?</h3><p className="mt-1 text-xs text-muted-foreground">I-MR · sequência de {data.length} medições</p></div><Activity size={20} className="text-chart-3" /></div><div className="rounded-xl border border-border bg-card p-3"><svg viewBox={`0 0 ${width} ${height + 25}`} className="h-auto w-full overflow-visible"><line x1="0" x2={width} y1={yFor(mean)} y2={yFor(mean)} stroke="hsl(var(--primary) / .35)" strokeDasharray="4 4" /><line x1="0" x2={width} y1={yFor(upperControl)} y2={yFor(upperControl)} stroke="hsl(var(--chart-3) / .45)" strokeDasharray="4 4" /><line x1="0" x2={width} y1={yFor(lowerControl)} y2={yFor(lowerControl)} stroke="hsl(var(--destructive) / .45)" strokeDasharray="4 4" /><polyline fill="none" stroke="hsl(var(--chart-3))" strokeWidth="2.5" points={points} />{data.map((value, index) => <circle key={index} cx={(index / (data.length - 1)) * width} cy={yFor(value)} r="3.5" fill="hsl(var(--chart-3))" />)}</svg><div data-testid="text-imr-limits" className="mt-2 flex justify-between mono-label text-muted-foreground"><span>LSC · {formatMetric(upperControl)}</span><span>média · {formatMetric(mean)}</span><span>LIC · {formatMetric(lowerControl)}</span></div></div><div className="mt-4 grid grid-cols-3 gap-2"><div className="rounded-lg bg-muted p-3"><p className="mono-label text-muted-foreground">Média</p><p className="mt-1 font-mono text-sm font-bold">{formatMetric(mean)}</p></div><div className="rounded-lg bg-primary/8 p-3"><p className="mono-label text-primary">Sinais</p><p className="mt-1 font-mono text-sm font-bold text-primary">{signals}</p></div><div className="rounded-lg bg-accent/12 p-3"><p className="mono-label text-accent-foreground">MR médio</p><p className="mt-1 font-mono text-sm font-bold">{formatMetric(meanMovingRange)}</p></div></div></div>;
 }
 
 function GenericPreview({ tool, pipeline }: { tool: Tool; pipeline: DmaicPipeline | null }) {
@@ -369,8 +610,9 @@ function GenericPreview({ tool, pipeline }: { tool: Tool; pipeline: DmaicPipelin
    return <div><div className="mb-5 flex items-start justify-between"><div><p className="mono-label text-primary">{pipeline ? 'Saída do pipeline' : 'Snapshot de trabalho'}</p><h3 className="mt-2 font-serif text-lg font-bold">{tool.title} / leitura rápida</h3><p className="mt-1 text-xs text-muted-foreground">{pipeline ? 'Artefato estruturado a partir do problema informado.' : 'Exemplo preenchido para orientar o time.'}</p></div><Check size={20} className="text-primary" /></div><div className="overflow-hidden rounded-xl border border-border">{rows.map(([label, value]) => <div key={label} className="grid grid-cols-[42%_58%] border-b border-border last:border-0"><div className="break-words bg-muted/55 p-3 text-[11px] font-bold text-muted-foreground">{label}</div><div className="break-words p-3 text-xs font-semibold">{value}</div></div>)}</div><div className="mt-5 rounded-xl bg-primary/7 p-4"><div className="flex gap-3"><Sparkles size={16} className="shrink-0 text-primary" /><p className="text-xs leading-relaxed"><strong>Leitura do facilitador:</strong> {pipeline ? 'revise e valide os artefatos com o time antes de tratar as hipóteses como evidência.' : 'a estrutura está suficientemente clara para a próxima conversa do time.'}</p></div></div></div>;
 }
 
-function DataNotes({ tool, pareto, imr }: { tool: Tool; pareto: { name: string; value: number }[]; imr: number[] }) {
-  return <div><p className="mono-label text-primary">Notas do método</p><h3 className="mt-2 font-serif text-lg font-bold">Como ler este resultado</h3><p className="mt-3 text-sm leading-relaxed text-muted-foreground">Esta visualização usa dados de exemplo e cálculos executados localmente. Troque o arquivo no bloco de upload para explorar seu próprio processo sem enviar dados para um servidor.</p><div className="mt-5 space-y-3"><div className="rounded-xl border border-border p-4"><div className="flex gap-3"><Database size={16} className="mt-0.5 text-primary" /><div><p className="text-xs font-bold">Fonte</p><p className="mt-1 text-[11px] text-muted-foreground">{tool.id === 'pareto' ? `${pareto.length} categorias · ${pareto.reduce((sum, item) => sum + item.value, 0)} ocorrências` : `${imr.length} observações sequenciais · coluna numérica`}</p></div></div></div><div className="rounded-xl border border-border p-4"><div className="flex gap-3"><ClipboardCheck size={16} className="mt-0.5 text-chart-3" /><div><p className="text-xs font-bold">Próxima pergunta</p><p className="mt-1 text-[11px] text-muted-foreground">O padrão se mantém quando o time muda o turno ou o volume de entrada?</p></div></div></div></div></div>;
+function DataNotes({ tool, pareto, imr, source }: { tool: Tool; pareto: { name: string; value: number }[] | null; imr: number[] | null; source: 'example' | 'upload' }) {
+  const sourceDetail = tool.id === 'pareto' ? `${pareto?.length ?? 0} categorias · ${pareto?.reduce((sum, item) => sum + item.value, 0) ?? 0} ocorrências` : tool.id === 'imr' ? `${imr?.length ?? 0} observações sequenciais · coluna numérica` : 'Artefato orientativo do workspace';
+  return <div><p className="mono-label text-primary">Notas do método</p><h3 className="mt-2 font-serif text-lg font-bold">Como ler este resultado</h3><p className="mt-3 text-sm leading-relaxed text-muted-foreground">{source === 'upload' ? 'Esta visualização usa o indicador selecionado do CSV e é calculada localmente no navegador.' : 'Esta visualização usa dados de exemplo e cálculos executados localmente. Troque o arquivo no bloco de upload para explorar seu próprio processo sem enviar dados para um servidor.'}</p><div className="mt-5 space-y-3"><div className="rounded-xl border border-border p-4"><div className="flex gap-3"><Database size={16} className="mt-0.5 text-primary" /><div><p className="text-xs font-bold">Fonte</p><p className="mt-1 text-[11px] text-muted-foreground">{sourceDetail}</p></div></div></div><div className="rounded-xl border border-border p-4"><div className="flex gap-3"><ClipboardCheck size={16} className="mt-0.5 text-chart-3" /><div><p className="text-xs font-bold">Próxima pergunta</p><p className="mt-1 text-[11px] text-muted-foreground">O padrão se mantém quando o time muda o turno ou o volume de entrada?</p></div></div></div></div></div>;
 }
 
 function Workspace() {
@@ -392,12 +634,16 @@ function Workspace() {
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [vitalId, setVitalId] = useState('x1');
-  const [csvName, setCsvName] = useState<string | null>(null);
+  const [inputDataset, setInputDataset] = useState<InputDataset | null>(null);
+  const [analysisMonths, setAnalysisMonths] = useState(12);
+  const [selectedIndicator, setSelectedIndicator] = useState('');
   const [csvError, setCsvError] = useState<string | null>(null);
-  const [pareto, setPareto] = useState(initialPareto);
-  const [imr, setImr] = useState(initialImr);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const uploadVersionRef = useRef(0);
   const displayArea = area === 'overview' ? 'overview' : area;
+  const inputAnalysis = useMemo(() => inputDataset ? summarizeIndicator(inputDataset, selectedIndicator, analysisMonths) : null, [analysisMonths, inputDataset, selectedIndicator]);
+  const pareto = useMemo(() => !inputDataset ? initialPareto : inputAnalysis?.kind === 'discrete' ? inputAnalysis.distribution.map((item) => ({ name: item.label, value: item.count })) : null, [inputAnalysis, inputDataset]);
+  const imr = useMemo(() => !inputDataset ? initialImr : inputAnalysis?.kind === 'continuous' && inputAnalysis.values.length >= 2 ? inputAnalysis.values : null, [inputAnalysis, inputDataset]);
 
   useEffect(() => {
     if (!workspaceQuery.data || workspaceHydrated) return;
@@ -470,22 +716,34 @@ function Workspace() {
   const handleUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    const uploadVersion = uploadVersionRef.current + 1;
+    uploadVersionRef.current = uploadVersion;
+    const clearInputAnalysis = () => {
+      setInputDataset(null);
+      setSelectedIndicator('');
+    };
     setCsvError(null);
-    if (!file.name.toLowerCase().endsWith('.csv')) { setCsvError('Use um arquivo com extensão .csv para calcular as análises.'); return; }
+    clearInputAnalysis();
+    if (!file.name.toLowerCase().endsWith('.csv')) { clearInputAnalysis(); setCsvError('Use um arquivo com extensão .csv para calcular as análises.'); return; }
     const reader = new FileReader();
     reader.onload = () => {
-      const text = String(reader.result ?? '');
-      const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-      if (lines.length < 2) { setCsvError('O CSV precisa ter cabeçalho e pelo menos uma linha de dados.'); return; }
-      const rows = lines.slice(1).map((line) => line.split(/[;,]/).map((value) => value.trim()));
-      const numeric = rows.map((row) => Number(row.find((value) => value !== '' && !Number.isNaN(Number(value)))?.replace(',', '.'))).filter((value) => Number.isFinite(value));
-      if (numeric.length >= 3) setImr(numeric.slice(0, 40));
-      const counts = new Map<string, number>();
-      rows.forEach((row) => { const key = row.find((value) => value && Number.isNaN(Number(value))) ?? 'Categoria sem nome'; counts.set(key, (counts.get(key) ?? 0) + 1); });
-      if (counts.size > 0) setPareto(Array.from(counts.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8));
-      setCsvName(file.name);
+      if (uploadVersion !== uploadVersionRef.current) return;
+      try {
+        const dataset = parseInputCsv(String(reader.result ?? ''), file.name);
+        if (uploadVersion !== uploadVersionRef.current) return;
+        setInputDataset(dataset);
+        setSelectedIndicator(dataset.indicatorColumns[0]);
+      } catch (error) {
+        if (uploadVersion !== uploadVersionRef.current) return;
+        clearInputAnalysis();
+        setCsvError(error instanceof Error ? error.message : 'Não foi possível interpretar o CSV informado.');
+      }
     };
-    reader.onerror = () => setCsvError('O navegador não conseguiu ler este arquivo. Tente exportar o CSV novamente.');
+    reader.onerror = () => {
+      if (uploadVersion !== uploadVersionRef.current) return;
+      clearInputAnalysis();
+      setCsvError('O navegador não conseguiu ler este arquivo. Tente exportar o CSV novamente.');
+    };
     reader.readAsText(file);
   };
   const retryUpload = () => { setCsvError(null); fileRef.current?.click(); };
@@ -502,12 +760,12 @@ function Workspace() {
            {(workspaceError || workspaceQuery.isError) && <div data-testid="status-workspace-error" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive"><Info size={15} /><span>{workspaceError ?? 'Não foi possível carregar os dados salvos no Neon.'}</span></div>}
            {saved && <div data-testid="status-statement-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Mudança salva no Neon.</strong> O enunciado estará disponível ao reabrir este workspace.</span></div>}
            {charterSaved && <div data-testid="status-charter-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Project charter salvo no Neon.</strong> Essas informações serão carregadas ao reabrir este workspace e usadas como contexto na geração do pipeline.</span></div>}
-           {area === 'overview' ? <Overview statement={statement} setStatement={setStatement} onSave={saveStatement} charter={charter} onCharterChange={updateCharter} onTeamChange={updateCharterTeam} onSaveCharter={saveCharter} pipelineDone={pipelineDone} hasAiSuggestions={charterSuggestedByAi} onOpenArea={setArea} /> : <SprintView area={area} onOpenTool={openTool} onChangeVital={setVitalId} vitalId={vitalId} csvName={csvName} onUpload={handleUpload} inputRef={fileRef} />}
+           {area === 'overview' ? <Overview statement={statement} setStatement={setStatement} onSave={saveStatement} charter={charter} onCharterChange={updateCharter} onTeamChange={updateCharterTeam} onSaveCharter={saveCharter} pipelineDone={pipelineDone} hasAiSuggestions={charterSuggestedByAi} onOpenArea={setArea} /> : <SprintView area={area} onOpenTool={openTool} onChangeVital={setVitalId} vitalId={vitalId} inputDataset={inputDataset} inputAnalysis={inputAnalysis} inputError={csvError} analysisMonths={analysisMonths} onAnalysisMonthsChange={setAnalysisMonths} selectedIndicator={selectedIndicator} onSelectedIndicatorChange={setSelectedIndicator} onUpload={handleUpload} inputRef={fileRef} />}
             <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-[10px] text-muted-foreground"><span className="mono-label">DMAIC Ágil Suite · workspace no Neon</span><span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> {pipelineData ? 'artefatos gerados por IA · revise com o time' : 'dados de exemplo sinalizados · sem envio externo'}</span></footer>
         </div>
       </main>
     </div>
-     {selectedTool && <DetailDrawer tool={selectedTool} onClose={() => setSelectedTool(null)} pareto={pareto} imr={imr} csvError={csvError} onRetry={retryUpload} pipeline={pipelineData} />}
+     {selectedTool && <DetailDrawer tool={selectedTool} onClose={() => setSelectedTool(null)} pareto={pareto} imr={imr} inputAnalysis={inputAnalysis} hasInputDataset={Boolean(inputDataset)} csvError={csvError} onRetry={retryUpload} pipeline={pipelineData} />}
   </div>;
 }
 

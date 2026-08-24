@@ -1,1 +1,2 @@
 - [Neon persistence](neon-persistence.md) — Use the dedicated Neon secret and leave Replit’s runtime-managed database variable untouched.
+- [CSV input integrity](csv-input-integrity.md) — Select one delimiter per file and reject mismatched rows before analyzing Brazilian numeric data.
