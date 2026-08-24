@@ -136,9 +136,24 @@ components:
       properties:
         period: { type: string, maxLength: 120 }
         value: { type: number }
+    DmaicExploratoryStatistics:
+      type: object
+      required: [count, mean, median, minimum, q1, q3, maximum, iqr, standardDeviation]
+      properties:
+        count: { type: number, minimum: 1 }
+        mean: { type: number }
+        median: { type: number }
+        minimum: { type: number }
+        q1: { type: number }
+        q3: { type: number }
+        maximum: { type: number }
+        iqr: { type: number }
+        standardDeviation: { type: number }
+        shapiroW: { type: number, minimum: 0, maximum: 1 }
+        shapiroPValue: { type: number, minimum: 0, maximum: 1 }
     DmaicExploratoryDiagnosisInput:
       type: object
-      required: [indicator, points]
+      required: [indicator, points, statistics]
       properties:
         indicator: { type: string, minLength: 1, maxLength: 120 }
         timeColumn: { type: string, maxLength: 120 }
@@ -148,11 +163,13 @@ components:
           maxItems: 240
           items:
             $ref: "#/components/schemas/DmaicExploratoryPoint"
+        statistics:
+          $ref: "#/components/schemas/DmaicExploratoryStatistics"
     DmaicExploratoryDiagnosis:
       type: object
       required: [diagnosis]
       properties:
-        diagnosis: { type: string, minLength: 1, maxLength: 8000 }
+        diagnosis: { type: string, minLength: 1, maxLength: 16000 }
     DmaicCharterTeamMember:
       type: object
       required: [role, name, position, areaCompany]

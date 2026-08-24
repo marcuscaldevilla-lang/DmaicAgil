@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DmaicExploratoryPoint } from './dmaicExploratoryPoint';
+import type { DmaicExploratoryStatistics } from './dmaicExploratoryStatistics';
 
 export interface DmaicExploratoryDiagnosisInput {
   /**
@@ -20,4 +21,5 @@ export interface DmaicExploratoryDiagnosisInput {
      * @maxItems 240
      */
   points: DmaicExploratoryPoint[];
+  statistics: DmaicExploratoryStatistics;
 }

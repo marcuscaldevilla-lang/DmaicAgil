@@ -81,7 +81,7 @@ type ContinuousAnalysis = { kind: 'continuous'; indicator: string; rows: number;
 type DiscreteAnalysis = { kind: 'discrete'; indicator: string; rows: number; categoryCount: number; topCategory: string; topCategoryCount: number; distribution: { label: string; count: number; percentage: number }[] };
 type IndicatorAnalysis = ContinuousAnalysis | DiscreteAnalysis;
 type ExploratoryPoint = { period: string; value: number };
-type ExploratorySummary = { points: ExploratoryPoint[]; minimum: number; q1: number; median: number; q3: number; maximum: number; iqr: number; mean: number };
+type ExploratorySummary = { points: ExploratoryPoint[]; minimum: number; q1: number; median: number; q3: number; maximum: number; iqr: number; mean: number; standardDeviation: number; shapiroW: number | null; shapiroPValue: number | null; shapiroDetail: string };
 const DIAGNOSIS_POINT_LIMIT = 240;
 
 const createProjectCharterDraft = (): ProjectCharterDraft => ({
@@ -418,6 +418,62 @@ function percentile(sorted: number[], proportion: number): number {
   return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
 }
 
+function normalCdf(value: number): number {
+  const sign = value < 0 ? -1 : 1;
+  const absolute = Math.abs(value) / Math.sqrt(2);
+  const t = 1 / (1 + 0.3275911 * absolute);
+  const polynomial = (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t;
+  return 0.5 * (1 + sign * (1 - polynomial * Math.exp(-absolute * absolute)));
+}
+
+function inverseNormalCdf(probability: number): number {
+  const p = Math.min(1 - Number.EPSILON, Math.max(Number.EPSILON, probability));
+  const a = [-39.6968302866538, 220.946098424521, -275.928510446969, 138.357751867269, -30.6647980661472, 2.50662827745924];
+  const b = [-54.4760987982241, 161.585836858041, -155.698979859887, 66.8013118877197, -13.2806815528857];
+  const c = [-0.00778489400243029, -0.322396458041136, -2.40075827716184, -2.54973253934373, 4.37466414146497, 2.93816398269878];
+  const d = [0.00778469570904146, 0.32246712907004, 2.445134137143, 3.75440866190742];
+  if (p < 0.02425) {
+    const q = Math.sqrt(-2 * Math.log(p));
+    return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+  }
+  if (p > 1 - 0.02425) return -inverseNormalCdf(1 - p);
+  const q = p - 0.5;
+  const r = q * q;
+  const numerator = (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q;
+  const denominator = ((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1;
+  return numerator / denominator;
+}
+
+function shapiroWilk(values: number[]): { statistic: number | null; pValue: number | null; detail: string } {
+  if (values.length < 3) return { statistic: null, pValue: null, detail: 'Teste indisponível: são necessárias pelo menos 3 observações.' };
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const sumSquares = values.reduce((sum, value) => sum + (value - mean) ** 2, 0);
+  if (sumSquares <= Number.EPSILON) return { statistic: null, pValue: null, detail: 'Teste indisponível: não há variação suficiente para avaliar a normalidade.' };
+  const sorted = [...values].sort((left, right) => left - right);
+  const expected = sorted.map((_, index) => inverseNormalCdf((index + 1 - 0.375) / (values.length + 0.25)));
+  const expectedMean = expected.reduce((sum, value) => sum + value, 0) / expected.length;
+  const centeredExpected = expected.map((value) => value - expectedMean);
+  const expectedSquares = centeredExpected.reduce((sum, value) => sum + value ** 2, 0);
+  const numerator = centeredExpected.reduce((sum, value, index) => sum + value * (sorted[index] - mean), 0);
+  const statistic = Math.min(1, Math.max(0, (numerator ** 2) / (sumSquares * expectedSquares)));
+  const oneMinusStatistic = Math.max(1e-12, 1 - statistic);
+  let standardized: number;
+  if (values.length <= 11) {
+    const gamma = -2.273 + 0.459 * values.length;
+    const transformed = -Math.log(Math.max(1e-12, gamma - Math.log(oneMinusStatistic)));
+    const expectedMeanForSmallSample = 0.5440 - 0.39978 * values.length + 0.025054 * values.length ** 2 - 0.0006714 * values.length ** 3;
+    const standardDeviationForSmallSample = Math.exp(1.3822 - 0.77857 * values.length + 0.062767 * values.length ** 2 - 0.0020322 * values.length ** 3);
+    standardized = (transformed - expectedMeanForSmallSample) / standardDeviationForSmallSample;
+  } else {
+    const logN = Math.log(values.length);
+    const expectedMeanForLargeSample = 0.0038915 * logN ** 3 - 0.083751 * logN ** 2 - 0.31082 * logN - 1.5861;
+    const standardDeviationForLargeSample = Math.exp(0.0030302 * logN ** 2 - 0.082676 * logN + 0.4803);
+    standardized = (Math.log(oneMinusStatistic) - expectedMeanForLargeSample) / standardDeviationForLargeSample;
+  }
+  const pValue = Math.min(1, Math.max(0, normalCdf(standardized)));
+  return { statistic, pValue, detail: `Shapiro–Wilk · W = ${statistic.toFixed(3)} · p = ${pValue.toFixed(3)} · significância de 5%` };
+}
+
 function formatExploratoryPeriod(row: Record<string, string>, dataset: InputDataset, index: number): string {
   const rawDate = dataset.dateColumn ? row[dataset.dateColumn] : '';
   const date = rawDate ? parseDateValue(rawDate) : null;
@@ -439,7 +495,10 @@ function buildExploratorySummary(dataset: InputDataset, analysis: IndicatorAnaly
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
   const q1 = percentile(sorted, 0.25);
   const q3 = percentile(sorted, 0.75);
-  return { points, minimum: sorted[0], q1, median: percentile(sorted, 0.5), q3, maximum: sorted[sorted.length - 1], iqr: q3 - q1, mean };
+  const variance = values.length > 1 ? values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1) : 0;
+  const standardDeviation = Math.sqrt(variance);
+  const shapiro = shapiroWilk(values);
+  return { points, minimum: sorted[0], q1, median: percentile(sorted, 0.5), q3, maximum: sorted[sorted.length - 1], iqr: q3 - q1, mean, standardDeviation, shapiroW: shapiro.statistic, shapiroPValue: shapiro.pValue, shapiroDetail: shapiro.detail };
 }
 
 function samplePointsForDiagnosis(points: ExploratoryPoint[]): ExploratoryPoint[] {
@@ -649,6 +708,19 @@ function ExploratoryAnalysisPanel({ dataset, analysis, months }: { dataset: Inpu
       indicator: analysis.indicator,
       timeColumn: dataset.dateColumn ?? undefined,
       points: diagnosisPoints,
+      statistics: {
+        count: summary.points.length,
+        mean: summary.mean,
+        median: summary.median,
+        minimum: summary.minimum,
+        q1: summary.q1,
+        q3: summary.q3,
+        maximum: summary.maximum,
+        iqr: summary.iqr,
+        standardDeviation: summary.standardDeviation,
+        shapiroW: summary.shapiroW ?? undefined,
+        shapiroPValue: summary.shapiroPValue ?? undefined,
+      },
     },
   });
   return <section data-testid="panel-exploratory-analysis" className="mt-5 rounded-xl border border-primary/15 bg-primary/5 p-5">
@@ -657,7 +729,7 @@ function ExploratoryAnalysisPanel({ dataset, analysis, months }: { dataset: Inpu
       <StatusPill tone="green">Dados do CSV · local</StatusPill>
     </div>
     <div className="mt-5 grid gap-3 xl:grid-cols-[1.35fr_.85fr]"><ExploratoryLineChart summary={summary} indicator={analysis.indicator} /><ExploratoryBoxPlot summary={summary} indicator={analysis.indicator} /></div>
-    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
       {[
         ['Mínimo', summary.minimum, 'stat-exploratory-minimum'],
         ['Q1 · 25%', summary.q1, 'stat-exploratory-q1'],
@@ -665,16 +737,19 @@ function ExploratoryAnalysisPanel({ dataset, analysis, months }: { dataset: Inpu
         ['Q3 · 75%', summary.q3, 'stat-exploratory-q3'],
         ['Máximo', summary.maximum, 'stat-exploratory-maximum'],
         ['IQR', summary.iqr, 'stat-exploratory-iqr'],
-      ].map(([label, value, testId]) => <div key={String(label)} data-testid={String(testId)} className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">{label}</p><p className="mt-1 font-mono text-sm font-bold">{formatMetric(Number(value))}</p></div>)}
+        ['Desvio-padrão', summary.standardDeviation, 'stat-exploratory-standard-deviation'],
+        ['p Shapiro–Wilk', summary.shapiroPValue, 'stat-exploratory-shapiro-p'],
+      ].map(([label, value, testId]) => <div key={String(label)} data-testid={String(testId)} className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">{label}</p><p className="mt-1 font-mono text-sm font-bold">{value === null ? 'Indisponível' : formatMetric(Number(value))}</p></div>)}
     </div>
     <div className="mt-4 grid gap-3 lg:grid-cols-2">
       <div data-testid="text-exploratory-lower-interpretation" className="rounded-xl border border-border bg-background p-4"><p className="text-xs font-bold">25% inferiores</p><p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">A região entre {formatMetric(summary.minimum)} e {formatMetric(summary.q1)} representa aproximadamente o quarto inferior das observações.</p></div>
       <div data-testid="text-exploratory-upper-interpretation" className="rounded-xl border border-border bg-background p-4"><p className="text-xs font-bold">25% superiores</p><p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">A região entre {formatMetric(summary.q3)} e {formatMetric(summary.maximum)} representa aproximadamente o quarto superior das observações.</p></div>
     </div>
+    <div data-testid="text-exploratory-shapiro-detail" className="mt-3 rounded-xl border border-border bg-background p-4"><p className="text-xs font-bold">Teste de normalidade</p><p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{summary.shapiroDetail}{summary.shapiroPValue !== null && ` · ${summary.shapiroPValue >= 0.05 ? 'Não há evidência suficiente para rejeitar normalidade.' : 'Há evidência de desvio da normalidade.'}`}</p></div>
     <div className="mt-4 rounded-xl border border-primary/20 bg-background p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="mono-label text-primary">Diagnóstico opcional</p><p className="mt-1 text-xs text-muted-foreground">Peça ao Gemini uma leitura de tendência, estabilidade, ciclos e saltos da série selecionada.</p>{diagnosisIsSampled && <p className="mt-1 text-[11px] text-muted-foreground">Para manter a leitura focada, o Gemini recebe uma amostra cronológica de {DIAGNOSIS_POINT_LIMIT} pontos; os gráficos e estatísticas usam todas as {summary.points.length} observações.</p>}</div><Button testId="button-generate-exploratory-diagnosis" onClick={runDiagnosis} disabled={diagnosisMutation.isPending || diagnosisPoints.length < 2} variant="outline">{diagnosisMutation.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}{diagnosisMutation.isPending ? 'Analisando...' : 'Gerar diagnóstico Gemini'}</Button></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="mono-label text-primary">Diagnóstico detalhado com IA</p><p className="mt-1 text-xs text-muted-foreground">Peça ao Gemini uma leitura completa de tendência, estabilidade, distribuição, normalidade e próximos passos do DMAIC.</p>{diagnosisIsSampled && <p className="mt-1 text-[11px] text-muted-foreground">Para manter a leitura focada, o Gemini recebe uma amostra cronológica de {DIAGNOSIS_POINT_LIMIT} pontos; os gráficos e estatísticas usam todas as {summary.points.length} observações.</p>}</div><Button testId="button-generate-exploratory-diagnosis" onClick={runDiagnosis} disabled={diagnosisMutation.isPending || diagnosisPoints.length < 2} variant="outline">{diagnosisMutation.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}{diagnosisMutation.isPending ? 'Analisando...' : 'Gerar diagnóstico detalhado'}</Button></div>
       {diagnosisMutation.isError && <p data-testid="status-exploratory-diagnosis-error" className="mt-3 rounded-lg bg-destructive/5 p-3 text-xs text-destructive">{diagnosisMutation.error instanceof Error ? diagnosisMutation.error.message.replace(/^HTTP \d+ [^:]+:\s*/, '') : 'Não foi possível obter o diagnóstico textual agora. A análise estatística local continua disponível.'}</p>}
-      {diagnosisMutation.data?.diagnosis && <div data-testid="text-exploratory-diagnosis" className="mt-4 border-t border-border pt-4 text-sm leading-relaxed text-muted-foreground"><p className="mb-2 text-xs font-bold text-foreground">Leitura do comportamento da série</p>{diagnosisMutation.data.diagnosis.split(/\n{2,}/).map((paragraph, index) => <p key={index} className="mb-2 last:mb-0">{paragraph}</p>)}</div>}
+      {diagnosisMutation.data?.diagnosis && <div data-testid="text-exploratory-diagnosis" className="mt-4 max-w-none overflow-visible whitespace-pre-wrap break-words border-t border-border pt-4 text-sm leading-relaxed text-muted-foreground"><p className="mb-3 text-xs font-bold text-foreground">Leitura detalhada do comportamento da série</p>{diagnosisMutation.data.diagnosis.split(/\n{2,}/).map((paragraph, index) => <p key={index} className="mb-3 last:mb-0">{paragraph.trim()}</p>)}</div>}
     </div>
   </section>;
 }

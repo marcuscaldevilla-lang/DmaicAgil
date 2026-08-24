@@ -261,6 +261,13 @@ export const runDmaicExploratoryDiagnosisBodyPointsMin = 2;
 export const runDmaicExploratoryDiagnosisBodyPointsMax = 240;
 
 
+export const runDmaicExploratoryDiagnosisBodyStatisticsShapiroWMin = 0;
+export const runDmaicExploratoryDiagnosisBodyStatisticsShapiroWMax = 1;
+
+export const runDmaicExploratoryDiagnosisBodyStatisticsShapiroPValueMin = 0;
+export const runDmaicExploratoryDiagnosisBodyStatisticsShapiroPValueMax = 1;
+
+
 
 export const RunDmaicExploratoryDiagnosisBody = zod.object({
   "indicator": zod.string().min(1).max(runDmaicExploratoryDiagnosisBodyIndicatorMax),
@@ -268,10 +275,23 @@ export const RunDmaicExploratoryDiagnosisBody = zod.object({
   "points": zod.array(zod.object({
   "period": zod.string().max(runDmaicExploratoryDiagnosisBodyPointsItemPeriodMax),
   "value": zod.number()
-})).min(runDmaicExploratoryDiagnosisBodyPointsMin).max(runDmaicExploratoryDiagnosisBodyPointsMax)
+})).min(runDmaicExploratoryDiagnosisBodyPointsMin).max(runDmaicExploratoryDiagnosisBodyPointsMax),
+  "statistics": zod.object({
+  "count": zod.number().min(1),
+  "mean": zod.number(),
+  "median": zod.number(),
+  "minimum": zod.number(),
+  "q1": zod.number(),
+  "q3": zod.number(),
+  "maximum": zod.number(),
+  "iqr": zod.number(),
+  "standardDeviation": zod.number(),
+  "shapiroW": zod.number().min(runDmaicExploratoryDiagnosisBodyStatisticsShapiroWMin).max(runDmaicExploratoryDiagnosisBodyStatisticsShapiroWMax).optional(),
+  "shapiroPValue": zod.number().min(runDmaicExploratoryDiagnosisBodyStatisticsShapiroPValueMin).max(runDmaicExploratoryDiagnosisBodyStatisticsShapiroPValueMax).optional()
+})
 })
 
-export const runDmaicExploratoryDiagnosisResponseDiagnosisMax = 8000;
+export const runDmaicExploratoryDiagnosisResponseDiagnosisMax = 16000;
 
 
 

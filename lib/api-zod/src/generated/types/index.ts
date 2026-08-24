@@ -12,6 +12,7 @@ export * from './dmaicCharterTeamMember';
 export * from './dmaicExploratoryDiagnosis';
 export * from './dmaicExploratoryDiagnosisInput';
 export * from './dmaicExploratoryPoint';
+export * from './dmaicExploratoryStatistics';
 export * from './dmaicGeneratedCharter';
 export * from './dmaicIndicator';
 export * from './dmaicPipeline';

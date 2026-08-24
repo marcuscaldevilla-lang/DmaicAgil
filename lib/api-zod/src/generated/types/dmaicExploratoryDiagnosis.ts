@@ -9,7 +9,7 @@
 export interface DmaicExploratoryDiagnosis {
   /**
      * @minLength 1
-     * @maxLength 8000
+     * @maxLength 16000
      */
   diagnosis: string;
 }

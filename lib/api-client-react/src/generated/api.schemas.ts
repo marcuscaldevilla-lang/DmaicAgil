@@ -50,6 +50,29 @@ export interface DmaicExploratoryPoint {
   value: number;
 }
 
+export interface DmaicExploratoryStatistics {
+  /** @minimum 1 */
+  count: number;
+  mean: number;
+  median: number;
+  minimum: number;
+  q1: number;
+  q3: number;
+  maximum: number;
+  iqr: number;
+  standardDeviation: number;
+  /**
+     * @minimum 0
+     * @maximum 1
+     */
+  shapiroW?: number;
+  /**
+     * @minimum 0
+     * @maximum 1
+     */
+  shapiroPValue?: number;
+}
+
 export interface DmaicExploratoryDiagnosisInput {
   /**
      * @minLength 1
@@ -63,12 +86,13 @@ export interface DmaicExploratoryDiagnosisInput {
      * @maxItems 240
      */
   points: DmaicExploratoryPoint[];
+  statistics: DmaicExploratoryStatistics;
 }
 
 export interface DmaicExploratoryDiagnosis {
   /**
      * @minLength 1
-     * @maxLength 8000
+     * @maxLength 16000
      */
   diagnosis: string;
 }
