@@ -121,6 +121,11 @@ export interface DmaicWorkspaceInput {
   projectCharterContext: DmaicCharterContext;
   /** AI-generated Charter content that remains pending team review. Send null when the Charter is confirmed. */
   aiCharterSuggestions: DmaicGeneratedCharter | null;
+  /**
+     * Monotonic version returned by the last workspace read or save. Send 0 when creating the workspace for the first time.
+     * @minimum 0
+     */
+  expectedRevision: number;
 }
 
 export interface DmaicWorkspace {
@@ -130,8 +135,15 @@ export interface DmaicWorkspace {
   projectCharterContext: DmaicCharterContext;
   /** AI-generated Charter content that remains pending team review, or null after confirmation. */
   aiCharterSuggestions: DmaicGeneratedCharter | null;
+  /** @minimum 0 */
+  revision: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DmaicWorkspaceConflict {
+  error: string;
+  latestWorkspace: DmaicWorkspace;
 }
 
 export interface DmaicCharter {

@@ -25,6 +25,7 @@ import type {
   DmaicPipeline,
   DmaicPipelineInput,
   DmaicWorkspace,
+  DmaicWorkspaceConflict,
   DmaicWorkspaceInput,
   HealthStatus
 } from './api.schemas';
@@ -311,7 +312,7 @@ export const saveDmaicWorkspace = async (dmaicWorkspaceInput: DmaicWorkspaceInpu
 
 
 
-export const getSaveDmaicWorkspaceMutationOptions = <TError = ErrorType<void>,
+export const getSaveDmaicWorkspaceMutationOptions = <TError = ErrorType<void | DmaicWorkspaceConflict>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDmaicWorkspace>>, TError,{data: BodyType<DmaicWorkspaceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof saveDmaicWorkspace>>, TError,{data: BodyType<DmaicWorkspaceInput>}, TContext> => {
 
@@ -340,12 +341,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type SaveDmaicWorkspaceMutationResult = NonNullable<Awaited<ReturnType<typeof saveDmaicWorkspace>>>
     export type SaveDmaicWorkspaceMutationBody = BodyType<DmaicWorkspaceInput>
-    export type SaveDmaicWorkspaceMutationError = ErrorType<void>
+    export type SaveDmaicWorkspaceMutationError = ErrorType<void | DmaicWorkspaceConflict>
 
     /**
  * @summary Save the active DMAIC workspace
  */
-export const useSaveDmaicWorkspace = <TError = ErrorType<void>,
+export const useSaveDmaicWorkspace = <TError = ErrorType<void | DmaicWorkspaceConflict>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDmaicWorkspace>>, TError,{data: BodyType<DmaicWorkspaceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof saveDmaicWorkspace>>,

@@ -114,6 +114,10 @@ export const RunDmaicPipelineResponse = zod.object({
  * Loads the persisted Project Charter, problem statement, and any AI suggestions still awaiting review.
  * @summary Load the active DMAIC workspace
  */
+export const getDmaicWorkspaceResponseRevisionMin = 0;
+
+
+
 export const GetDmaicWorkspaceResponse = zod.object({
   "projectKey": zod.string(),
   "hasSavedData": zod.boolean(),
@@ -152,6 +156,7 @@ export const GetDmaicWorkspaceResponse = zod.object({
   "customerRequirements": zod.string(),
   "businessContributions": zod.string()
 }).describe('Editable Project Charter suggestions generated from the problem statement.'),zod.null()]).describe('AI-generated Charter content that remains pending team review, or null after confirmation.'),
+  "revision": zod.number().min(getDmaicWorkspaceResponseRevisionMin),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -163,6 +168,8 @@ export const GetDmaicWorkspaceResponse = zod.object({
  */
 export const saveDmaicWorkspaceBodyProblemStatementMin = 10;
 export const saveDmaicWorkspaceBodyProblemStatementMax = 4000;
+
+export const saveDmaicWorkspaceBodyExpectedRevisionMin = 0;
 
 
 
@@ -201,8 +208,13 @@ export const SaveDmaicWorkspaceBody = zod.object({
   "assumptionsAndConstraints": zod.string(),
   "customerRequirements": zod.string(),
   "businessContributions": zod.string()
-}).describe('Editable Project Charter suggestions generated from the problem statement.'),zod.null()]).describe('AI-generated Charter content that remains pending team review. Send null when the Charter is confirmed.')
+}).describe('Editable Project Charter suggestions generated from the problem statement.'),zod.null()]).describe('AI-generated Charter content that remains pending team review. Send null when the Charter is confirmed.'),
+  "expectedRevision": zod.number().min(saveDmaicWorkspaceBodyExpectedRevisionMin).describe('Monotonic version returned by the last workspace read or save. Send 0 when creating the workspace for the first time.')
 })
+
+export const saveDmaicWorkspaceResponseRevisionMin = 0;
+
+
 
 export const SaveDmaicWorkspaceResponse = zod.object({
   "projectKey": zod.string(),
@@ -242,6 +254,7 @@ export const SaveDmaicWorkspaceResponse = zod.object({
   "customerRequirements": zod.string(),
   "businessContributions": zod.string()
 }).describe('Editable Project Charter suggestions generated from the problem statement.'),zod.null()]).describe('AI-generated Charter content that remains pending team review, or null after confirmation.'),
+  "revision": zod.number().min(saveDmaicWorkspaceResponseRevisionMin),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })

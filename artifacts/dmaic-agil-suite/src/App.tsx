@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { type DmaicPipeline, useGetDmaicWorkspace, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
+import { type DmaicPipeline, type DmaicWorkspace, useGetDmaicWorkspace, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -76,6 +76,9 @@ type ProjectCharterDraft = {
 type CharterTextField = Exclude<keyof ProjectCharterDraft, 'team'>;
 type ProjectCharterContext = Omit<ProjectCharterDraft, 'team'> & { team: Array<CharterTeamMember & { role: string }> };
 type GeneratedCharterFields = Pick<ProjectCharterDraft, 'objective' | 'history' | 'goalDefinition' | 'kpis' | 'includedScope' | 'excludedScope' | 'assumptionsAndConstraints' | 'customerRequirements' | 'businessContributions'>;
+type WorkspaceSaveSource = 'statement' | 'charter' | 'suggestions';
+type WorkspaceSaveData = { problemStatement: string; projectCharterContext: ProjectCharterContext; aiCharterSuggestions: GeneratedCharterFields | null };
+type WorkspaceSaveAttempt = { source: WorkspaceSaveSource; data: WorkspaceSaveData; charterToPersist?: ProjectCharterDraft; expectedRevision?: number };
 type InputDataset = { fileName: string; headers: string[]; rows: Record<string, string>[]; dateColumn: string | null; indicatorColumns: string[] };
 type ContinuousAnalysis = { kind: 'continuous'; indicator: string; rows: number; values: number[]; mean: number; median: number; minimum: number; maximum: number; standardDeviation: number; normality: string; normalityDetail: string };
 type DiscreteAnalysis = { kind: 'discrete'; indicator: string; rows: number; categoryCount: number; topCategory: string; topCategoryCount: number; distribution: { label: string; count: number; percentage: number }[] };
@@ -83,6 +86,15 @@ type IndicatorAnalysis = ContinuousAnalysis | DiscreteAnalysis;
 type ExploratoryPoint = { period: string; value: number };
 type ExploratorySummary = { points: ExploratoryPoint[]; minimum: number; q1: number; median: number; q3: number; maximum: number; iqr: number; mean: number; standardDeviation: number; shapiroW: number | null; shapiroPValue: number | null; shapiroDetail: string };
 const DIAGNOSIS_POINT_LIMIT = 240;
+
+function getWorkspaceConflict(error: unknown): DmaicWorkspace | null {
+  if (!error || typeof error !== 'object' || !('status' in error) || error.status !== 409 || !('data' in error)) return null;
+  const data = error.data;
+  if (!data || typeof data !== 'object' || !('latestWorkspace' in data)) return null;
+  const latestWorkspace = data.latestWorkspace;
+  if (!latestWorkspace || typeof latestWorkspace !== 'object' || !('revision' in latestWorkspace) || typeof latestWorkspace.revision !== 'number') return null;
+  return latestWorkspace as DmaicWorkspace;
+}
 
 const createProjectCharterDraft = (): ProjectCharterDraft => ({
   projectName: '',
@@ -840,6 +852,7 @@ function Workspace() {
   const [charter, setCharter] = useState<ProjectCharterDraft>(createProjectCharterDraft);
   const [charterSaved, setCharterSaved] = useState(false);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [workspaceConflict, setWorkspaceConflict] = useState<{ latest: DmaicWorkspace; source: WorkspaceSaveSource } | null>(null);
   const [workspaceHydrated, setWorkspaceHydrated] = useState(false);
   const [pipelineLoading, setPipelineLoading] = useState(false);
   const [pipelineDone, setPipelineDone] = useState(false);
@@ -857,6 +870,7 @@ function Workspace() {
   const uploadVersionRef = useRef(0);
   const charterReviewVersionRef = useRef(0);
   const workspaceSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const workspaceRevisionRef = useRef(0);
   const displayArea = area === 'overview' ? 'overview' : area;
   const inputAnalysis = useMemo(() => inputDataset ? summarizeIndicator(inputDataset, selectedIndicator, analysisMonths) : null, [analysisMonths, inputDataset, selectedIndicator]);
   const pareto = useMemo(() => !inputDataset ? initialPareto : inputAnalysis?.kind === 'discrete' ? inputAnalysis.distribution.map((item) => ({ name: item.label, value: item.count })) : null, [inputAnalysis, inputDataset]);
@@ -872,52 +886,94 @@ function Workspace() {
       setCharter(pendingSuggestions ? applyGeneratedCharterFields(persistedCharter, pendingSuggestions) : persistedCharter);
       setAiCharterSuggestions(pendingSuggestions);
     }
+    workspaceRevisionRef.current = workspaceQuery.data.revision;
     setWorkspaceHydrated(true);
   }, [workspaceHydrated, workspaceQuery.data]);
 
   const queueWorkspaceSave = (
-    data: { problemStatement: string; projectCharterContext: ProjectCharterContext; aiCharterSuggestions: GeneratedCharterFields | null },
-    callbacks: { onSuccess?: () => void; onError: () => void },
+    attempt: WorkspaceSaveAttempt,
+    callbacks: { onSuccess?: (savedWorkspace: DmaicWorkspace) => void; onConflict?: (latestWorkspace: DmaicWorkspace) => void; onError: () => void },
   ) => {
     const queuedSave = workspaceSaveQueueRef.current
       .catch(() => undefined)
-      .then(() => workspaceMutation.mutateAsync({ data }));
+      .then(async () => {
+        const savedWorkspace = await workspaceMutation.mutateAsync({
+          data: {
+            ...attempt.data,
+            expectedRevision: attempt.expectedRevision === undefined ? workspaceRevisionRef.current : attempt.expectedRevision,
+          },
+        });
+        workspaceRevisionRef.current = savedWorkspace.revision;
+        return savedWorkspace;
+      });
     workspaceSaveQueueRef.current = queuedSave.then(() => undefined, () => undefined);
-    void queuedSave.then(() => callbacks.onSuccess?.()).catch(callbacks.onError);
+    void queuedSave.then((savedWorkspace) => callbacks.onSuccess?.(savedWorkspace)).catch((error: unknown) => {
+      const latestWorkspace = getWorkspaceConflict(error);
+      if (latestWorkspace) {
+        callbacks.onConflict?.(latestWorkspace);
+        return;
+      }
+      callbacks.onError();
+    });
   };
 
-  const saveWorkspace = (source: 'statement' | 'charter') => {
+  const saveWorkspace = (source: WorkspaceSaveSource, expectedRevision?: number) => {
     if (statement.trim().length < 10) {
       setWorkspaceError('Descreva o problema com pelo menos 10 caracteres antes de salvar no Neon.');
       return;
     }
     if (source === 'charter') charterReviewVersionRef.current += 1;
     setWorkspaceError(null);
+    setWorkspaceConflict(null);
     const charterToPersist = source === 'charter' ? charter : confirmedCharter;
-    queueWorkspaceSave(
-      {
+    const attempt: WorkspaceSaveAttempt = {
+      source,
+      charterToPersist,
+      expectedRevision,
+      data: {
         problemStatement: statement.trim(),
         projectCharterContext: toProjectCharterContext(charterToPersist),
         aiCharterSuggestions: source === 'charter' ? null : aiCharterSuggestions,
       },
+    };
+    queueWorkspaceSave(
+      attempt,
       {
         onSuccess: () => {
           if (source === 'statement') {
             setSaved(true);
             window.setTimeout(() => setSaved(false), 2200);
-          } else {
-            setConfirmedCharter(charter);
+          } else if (source === 'charter') {
+            setConfirmedCharter(charterToPersist);
             setAiCharterSuggestions(null);
             setCharterSaved(true);
             window.setTimeout(() => setCharterSaved(false), 2200);
           }
         },
+        onConflict: (latestWorkspace) => setWorkspaceConflict({ latest: latestWorkspace, source }),
         onError: () => setWorkspaceError('Não foi possível salvar no Neon. Confirme a conexão e tente novamente.'),
       },
     );
   };
   const saveStatement = () => saveWorkspace('statement');
   const saveCharter = () => saveWorkspace('charter');
+  const applyLatestWorkspace = (latestWorkspace: DmaicWorkspace) => {
+    const persistedCharter = toProjectCharterDraft(latestWorkspace.projectCharterContext);
+    const pendingSuggestions = latestWorkspace.aiCharterSuggestions;
+    setStatement(latestWorkspace.problemStatement);
+    setConfirmedCharter(persistedCharter);
+    setCharter(pendingSuggestions ? applyGeneratedCharterFields(persistedCharter, pendingSuggestions) : persistedCharter);
+    setAiCharterSuggestions(pendingSuggestions);
+    workspaceRevisionRef.current = latestWorkspace.revision;
+    setWorkspaceConflict(null);
+    setWorkspaceError(null);
+  };
+  const useLatestWorkspace = () => {
+    if (workspaceConflict) applyLatestWorkspace(workspaceConflict.latest);
+  };
+  const overwriteLatestWorkspace = () => {
+    if (workspaceConflict) saveWorkspace(workspaceConflict.source, workspaceConflict.latest.revision);
+  };
   const updateCharter = (field: CharterTextField, value: string) => {
     setCharter((current) => ({ ...current, [field]: value }));
   };
@@ -952,11 +1008,16 @@ function Workspace() {
           setArea('overview');
           queueWorkspaceSave(
             {
-              problemStatement: statement.trim(),
-              projectCharterContext: toProjectCharterContext(confirmedCharter),
-              aiCharterSuggestions: data.generatedCharter,
+              source: 'suggestions',
+              charterToPersist: confirmedCharter,
+              data: {
+                problemStatement: statement.trim(),
+                projectCharterContext: toProjectCharterContext(confirmedCharter),
+                aiCharterSuggestions: data.generatedCharter,
+              },
             },
             {
+              onConflict: (latestWorkspace) => setWorkspaceConflict({ latest: latestWorkspace, source: 'suggestions' }),
               onError: () => setWorkspaceError('As sugestões foram geradas, mas não puderam ser protegidas no Neon. Salve o Charter para tentar novamente.'),
             },
           );
@@ -1012,6 +1073,7 @@ function Workspace() {
            {pipelineLoading && <div data-testid="status-pipeline-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><RefreshCw size={15} className="animate-spin text-primary" /><span><strong>Montando seu caminho DMAIC...</strong> O Gemini está estruturando os entregáveis para a sessão.</span></div>}
            {pipelineError && <div data-testid="status-pipeline-error" className="reveal mb-6 flex items-center justify-between gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive"><span>{pipelineError}</span><Button testId="button-retry-pipeline" onClick={startPipeline} variant="outline">Tentar novamente</Button></div>}
            {workspaceQuery.isLoading && <div data-testid="status-workspace-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-border bg-muted/55 px-4 py-3 text-xs"><RefreshCw size={15} className="animate-spin text-primary" /><span>Carregando o Project Charter salvo...</span></div>}
+           {workspaceConflict && <div data-testid="status-workspace-conflict" className="reveal mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-accent/35 bg-accent/10 px-4 py-3 text-xs"><div className="flex min-w-0 gap-3"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><div><p className="font-bold text-foreground">Há uma edição mais recente neste workspace.</p><p className="mt-1 leading-relaxed text-muted-foreground">Seus campos e sugestões continuam aqui. Carregue a versão mais recente para revisá-la ou substitua-a conscientemente pela sua edição.</p></div></div><div className="flex shrink-0 flex-wrap gap-2"><Button testId="button-use-latest-workspace" onClick={useLatestWorkspace} variant="outline">Usar versão mais recente</Button><Button testId="button-overwrite-workspace" onClick={overwriteLatestWorkspace}>Substituir mesmo assim</Button></div></div>}
            {(workspaceError || workspaceQuery.isError) && <div data-testid="status-workspace-error" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive"><Info size={15} /><span>{workspaceError ?? 'Não foi possível carregar os dados salvos no Neon.'}</span></div>}
            {saved && <div data-testid="status-statement-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Mudança salva no Neon.</strong> O enunciado estará disponível ao reabrir este workspace.</span></div>}
            {charterSaved && <div data-testid="status-charter-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Project charter salvo no Neon.</strong> Essas informações serão carregadas ao reabrir este workspace e usadas como contexto na geração do pipeline.</span></div>}

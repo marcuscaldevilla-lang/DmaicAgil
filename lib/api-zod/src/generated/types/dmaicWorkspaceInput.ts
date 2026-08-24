@@ -17,4 +17,9 @@ export interface DmaicWorkspaceInput {
   projectCharterContext: DmaicCharterContext;
   /** AI-generated Charter content that remains pending team review. Send null when the Charter is confirmed. */
   aiCharterSuggestions: DmaicGeneratedCharter | null;
+  /**
+     * Monotonic version returned by the last workspace read or save. Send 0 when creating the workspace for the first time.
+     * @minimum 0
+     */
+  expectedRevision: number;
 }

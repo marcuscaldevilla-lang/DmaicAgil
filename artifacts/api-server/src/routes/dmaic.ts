@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, dmaicWorkspaces } from "@workspace/db";
 import {
   GetDmaicWorkspaceResponse,
@@ -110,6 +110,7 @@ function serializeWorkspace(row?: typeof dmaicWorkspaces.$inferSelect) {
       problemStatement: "",
       projectCharterContext: emptyCharterContext(),
       aiCharterSuggestions: null,
+      revision: 0,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     };
@@ -121,6 +122,7 @@ function serializeWorkspace(row?: typeof dmaicWorkspaces.$inferSelect) {
     problemStatement: row.problemStatement,
     projectCharterContext: row.projectCharterContext,
     aiCharterSuggestions: row.aiCharterSuggestions,
+    revision: row.revision,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -152,31 +154,70 @@ router.put("/dmaic/workspace", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Revise o problem statement e os campos do Project Charter." });
     return;
   }
+  if (!Number.isSafeInteger(body.data.expectedRevision)) {
+    req.log.warn({ expectedRevision: body.data.expectedRevision }, "Invalid DMAIC workspace revision");
+    res.status(400).json({ error: "A revisão do workspace deve ser um número inteiro válido." });
+    return;
+  }
 
   const projectCharterContext = {
     ...body.data.projectCharterContext,
     date: body.data.projectCharterContext.date.toISOString().slice(0, 10),
   };
+  const expectedRevision = body.data.expectedRevision;
 
   try {
-    const [workspace] = await db
-      .insert(dmaicWorkspaces)
-      .values({
-        projectKey: ACTIVE_WORKSPACE_KEY,
-        problemStatement: body.data.problemStatement,
-        projectCharterContext,
-        aiCharterSuggestions: body.data.aiCharterSuggestions,
-      })
-      .onConflictDoUpdate({
-        target: dmaicWorkspaces.projectKey,
-        set: {
-          problemStatement: body.data.problemStatement,
-          projectCharterContext,
-          aiCharterSuggestions: body.data.aiCharterSuggestions,
+    const values = {
+      projectKey: ACTIVE_WORKSPACE_KEY,
+      problemStatement: body.data.problemStatement,
+      projectCharterContext,
+      aiCharterSuggestions: body.data.aiCharterSuggestions,
+    };
+    let workspace: typeof dmaicWorkspaces.$inferSelect | undefined;
+
+    if (expectedRevision === 0) {
+      [workspace] = await db
+        .insert(dmaicWorkspaces)
+        .values(values)
+        .onConflictDoNothing({ target: dmaicWorkspaces.projectKey })
+        .returning();
+    } else {
+      [workspace] = await db
+        .update(dmaicWorkspaces)
+        .set({
+          problemStatement: values.problemStatement,
+          projectCharterContext: values.projectCharterContext,
+          aiCharterSuggestions: values.aiCharterSuggestions,
+          revision: sql`${dmaicWorkspaces.revision} + 1`,
           updatedAt: new Date(),
-        },
-      })
-      .returning();
+        })
+        .where(
+          and(
+            eq(dmaicWorkspaces.projectKey, ACTIVE_WORKSPACE_KEY),
+            eq(dmaicWorkspaces.revision, expectedRevision),
+          ),
+        )
+        .returning();
+    }
+
+    if (!workspace) {
+      const [latestWorkspace] = await db
+        .select()
+        .from(dmaicWorkspaces)
+        .where(eq(dmaicWorkspaces.projectKey, ACTIVE_WORKSPACE_KEY));
+      const latestPayload = GetDmaicWorkspaceResponse.safeParse(serializeWorkspace(latestWorkspace));
+      if (!latestPayload.success) {
+        req.log.error({ errors: latestPayload.error.flatten() }, "Workspace conflict response has an invalid shape");
+        res.status(500).json({ error: "O workspace mudou, mas a versão mais recente não pôde ser lida." });
+        return;
+      }
+      req.log.warn("Rejected stale DMAIC workspace save");
+      res.status(409).json({
+        error: "O workspace foi alterado por outra sessão desde a última leitura.",
+        latestWorkspace: latestPayload.data,
+      });
+      return;
+    }
 
     const payload = GetDmaicWorkspaceResponse.safeParse(serializeWorkspace(workspace));
     if (!payload.success) {

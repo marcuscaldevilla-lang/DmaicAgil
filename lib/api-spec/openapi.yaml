@@ -80,6 +80,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DmaicWorkspace"
+        "409":
+          description: Workspace changed since it was last read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DmaicWorkspaceConflict"
         "400":
           description: Invalid workspace data
         "500":
@@ -219,7 +225,7 @@ components:
         businessContributions: { type: string }
     DmaicWorkspaceInput:
       type: object
-      required: [problemStatement, projectCharterContext, aiCharterSuggestions]
+      required: [problemStatement, projectCharterContext, aiCharterSuggestions, expectedRevision]
       properties:
         problemStatement:
           type: string
@@ -232,9 +238,13 @@ components:
           anyOf:
             - $ref: "#/components/schemas/DmaicGeneratedCharter"
             - type: "null"
+        expectedRevision:
+          description: Monotonic version returned by the last workspace read or save. Send 0 when creating the workspace for the first time.
+          type: number
+          minimum: 0
     DmaicWorkspace:
       type: object
-      required: [projectKey, hasSavedData, problemStatement, projectCharterContext, aiCharterSuggestions, createdAt, updatedAt]
+      required: [projectKey, hasSavedData, problemStatement, projectCharterContext, aiCharterSuggestions, revision, createdAt, updatedAt]
       properties:
         projectKey: { type: string }
         hasSavedData: { type: boolean }
@@ -246,8 +256,16 @@ components:
           anyOf:
             - $ref: "#/components/schemas/DmaicGeneratedCharter"
             - type: "null"
+        revision: { type: number, minimum: 0 }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    DmaicWorkspaceConflict:
+      type: object
+      required: [error, latestWorkspace]
+      properties:
+        error: { type: string }
+        latestWorkspace:
+          $ref: "#/components/schemas/DmaicWorkspace"
     DmaicCharter:
       type: object
       required: [projectTitle, problemStatement, businessCase, expectedSavings]
