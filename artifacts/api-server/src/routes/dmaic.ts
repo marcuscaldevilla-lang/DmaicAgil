@@ -34,7 +34,7 @@ Responda SOMENTE com JSON válido, sem markdown, seguindo exatamente esta estrut
   "controlPlan":[{"parameter":"","specification":"","measurementFreq":"","responsible":"","reactionPlan":""}],
   "standardizationSop":[{"procedureName":"","pokaYokeFeature":"","ocapTrigger":""}]
 }
-Use de 2 a 4 itens por lista. Todos os valores devem ser strings. Em "generatedCharter", preencha todos os doze campos com sugestões diretamente derivadas do problema informado. As contribuições quantitativas, qualitativas e o ganho financeiro devem ser claramente tratados como estimativas/propostas para validação; nunca invente um valor financeiro confirmado. Também não invente economias, custos, receitas, ROI ou payback em nenhum outro campo. Se as informações financeiras coletadas não forem fornecidas, diga que o valor precisa ser validado com a fonte financeira responsável. O campo de informações financeiras coletadas é factual e pertence ao time, não à IA. Seja específico ao problema e realista, mas não invente dados apresentados como medidos; quando faltarem dados, formule hipóteses, limites e metas explicitamente como propostas para validação. Quando houver contexto de Project Charter fornecido pela equipe, trate-o como fonte prioritária e reaproveite seus termos, metas, responsáveis, limites e informações financeiras coletadas.`;
+Use 1 ou 2 itens concisos por lista. Todos os valores devem ser strings. Em "generatedCharter", preencha todos os doze campos com sugestões diretamente derivadas do problema informado e do contexto do Charter. Reescreva "goalDefinition" como uma meta SMART coerente com objetivo, KPIs, baseline, escopo, contribuições quantitativas e informações financeiras coletadas; não repita automaticamente uma meta antiga se os dados coletados apontarem outra. Para "financialGainValue", calcule uma estimativa somente a partir dos números, moeda, período, volume, custo unitário, percentual e premissas explicitamente presentes em "businessContributionsQuantitative" e "financialInformation". Mostre a fórmula ou a lógica usada e deixe claro o período, a moeda e as premissas. Se os campos não trouxerem dados suficientes para uma conta defensável, diga que não foi possível calcular e liste o dado faltante. Nunca invente valor, custo, volume, receita, economia, ROI ou payback, nem apresente estimativa como valor confirmado. O campo de informações financeiras coletadas é factual e pertence ao time, não à IA. As contribuições quantitativas, qualitativas e o ganho financeiro devem permanecer como propostas para validação; valores calculados devem ser validados com Financeiro. Seja específico ao problema e realista, sem afirmar como medidos dados que não foram informados. Quando houver contexto de Project Charter fornecido pela equipe, trate-o como fonte prioritária e reaproveite seus termos, metas, responsáveis, limites e informações financeiras coletadas.`;
 
 const EXPLORATORY_SYSTEM_PROMPT = `Você é um Master Black Belt em Lean Six Sigma, com experiência em análise estatística aplicada.
 Elabore um diagnóstico detalhado em português do Brasil sobre a série temporal e as estatísticas fornecidas.
@@ -147,7 +147,13 @@ function normalizeCharterContext(context: unknown) {
   };
 }
 
-function normalizeGeneratedCharterSuggestions(suggestions: unknown, financialInformation: string | undefined) {
+const FINANCIAL_ESTIMATE_PREFIX = "Estimativa calculada pela IA com base nas informações fornecidas";
+
+function normalizeGeneratedCharterSuggestions(
+  suggestions: unknown,
+  financialInformation: string | undefined,
+  businessContributionsQuantitative: string | undefined,
+) {
   if (!suggestions || typeof suggestions !== "object") return suggestions;
   const source = suggestions as Record<string, unknown>;
   return {
@@ -155,15 +161,29 @@ function normalizeGeneratedCharterSuggestions(suggestions: unknown, financialInf
     businessContributions: createBusinessContributionSuggestion("summary"),
     businessContributionsQuantitative: createBusinessContributionSuggestion("quantitative"),
     businessContributionsQualitative: createBusinessContributionSuggestion("qualitative"),
-    financialGainValue: createFinancialGainSuggestion(financialInformation),
+    financialGainValue: createFinancialGainSuggestion(
+      financialInformation,
+      businessContributionsQuantitative,
+      typeof source.financialGainValue === "string" ? source.financialGainValue : undefined,
+    ),
   };
 }
 
-export function createFinancialGainSuggestion(financialInformation: string | undefined): string {
-  if (!financialInformation?.trim()) {
-    return "Valor a validar com Financeiro. Não há informações financeiras coletadas suficientes para propor um ganho.";
+export function createFinancialGainSuggestion(
+  financialInformation: string | undefined,
+  businessContributionsQuantitative: string | undefined,
+  modelSuggestion?: string,
+): string {
+  const hasFinancialInputs = Boolean(financialInformation?.trim() || businessContributionsQuantitative?.trim());
+  if (!hasFinancialInputs) {
+    return "Não foi possível calcular o ganho financeiro: preencha Contribuições quantitativas e Informações financeiras coletadas.";
   }
-  return "Estimativa/proposta da IA para validação com Financeiro. Use exclusivamente as informações financeiras coletadas no Charter e confirme fonte, período, moeda, premissas e cálculo antes de registrar um valor.";
+  const suggestion = modelSuggestion?.trim();
+  if (!suggestion || suggestion === "Valor a validar com Financeiro. Não há informações financeiras coletadas suficientes para propor um ganho.") {
+    return "A IA não retornou um cálculo defensável a partir dos dados fornecidos. Valide com Financeiro a fonte, período, moeda, volume, custo unitário, premissas e fórmula.";
+  }
+  if (suggestion.startsWith(FINANCIAL_ESTIMATE_PREFIX)) return suggestion;
+  return `${FINANCIAL_ESTIMATE_PREFIX} (Contribuições quantitativas + Informações financeiras coletadas): ${suggestion} Validação obrigatória com Financeiro antes de tratar o valor como confirmado.`;
 }
 
 function createBusinessContributionSuggestion(kind: "summary" | "quantitative" | "qualitative"): string {
@@ -203,7 +223,11 @@ function serializeWorkspace(row?: typeof dmaicWorkspaces.$inferSelect) {
     hasSavedData: true,
     problemStatement: row.problemStatement,
     projectCharterContext,
-    aiCharterSuggestions: normalizeGeneratedCharterSuggestions(row.aiCharterSuggestions, projectCharterContext.financialInformation),
+    aiCharterSuggestions: normalizeGeneratedCharterSuggestions(
+      row.aiCharterSuggestions,
+      projectCharterContext.financialInformation,
+      projectCharterContext.businessContributionsQuantitative,
+    ),
     revision: row.revision,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -296,6 +320,7 @@ router.put("/dmaic/workspace", async (req, res): Promise<void> => {
   const aiCharterSuggestions = normalizeGeneratedCharterSuggestions(
     body.data.aiCharterSuggestions,
     projectCharterContext.financialInformation,
+    projectCharterContext.businessContributionsQuantitative,
   );
   const expectedRevision = body.data.expectedRevision;
   const projectKey = body.data.projectKey;
@@ -496,7 +521,7 @@ router.post("/dmaic/pipeline", async (req, res): Promise<void> => {
           generationConfig: {
             responseMimeType: "application/json",
             temperature: 0.25,
-            maxOutputTokens: 8192,
+            maxOutputTokens: 16384,
           },
         });
 
@@ -535,12 +560,20 @@ router.post("/dmaic/pipeline", async (req, res): Promise<void> => {
       ...pipeline.data,
       projectCharter: {
         ...pipeline.data.projectCharter,
-        expectedSavings: createFinancialGainSuggestion(body.data.projectCharterContext?.financialInformation),
+         expectedSavings: createFinancialGainSuggestion(
+           body.data.projectCharterContext?.financialInformation,
+           body.data.projectCharterContext?.businessContributionsQuantitative,
+           pipeline.data.projectCharter.expectedSavings,
+         ),
         businessCase: "Caso de negócio a validar pela equipe. Relacione a VOC, a meta e o escopo; qualquer impacto financeiro depende de confirmação com Financeiro.",
       },
       generatedCharter: {
         ...pipeline.data.generatedCharter,
-        financialGainValue: createFinancialGainSuggestion(body.data.projectCharterContext?.financialInformation),
+         financialGainValue: createFinancialGainSuggestion(
+           body.data.projectCharterContext?.financialInformation,
+           body.data.projectCharterContext?.businessContributionsQuantitative,
+           pipeline.data.generatedCharter.financialGainValue,
+         ),
         businessContributions: createBusinessContributionSuggestion("summary"),
         businessContributionsQuantitative: createBusinessContributionSuggestion("quantitative"),
         businessContributionsQualitative: createBusinessContributionSuggestion("qualitative"),

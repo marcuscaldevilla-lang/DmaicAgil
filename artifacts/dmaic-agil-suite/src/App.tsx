@@ -264,6 +264,8 @@ const workspaceToLocalDraft = (workspace: DmaicWorkspace): WorkspaceLocalDraft =
 const applyGeneratedCharterFields = (charter: ProjectCharterDraft, generated: GeneratedCharterFields): ProjectCharterDraft => ({
   ...charter,
   ...generated,
+  businessContributionsQuantitative: charter.businessContributionsQuantitative,
+  financialInformation: charter.financialInformation,
 });
 
 const areaMeta: Record<Area, { label: string; kicker: string; description: string; color: string }> = {
@@ -764,7 +766,7 @@ function ProjectCharterForm({ charter, onFieldChange, onTeamChange, onSave, hasA
       <CharterTextarea label="Contribuições para o negócio — resumo" value={charter.businessContributions} onChange={(value) => onFieldChange('businessContributions', value)} testId="textarea-charter-business-contributions" rows={3} placeholder="Como o projeto apoia o negócio, sempre conectado à VOC, à meta e ao escopo." />
     </div>
     <div data-testid="section-charter-business-value" className="mt-6 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
-      <div className="mb-4"><p className="mono-label text-primary">Valor para o negócio</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Registre apenas impactos relacionados à VOC e ao escopo. Separe fatos coletados de estimativas; não invente valores financeiros que ainda não foram confirmados.</p></div>
+       <div className="mb-4"><p className="mono-label text-primary">Valor para o negócio</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Registre apenas impactos relacionados à VOC e ao escopo. Ao iniciar o pipeline, a IA usará as contribuições quantitativas e as informações financeiras coletadas para calcular uma estimativa e refazer a meta do projeto. Separe fatos coletados de estimativas; valide o resultado com Financeiro.</p></div>
       <div className="grid gap-4 lg:grid-cols-2">
         <CharterTextarea label="Contribuições quantitativas" value={charter.businessContributionsQuantitative} onChange={(value) => onFieldChange('businessContributionsQuantitative', value)} testId="textarea-charter-business-contributions-quantitative" rows={4} placeholder="Ex.: reduzir 20% do retrabalho, liberar 80 h/mês, elevar o atendimento de 82% para 92%." />
         <CharterTextarea label="Contribuições qualitativas" value={charter.businessContributionsQualitative} onChange={(value) => onFieldChange('businessContributionsQualitative', value)} testId="textarea-charter-business-contributions-qualitative" rows={4} placeholder="Ex.: mais previsibilidade para o cliente, menor esforço operacional e decisão mais segura." />
@@ -772,7 +774,7 @@ function ProjectCharterForm({ charter, onFieldChange, onTeamChange, onSave, hasA
         <CharterTextarea label="Informações financeiras coletadas" value={charter.financialInformation} onChange={(value) => onFieldChange('financialInformation', value)} testId="textarea-charter-financial-information" rows={4} placeholder="Base da estimativa ou valor confirmado: fonte, período, moeda, volume, custo unitário, premissas e responsável pela validação. Este campo não é preenchido pela IA." />
       </div>
     </div>
-    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><p className="text-[11px] text-muted-foreground"><Info size={13} className="mr-1 inline-block align-[-2px]" /> Ao salvar, o conteúdo fica no Neon e será enviado ao Gemini como contexto ao iniciar o pipeline.</p><Button testId="button-save-charter" onClick={onSave} variant="outline"><Save size={14} /> Salvar charter</Button></div>
+     <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><p className="text-[11px] text-muted-foreground"><Info size={13} className="mr-1 inline-block align-[-2px]" /> Ao salvar, o conteúdo fica no Neon e será enviado ao Gemini como contexto ao iniciar o pipeline.</p><Button testId="button-save-charter" onClick={onSave} variant="outline"><Save size={14} /> Salvar charter</Button></div>
   </section>;
 }
 
@@ -1314,18 +1316,19 @@ function Workspace() {
             setPipelineError('O Charter foi confirmado durante a geração. Inicie o pipeline novamente para usar a versão revisada.');
             return;
           }
+          const generatedCharter = applyGeneratedCharterFields(charter, data.generatedCharter);
           setPipelineData(data);
-          setCharter((current) => applyGeneratedCharterFields(current, data.generatedCharter));
+          setCharter(generatedCharter);
           setAiCharterSuggestions(data.generatedCharter);
           setPipelineDone(true);
           setArea('overview');
           queueWorkspaceSave(
             {
               source: 'suggestions',
-              charterToPersist: confirmedCharter,
+              charterToPersist: charter,
               data: {
                 problemStatement: statement.trim(),
-                projectCharterContext: toProjectCharterContext(confirmedCharter),
+                projectCharterContext: toProjectCharterContext(charter),
                 aiCharterSuggestions: data.generatedCharter,
               },
             },

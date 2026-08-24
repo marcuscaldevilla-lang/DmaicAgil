@@ -3,4 +3,4 @@
 - [OpenAPI Zod codegen](openapi-zod-codegen.md) — Avoid integer schemas until the generator no longer emits an incompatible Zod call.
 - [Local draft recovery](local-draft-recovery.md) — Local browser drafts must be compared against Neon revision, never auto-overwritten.
 - [DMAIC project codes](dmaic-project-codes.md) — Neon generates numeric project codes on first Problem Statement save; clients reuse the returned code.
-- [AI financial suggestions](ai-financial-suggestions.md) — Financial Charter suggestions are server-controlled validation guidance, never Gemini-provided amounts.
+- [AI financial estimates](ai-financial-suggestions.md) — Gemini may calculate a labeled estimate only from team-entered quantitative and financial inputs.
