@@ -7,4 +7,4 @@ The AI may calculate the Charter's expected financial gain only when it uses the
 
 **Why:** The financial estimate is useful only when its source data and assumptions remain inspectable. A prompt alone cannot make an AI-generated amount confirmed, and persisted suggestions can outlive later prompt changes.
 
-**How to apply:** Keep team-entered quantitative and financial information factual and editable. Preserve those source fields during generation, normalize the estimate on pipeline generation, save, and read, and regenerate the project goal from the complete Charter context.
+**How to apply:** Keep team-entered quantitative and financial information factual and editable. Preserve those source fields during generation, normalize the estimate on pipeline generation, save, and read, and regenerate the project goal from the complete Charter context. For a stated gain per percentage point above a threshold, use the ideal target above that threshold, the provided volume, and the provided time proration; a baseline below the threshold does not invalidate that calculation.

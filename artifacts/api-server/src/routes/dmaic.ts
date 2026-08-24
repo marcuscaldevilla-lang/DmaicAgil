@@ -34,7 +34,7 @@ Responda SOMENTE com JSON válido, sem markdown, seguindo exatamente esta estrut
   "controlPlan":[{"parameter":"","specification":"","measurementFreq":"","responsible":"","reactionPlan":""}],
   "standardizationSop":[{"procedureName":"","pokaYokeFeature":"","ocapTrigger":""}]
 }
-Use 1 ou 2 itens concisos por lista. Todos os valores devem ser strings. Em "generatedCharter", preencha todos os doze campos com sugestões diretamente derivadas do problema informado e do contexto do Charter. Reescreva "goalDefinition" como uma meta SMART coerente com objetivo, KPIs, baseline, escopo, contribuições quantitativas e informações financeiras coletadas; não repita automaticamente uma meta antiga se os dados coletados apontarem outra. Para "financialGainValue", calcule uma estimativa somente a partir dos números, moeda, período, volume, custo unitário, percentual e premissas explicitamente presentes em "businessContributionsQuantitative" e "financialInformation". Mostre a fórmula ou a lógica usada e deixe claro o período, a moeda e as premissas. Se os campos não trouxerem dados suficientes para uma conta defensável, diga que não foi possível calcular e liste o dado faltante. Nunca invente valor, custo, volume, receita, economia, ROI ou payback, nem apresente estimativa como valor confirmado. O campo de informações financeiras coletadas é factual e pertence ao time, não à IA. As contribuições quantitativas, qualitativas e o ganho financeiro devem permanecer como propostas para validação; valores calculados devem ser validados com Financeiro. Seja específico ao problema e realista, sem afirmar como medidos dados que não foram informados. Quando houver contexto de Project Charter fornecido pela equipe, trate-o como fonte prioritária e reaproveite seus termos, metas, responsáveis, limites e informações financeiras coletadas.`;
+Use 1 ou 2 itens concisos por lista. Todos os valores devem ser strings. Em "generatedCharter", preencha todos os doze campos com sugestões diretamente derivadas do problema informado e do contexto do Charter. Reescreva "goalDefinition" como uma meta SMART coerente com objetivo, KPIs, baseline, escopo, contribuições quantitativas e informações financeiras coletadas; não repita automaticamente uma meta antiga se os dados coletados apontarem outra. Quando as informações financeiras trouxerem uma meta ideal e um prazo, esses valores definem a meta principal do projeto: escreva explicitamente a evolução do baseline até a meta ideal no prazo informado, em vez de manter a meta antiga como objetivo principal e citar a meta ideal apenas como visão futura. Para "financialGainValue", calcule uma estimativa somente a partir dos números, moeda, período, volume, custo unitário, percentual e premissas explicitamente presentes em "businessContributionsQuantitative" e "financialInformation". Mostre a fórmula ou a lógica usada e deixe claro o período, a moeda e as premissas. Quando uma fórmula informar um ganho por ponto percentual acima de um limiar e o contexto informar uma meta acima desse limiar, calcule os pontos elegíveis como (meta - limiar), multiplique pelo ganho por ponto e pelo volume informado, e prorrogue proporcionalmente ao período informado; não descarte a conta apenas porque o baseline está abaixo do limiar. Por exemplo, uma fórmula de ganho acima de 75%, com meta de 90%, volume anual de 192.000 clientes e prazo de 6 meses, usa 15 pontos percentuais, 192 lotes de 1.000 clientes e metade do valor anual. Se os campos realmente não trouxerem dados suficientes para uma conta defensável, diga que não foi possível calcular e liste o dado faltante. Nunca invente valor, custo, volume, receita, economia, ROI ou payback, nem apresente estimativa como valor confirmado. O campo de informações financeiras coletadas é factual e pertence ao time, não à IA. As contribuições quantitativas, qualitativas e o ganho financeiro devem permanecer como propostas para validação; valores calculados devem ser validados com Financeiro. Seja específico ao problema e realista, sem afirmar como medidos dados que não foram informados. Quando houver contexto de Project Charter fornecido pela equipe, trate-o como fonte prioritária e reaproveite seus termos, metas, responsáveis, limites e informações financeiras coletadas.`;
 
 const EXPLORATORY_SYSTEM_PROMPT = `Você é um Master Black Belt em Lean Six Sigma, com experiência em análise estatística aplicada.
 Elabore um diagnóstico detalhado em português do Brasil sobre a série temporal e as estatísticas fornecidas.
@@ -148,6 +148,7 @@ function normalizeCharterContext(context: unknown) {
 }
 
 const FINANCIAL_ESTIMATE_PREFIX = "Estimativa calculada pela IA com base nas informações fornecidas";
+const FINANCIAL_VALIDATION_NOTICE = "Validação obrigatória com Financeiro antes de tratar o valor como confirmado.";
 
 function normalizeGeneratedCharterSuggestions(
   suggestions: unknown,
@@ -182,8 +183,11 @@ export function createFinancialGainSuggestion(
   if (!suggestion || suggestion === "Valor a validar com Financeiro. Não há informações financeiras coletadas suficientes para propor um ganho.") {
     return "A IA não retornou um cálculo defensável a partir dos dados fornecidos. Valide com Financeiro a fonte, período, moeda, volume, custo unitário, premissas e fórmula.";
   }
-  if (suggestion.startsWith(FINANCIAL_ESTIMATE_PREFIX)) return suggestion;
-  return `${FINANCIAL_ESTIMATE_PREFIX} (Contribuições quantitativas + Informações financeiras coletadas): ${suggestion} Validação obrigatória com Financeiro antes de tratar o valor como confirmado.`;
+  const withoutRepeatedNotice = suggestion
+    .replace(/\s*Validação obrigatória com(?: o setor)? Financeiro(?: antes de tratar o valor como confirmado)?\./gi, "")
+    .trim();
+  if (withoutRepeatedNotice.startsWith(FINANCIAL_ESTIMATE_PREFIX)) return `${withoutRepeatedNotice} ${FINANCIAL_VALIDATION_NOTICE}`;
+  return `${FINANCIAL_ESTIMATE_PREFIX} (Contribuições quantitativas + Informações financeiras coletadas): ${withoutRepeatedNotice} ${FINANCIAL_VALIDATION_NOTICE}`;
 }
 
 function createBusinessContributionSuggestion(kind: "summary" | "quantitative" | "qualitative"): string {
