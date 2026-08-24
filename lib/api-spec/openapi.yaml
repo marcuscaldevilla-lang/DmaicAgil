@@ -98,6 +98,23 @@ paths:
           description: Invalid workspace data
         "500":
           description: Workspace persistence failed
+  /dmaic/workspaces:
+    get:
+      operationId: listDmaicWorkspaces
+      tags: [dmaic]
+      summary: List saved DMAIC workspaces
+      description: Lists saved projects so the user can choose which workspace to load before starting a new project.
+      responses:
+        "200":
+          description: Saved workspaces ordered by most recent update
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DmaicWorkspaceSummary"
+        "500":
+          description: Workspace list failed
   /dmaic/exploratory-diagnosis:
     post:
       operationId: runDmaicExploratoryDiagnosis
@@ -291,6 +308,19 @@ components:
         error: { type: string }
         latestWorkspace:
           $ref: "#/components/schemas/DmaicWorkspace"
+    DmaicWorkspaceSummary:
+      type: object
+      required: [projectKey, projectName, problemStatement, revision, updatedAt]
+      properties:
+        projectKey:
+          type: number
+          minimum: 1
+        projectName: { type: string }
+        problemStatement: { type: string }
+        revision:
+          type: number
+          minimum: 0
+        updatedAt: { type: string, format: date-time }
     DmaicCharter:
       type: object
       required: [projectTitle, problemStatement, businessCase, expectedSavings]

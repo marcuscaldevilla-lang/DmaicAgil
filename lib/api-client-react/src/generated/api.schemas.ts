@@ -159,6 +159,16 @@ export interface DmaicWorkspaceConflict {
   latestWorkspace: DmaicWorkspace;
 }
 
+export interface DmaicWorkspaceSummary {
+  /** @minimum 1 */
+  projectKey: number;
+  projectName: string;
+  problemStatement: string;
+  /** @minimum 0 */
+  revision: number;
+  updatedAt: string;
+}
+
 export interface DmaicCharter {
   projectTitle: string;
   problemStatement: string;

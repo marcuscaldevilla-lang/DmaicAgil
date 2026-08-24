@@ -300,6 +300,25 @@ export const SaveDmaicWorkspaceResponse = zod.object({
 
 
 /**
+ * Lists saved projects so the user can choose which workspace to load before starting a new project.
+ * @summary List saved DMAIC workspaces
+ */
+
+export const listDmaicWorkspacesResponseRevisionMin = 0;
+
+
+
+export const ListDmaicWorkspacesResponseItem = zod.object({
+  "projectKey": zod.number().min(1),
+  "projectName": zod.string(),
+  "problemStatement": zod.string(),
+  "revision": zod.number().min(listDmaicWorkspacesResponseRevisionMin),
+  "updatedAt": zod.coerce.date()
+})
+export const ListDmaicWorkspacesResponse = zod.array(ListDmaicWorkspacesResponseItem)
+
+
+/**
  * Generates a Gemini interpretation from the currently selected local indicator observations.
  * @summary Generate an exploratory time-series diagnosis
  */

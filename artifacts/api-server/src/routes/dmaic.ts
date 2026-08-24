@@ -3,6 +3,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db, dmaicWorkspaces } from "@workspace/db";
 import {
   GetDmaicWorkspaceResponse,
+  ListDmaicWorkspacesResponse,
   RunDmaicExploratoryDiagnosisBody,
   RunDmaicExploratoryDiagnosisResponse,
   RunDmaicPipelineBody,
@@ -209,6 +210,20 @@ function serializeWorkspace(row?: typeof dmaicWorkspaces.$inferSelect) {
   };
 }
 
+function serializeWorkspaceSummary(row: typeof dmaicWorkspaces.$inferSelect) {
+  const projectCharterContext = row.projectCharterContext && typeof row.projectCharterContext === "object"
+    ? row.projectCharterContext as Record<string, unknown>
+    : {};
+  const projectName = typeof projectCharterContext.projectName === "string" ? projectCharterContext.projectName.trim() : "";
+  return {
+    projectKey: row.projectKey,
+    projectName: projectName || `Projeto #${row.projectKey}`,
+    problemStatement: row.problemStatement,
+    revision: row.revision,
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
 router.get("/dmaic/workspace", async (req, res): Promise<void> => {
   const requestedProjectKey = req.query.projectKey;
   const projectKey = requestedProjectKey === undefined ? null : parseProjectKey(requestedProjectKey);
@@ -239,6 +254,25 @@ router.get("/dmaic/workspace", async (req, res): Promise<void> => {
   } catch (error) {
     req.log.error({ error }, "Failed to load DMAIC workspace");
     res.status(500).json({ error: "Não foi possível carregar o workspace salvo." });
+  }
+});
+
+router.get("/dmaic/workspaces", async (req, res): Promise<void> => {
+  try {
+    const workspaces = await db
+      .select()
+      .from(dmaicWorkspaces)
+      .orderBy(desc(dmaicWorkspaces.updatedAt), desc(dmaicWorkspaces.projectKey));
+    const payload = ListDmaicWorkspacesResponse.safeParse(workspaces.map(serializeWorkspaceSummary));
+    if (!payload.success) {
+      req.log.error({ errors: payload.error.flatten() }, "Stored DMAIC workspace list has an invalid shape");
+      res.status(500).json({ error: "Não foi possível ler a lista de projetos salvos." });
+      return;
+    }
+    res.json(payload.data);
+  } catch (error) {
+    req.log.error({ error }, "Failed to list DMAIC workspaces");
+    res.status(500).json({ error: "Não foi possível carregar a lista de projetos salvos." });
   }
 });
 

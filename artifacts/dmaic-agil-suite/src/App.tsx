@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { type DmaicPipeline, type DmaicWorkspace, useGetDmaicWorkspace, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
+import { getDmaicWorkspace, type DmaicPipeline, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -18,6 +18,7 @@ import {
   Database,
   FileBarChart,
   FileText,
+  FolderOpen,
   Gauge,
   GitBranch,
   Info,
@@ -650,7 +651,7 @@ function StatusPill({ children, tone = 'green' }: { children: ReactNode; tone?: 
   return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 mono-label ${tones[tone]}`}><span className={`h-1.5 w-1.5 rounded-full ${tone === 'green' ? 'bg-primary' : tone === 'amber' ? 'bg-accent' : tone === 'red' ? 'bg-destructive' : 'bg-muted-foreground'}`} />{children}</span>;
 }
 
-function Sidebar({ area, setArea, mobileOpen, setMobileOpen }: { area: Area; setArea: (area: Area) => void; mobileOpen: boolean; setMobileOpen: (open: boolean) => void }) {
+function Sidebar({ area, setArea, mobileOpen, setMobileOpen, activeProjectName }: { area: Area; setArea: (area: Area) => void; mobileOpen: boolean; setMobileOpen: (open: boolean) => void; activeProjectName: string }) {
   return (
     <aside className={`${mobileOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-30 flex w-[264px] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-transform duration-300 lg:relative lg:translate-x-0`}>
       <div className="flex h-[76px] items-center justify-between border-b border-sidebar-border px-6">
@@ -663,7 +664,7 @@ function Sidebar({ area, setArea, mobileOpen, setMobileOpen }: { area: Area; set
       <div className="flex-1 overflow-y-auto px-3 py-6">
         <div className="mb-7 rounded-xl border border-sidebar-border bg-sidebar-accent/60 p-3.5">
           <div className="flex items-center justify-between"><span className="mono-label text-sidebar-foreground/45">Projeto ativo</span><span className="h-2 w-2 rounded-full bg-sidebar-primary pulse-dot" /></div>
-          <p className="mt-2 text-sm font-bold">Redução de lead time</p>
+           <p className="mt-2 truncate text-sm font-bold">{activeProjectName}</p>
           <p className="mt-1 text-[11px] leading-relaxed text-sidebar-foreground/55">Operação de crédito · BR-042</p>
           <div className="mt-3 h-1 overflow-hidden rounded-full bg-sidebar-foreground/10"><div className="h-full w-[42%] rounded-full bg-sidebar-primary" /></div>
           <div className="mt-2 flex justify-between text-[10px] text-sidebar-foreground/45"><span>42% do caminho</span><span>21 dias</span></div>
@@ -678,9 +679,38 @@ function Sidebar({ area, setArea, mobileOpen, setMobileOpen }: { area: Area; set
   );
 }
 
-function Topbar({ area, setMobileOpen, onStart, pipelineLoading }: { area: Area; setMobileOpen: (open: boolean) => void; onStart: () => void; pipelineLoading: boolean }) {
+function Topbar({ area, setMobileOpen, onStart, pipelineLoading, activeProjectName }: { area: Area; setMobileOpen: (open: boolean) => void; onStart: () => void; pipelineLoading: boolean; activeProjectName: string }) {
   const meta = areaMeta[area];
-  return <header className="flex min-h-[76px] items-center justify-between gap-4 border-b border-border bg-background/85 px-5 backdrop-blur-md sm:px-8"><div className="flex min-w-0 items-center gap-3"><button data-testid="button-open-sidebar" aria-label="Abrir menu" onClick={() => setMobileOpen(true)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted lg:hidden"><Menu size={20} /></button><div className="min-w-0"><div className="flex items-center gap-2 text-[11px] text-muted-foreground"><span>Projetos</span><span>/</span><span className="truncate text-foreground">Redução de lead time</span></div><div className="mt-1 flex items-center gap-2"><h1 className="truncate font-serif text-lg font-bold tracking-tight">{meta.label}</h1><span className="hidden rounded bg-muted px-1.5 py-0.5 mono-label text-muted-foreground sm:inline-flex">{meta.kicker}</span></div></div></div><div className="flex shrink-0 items-center gap-2"><div className="relative hidden md:block"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><input data-testid="input-search" placeholder="Buscar no projeto" className="h-9 w-44 rounded-lg border border-border bg-card pl-9 pr-3 text-xs outline-none transition-all placeholder:text-muted-foreground/70 focus:w-56 focus:border-primary/50" /></div><Button testId="button-start-pipeline" onClick={onStart} disabled={pipelineLoading} className="hidden sm:inline-flex">{pipelineLoading ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} fill="currentColor" />}{pipelineLoading ? 'Preparando...' : 'Iniciar pipeline'}</Button><button data-testid="button-more" className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><MoreHorizontal size={19} /></button></div></header>;
+  return <header className="flex min-h-[76px] items-center justify-between gap-4 border-b border-border bg-background/85 px-5 backdrop-blur-md sm:px-8"><div className="flex min-w-0 items-center gap-3"><button data-testid="button-open-sidebar" aria-label="Abrir menu" onClick={() => setMobileOpen(true)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted lg:hidden"><Menu size={20} /></button><div className="min-w-0"><div className="flex items-center gap-2 text-[11px] text-muted-foreground"><span>Projetos</span><span>/</span><span className="truncate text-foreground">{activeProjectName}</span></div><div className="mt-1 flex items-center gap-2"><h1 className="truncate font-serif text-lg font-bold tracking-tight">{meta.label}</h1><span className="hidden rounded bg-muted px-1.5 py-0.5 mono-label text-muted-foreground sm:inline-flex">{meta.kicker}</span></div></div></div><div className="flex shrink-0 items-center gap-2"><div className="relative hidden md:block"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><input data-testid="input-search" placeholder="Buscar no projeto" className="h-9 w-44 rounded-lg border border-border bg-card pl-9 pr-3 text-xs outline-none transition-all placeholder:text-muted-foreground/70 focus:w-56 focus:border-primary/50" /></div><Button testId="button-start-pipeline" onClick={onStart} disabled={pipelineLoading} className="hidden sm:inline-flex">{pipelineLoading ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} fill="currentColor" />}{pipelineLoading ? 'Preparando...' : 'Iniciar pipeline'}</Button><button data-testid="button-more" className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><MoreHorizontal size={19} /></button></div></header>;
+}
+
+function formatProjectUpdatedAt(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'data indisponível' : new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(date);
+}
+
+function SavedProjects({ projects, selectedProjectKey, loading, error, onSelect, onLoad, onNew }: {
+  projects: DmaicWorkspaceSummary[];
+  selectedProjectKey: string;
+  loading: boolean;
+  error: string | null;
+  onSelect: (projectKey: string) => void;
+  onLoad: () => void;
+  onNew: () => void;
+}) {
+  return <section data-testid="section-saved-projects" className="reveal mb-6 rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex gap-3"><span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><FolderOpen size={17} /></span><div><p className="mono-label text-primary">Projetos no Neon</p><h2 className="mt-1.5 font-serif text-lg font-bold">Continue um projeto salvo</h2><p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">Carregue um projeto existente antes de iniciar algo novo. As edições que ainda não foram salvas serão preservadas até você confirmar a troca.</p></div></div>
+      <StatusPill tone={loading ? 'amber' : 'green'}>{loading ? 'Atualizando lista' : `${projects.length} salvo${projects.length === 1 ? '' : 's'}`}</StatusPill>
+    </div>
+    <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+      <label className="min-w-0 flex-1"><span className="sr-only">Projeto salvo</span><select data-testid="select-saved-project" value={selectedProjectKey} onChange={(event) => onSelect(event.target.value)} disabled={loading || projects.length === 0} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-xs outline-none transition-colors focus:border-primary/60"><option value="">{loading ? 'Carregando projetos...' : projects.length === 0 ? 'Nenhum projeto salvo encontrado' : 'Selecione um projeto salvo'}</option>{projects.map((project) => <option key={project.projectKey} value={project.projectKey}>{project.projectName} · #{project.projectKey} · atualizado em {formatProjectUpdatedAt(project.updatedAt)}</option>)}</select></label>
+      <Button testId="button-load-selected-project" onClick={onLoad} disabled={!selectedProjectKey || loading} variant="dark"><FolderOpen size={14} /> Carregar projeto</Button>
+      <Button testId="button-new-project" onClick={onNew} disabled={loading} variant="outline"><Plus size={14} /> Novo projeto</Button>
+    </div>
+    {error && <p data-testid="status-project-list-error" className="mt-3 text-xs text-destructive">{error}</p>}
+    {!loading && !error && projects.length === 0 && <p data-testid="status-project-list-empty" className="mt-3 text-xs text-muted-foreground">Salve o Problem Statement para criar o primeiro projeto e ele aparecerá aqui.</p>}
+  </section>;
 }
 
 function SectionHeading({ eyebrow, title, description, action }: { eyebrow: string; title: string; description?: string; action?: ReactNode }) {
@@ -966,11 +996,15 @@ function Workspace() {
   const pipelineMutation = useRunDmaicPipeline();
   const [initialLocalDraft] = useState<WorkspaceLocalDraft | null>(() => readWorkspaceLocalDraft());
   const workspaceQuery = useGetDmaicWorkspace(initialLocalDraft?.projectKey ? { projectKey: initialLocalDraft.projectKey } : undefined);
+  const workspacesQuery = useListDmaicWorkspaces();
   const workspaceMutation = useSaveDmaicWorkspace();
   const [area, setArea] = useState<Area>('overview');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [statement, setStatement] = useState(() => initialLocalDraft?.statement ?? DEFAULT_PROBLEM_STATEMENT);
   const [projectKey, setProjectKey] = useState<number | null>(() => initialLocalDraft?.projectKey ?? null);
+  const [selectedProjectKey, setSelectedProjectKey] = useState(() => initialLocalDraft?.projectKey ? String(initialLocalDraft.projectKey) : '');
+  const [projectLoading, setProjectLoading] = useState(false);
+  const [projectLoadedMessage, setProjectLoadedMessage] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [charter, setCharter] = useState<ProjectCharterDraft>(() => initialLocalDraft?.charter ?? createProjectCharterDraft());
   const [charterSaved, setCharterSaved] = useState(false);
@@ -1003,6 +1037,7 @@ function Workspace() {
   const inputAnalysis = useMemo(() => inputDataset ? summarizeIndicator(inputDataset, selectedIndicator, analysisMonths) : null, [analysisMonths, inputDataset, selectedIndicator]);
   const pareto = useMemo(() => !inputDataset ? initialPareto : inputAnalysis?.kind === 'discrete' ? inputAnalysis.distribution.map((item) => ({ name: item.label, value: item.count })) : null, [inputAnalysis, inputDataset]);
   const imr = useMemo(() => !inputDataset ? initialImr : inputAnalysis?.kind === 'continuous' && inputAnalysis.values.length >= 2 ? inputAnalysis.values : null, [inputAnalysis, inputDataset]);
+  const activeProjectName = projectKey ? (workspacesQuery.data?.find((project) => project.projectKey === projectKey)?.projectName ?? (charter.projectName.trim() || `Projeto #${projectKey}`)) : (charter.projectName.trim() || 'Novo projeto');
 
   const writeCurrentLocalDraft = (revision = workspaceRevisionRef.current) => {
     const current = workspaceStateRef.current;
@@ -1075,6 +1110,7 @@ function Workspace() {
         });
         workspaceRevisionRef.current = savedWorkspace.revision;
         setProjectKey(savedWorkspace.projectKey);
+        void workspacesQuery.refetch();
         return savedWorkspace;
       });
     workspaceSaveQueueRef.current = queuedSave.then(() => undefined, () => undefined);
@@ -1197,6 +1233,62 @@ function Workspace() {
     draftWriteEnabledRef.current = true;
     setCharter((current) => ({ ...current, team: { ...current.team, [role]: { ...current.team[role], [field]: value } } }));
   };
+  const loadSelectedProject = async () => {
+    const nextProjectKey = Number(selectedProjectKey);
+    if (!Number.isSafeInteger(nextProjectKey) || nextProjectKey < 1 || projectLoading) return;
+    const hasCurrentContent = Boolean(projectKey || statement.trim() || charter.projectName.trim());
+    if (hasCurrentContent && !window.confirm('Carregar este projeto trocará o conteúdo que está na tela. Edições não salvas não serão mantidas. Deseja continuar?')) return;
+    setProjectLoading(true);
+    setWorkspaceError(null);
+    setProjectLoadedMessage(null);
+    try {
+      const loadedWorkspace = await getDmaicWorkspace({ projectKey: nextProjectKey });
+      if (!loadedWorkspace.hasSavedData) throw new Error('Projeto não encontrado.');
+      const loadedDraft = workspaceToLocalDraft(loadedWorkspace);
+      applyWorkspaceSnapshot(loadedWorkspace);
+      workspaceLocalDraftRef.current = loadedDraft;
+      storeWorkspaceLocalDraft(loadedDraft);
+      draftWriteEnabledRef.current = true;
+      setWorkspaceHydrated(true);
+      setWorkspaceConflict(null);
+      setLocalDraftConflict(null);
+      setLocalDraftRecovered(false);
+      setPipelineData(null);
+      setPipelineDone(false);
+      setPipelineError(null);
+      setProjectLoadedMessage(`Projeto #${nextProjectKey} carregado do Neon.`);
+      window.setTimeout(() => setProjectLoadedMessage(null), 2600);
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : 'Não foi possível carregar o projeto selecionado.');
+    } finally {
+      setProjectLoading(false);
+    }
+  };
+  const startNewProject = () => {
+    const hasCurrentContent = Boolean(projectKey || statement.trim() || charter.projectName.trim());
+    if (hasCurrentContent && !window.confirm('Começar um novo projeto trocará o conteúdo que está na tela. Edições não salvas não serão mantidas. Deseja continuar?')) return;
+    const freshCharter = createProjectCharterDraft();
+    setProjectKey(null);
+    setSelectedProjectKey('');
+    setStatement('');
+    setCharter(freshCharter);
+    setConfirmedCharter(freshCharter);
+    setAiCharterSuggestions(null);
+    setPipelineData(null);
+    setPipelineDone(false);
+    setPipelineError(null);
+    setWorkspaceError(null);
+    setWorkspaceConflict(null);
+    setLocalDraftConflict(null);
+    setLocalDraftRecovered(false);
+    setProjectLoadedMessage('Novo projeto pronto para ser preenchido.');
+    window.setTimeout(() => setProjectLoadedMessage(null), 2600);
+    workspaceRevisionRef.current = 0;
+    workspaceLocalDraftRef.current = null;
+    draftWriteEnabledRef.current = false;
+    setWorkspaceHydrated(true);
+    if (typeof window !== 'undefined') window.localStorage.removeItem(WORKSPACE_DRAFT_STORAGE_KEY);
+  };
   const startPipeline = () => {
     if (statement.trim().length < 10) {
       setPipelineError('Descreva o problema com pelo menos 10 caracteres para iniciar o pipeline.');
@@ -1286,11 +1378,13 @@ function Workspace() {
   const retryUpload = () => { setCsvError(null); fileRef.current?.click(); };
   const openTool = (tool: Tool) => setSelectedTool(tool);
   return <div className="flex min-h-[100dvh] bg-background text-foreground">
-    <Sidebar area={displayArea} setArea={setArea} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
+    <Sidebar area={displayArea} setArea={setArea} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} activeProjectName={activeProjectName} />
     {mobileOpen && <button data-testid="button-sidebar-overlay" aria-label="Fechar menu" className="fixed inset-0 z-20 bg-sidebar/30 lg:hidden" onClick={() => setMobileOpen(false)} />}
-    <div className="flex min-w-0 flex-1 flex-col"><Topbar area={displayArea} setMobileOpen={setMobileOpen} onStart={startPipeline} pipelineLoading={pipelineLoading} />
+    <div className="flex min-w-0 flex-1 flex-col"><Topbar area={displayArea} setMobileOpen={setMobileOpen} onStart={startPipeline} pipelineLoading={pipelineLoading} activeProjectName={activeProjectName} />
       <main className="dmaic-grid flex-1 overflow-x-hidden px-5 py-7 sm:px-8 sm:py-9">
         <div className="mx-auto max-w-[1240px]">
+           {area === 'overview' && <SavedProjects projects={workspacesQuery.data ?? []} selectedProjectKey={selectedProjectKey} loading={workspacesQuery.isLoading || projectLoading} error={workspacesQuery.isError ? 'Não foi possível carregar a lista de projetos salvos.' : null} onSelect={setSelectedProjectKey} onLoad={() => { void loadSelectedProject(); }} onNew={startNewProject} />}
+           {projectLoadedMessage && <div data-testid="status-project-loaded" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span>{projectLoadedMessage}</span></div>}
            {pipelineLoading && <div data-testid="status-pipeline-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><RefreshCw size={15} className="animate-spin text-primary" /><span><strong>Montando seu caminho DMAIC...</strong> O Gemini está estruturando os entregáveis para a sessão.</span></div>}
            {pipelineError && <div data-testid="status-pipeline-error" className="reveal mb-6 flex items-center justify-between gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive"><span>{pipelineError}</span><Button testId="button-retry-pipeline" onClick={startPipeline} variant="outline">Tentar novamente</Button></div>}
            {workspaceQuery.isLoading && <div data-testid="status-workspace-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-border bg-muted/55 px-4 py-3 text-xs"><RefreshCw size={15} className="animate-spin text-primary" /><span>Carregando o Project Charter salvo...</span></div>}

@@ -27,6 +27,7 @@ import type {
   DmaicWorkspace,
   DmaicWorkspaceConflict,
   DmaicWorkspaceInput,
+  DmaicWorkspaceSummary,
   GetDmaicWorkspaceParams,
   HealthStatus
 } from './api.schemas';
@@ -364,6 +365,84 @@ export const useSaveDmaicWorkspace = <TError = ErrorType<void | DmaicWorkspaceCo
       > => {
       return useMutation(getSaveDmaicWorkspaceMutationOptions(options));
     }
+
+export const getListDmaicWorkspacesUrl = () => {
+
+
+
+
+  return `/api/dmaic/workspaces`
+}
+
+/**
+ * Lists saved projects so the user can choose which workspace to load before starting a new project.
+ * @summary List saved DMAIC workspaces
+ */
+export const listDmaicWorkspaces = async ( options?: Parameters<typeof customFetch>[1]): Promise<DmaicWorkspaceSummary[]> => {
+
+  return customFetch<DmaicWorkspaceSummary[]>(getListDmaicWorkspacesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDmaicWorkspacesQueryKey = () => {
+    return [
+    `/api/dmaic/workspaces`
+    ] as const;
+    }
+
+
+export const getListDmaicWorkspacesQueryOptions = <TData = Awaited<ReturnType<typeof listDmaicWorkspaces>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDmaicWorkspaces>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDmaicWorkspacesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDmaicWorkspaces>>> = ({ signal }) => listDmaicWorkspaces({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDmaicWorkspaces>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDmaicWorkspacesQueryResult = NonNullable<Awaited<ReturnType<typeof listDmaicWorkspaces>>>
+export type ListDmaicWorkspacesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List saved DMAIC workspaces
+ */
+
+export function useListDmaicWorkspaces<TData = Awaited<ReturnType<typeof listDmaicWorkspaces>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDmaicWorkspaces>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDmaicWorkspacesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getRunDmaicExploratoryDiagnosisUrl = () => {
 
