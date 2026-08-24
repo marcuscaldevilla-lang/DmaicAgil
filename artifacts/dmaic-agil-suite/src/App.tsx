@@ -79,6 +79,15 @@ type GeneratedCharterFields = Pick<ProjectCharterDraft, 'objective' | 'history' 
 type WorkspaceSaveSource = 'statement' | 'charter' | 'suggestions';
 type WorkspaceSaveData = { problemStatement: string; projectCharterContext: ProjectCharterContext; aiCharterSuggestions: GeneratedCharterFields | null };
 type WorkspaceSaveAttempt = { source: WorkspaceSaveSource; data: WorkspaceSaveData; charterToPersist?: ProjectCharterDraft; expectedRevision?: number };
+type WorkspaceLocalDraft = {
+  version: 1;
+  savedAt: string;
+  baseRevision: number;
+  statement: string;
+  charter: ProjectCharterDraft;
+  confirmedCharter: ProjectCharterDraft;
+  aiCharterSuggestions: GeneratedCharterFields | null;
+};
 type InputDataset = { fileName: string; headers: string[]; rows: Record<string, string>[]; dateColumn: string | null; indicatorColumns: string[] };
 type ContinuousAnalysis = { kind: 'continuous'; indicator: string; rows: number; values: number[]; mean: number; median: number; minimum: number; maximum: number; standardDeviation: number; normality: string; normalityDetail: string };
 type DiscreteAnalysis = { kind: 'discrete'; indicator: string; rows: number; categoryCount: number; topCategory: string; topCategoryCount: number; distribution: { label: string; count: number; percentage: number }[] };
@@ -86,6 +95,10 @@ type IndicatorAnalysis = ContinuousAnalysis | DiscreteAnalysis;
 type ExploratoryPoint = { period: string; value: number };
 type ExploratorySummary = { points: ExploratoryPoint[]; minimum: number; q1: number; median: number; q3: number; maximum: number; iqr: number; mean: number; standardDeviation: number; shapiroW: number | null; shapiroPValue: number | null; shapiroDetail: string };
 const DIAGNOSIS_POINT_LIMIT = 240;
+const WORKSPACE_DRAFT_STORAGE_KEY = 'dmaic-agil-suite.workspace-draft.v1';
+const DEFAULT_PROBLEM_STATEMENT = 'O tempo entre a entrada da solicitação e a aprovação do crédito varia de 8 a 31 minutos, gerando retrabalho e previsibilidade baixa para as agências no fechamento do mês.';
+const charterTextFields = ['projectName', 'client', 'area', 'leader', 'sponsor', 'date', 'objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions'] as const satisfies readonly CharterTextField[];
+const generatedCharterFields = ['objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions'] as const satisfies readonly (keyof GeneratedCharterFields)[];
 
 function getWorkspaceConflict(error: unknown): DmaicWorkspace | null {
   if (!error || typeof error !== 'object' || !('status' in error) || error.status !== 409 || !('data' in error)) return null;
@@ -93,7 +106,7 @@ function getWorkspaceConflict(error: unknown): DmaicWorkspace | null {
   if (!data || typeof data !== 'object' || !('latestWorkspace' in data)) return null;
   const latestWorkspace = data.latestWorkspace;
   if (!latestWorkspace || typeof latestWorkspace !== 'object' || !('revision' in latestWorkspace) || typeof latestWorkspace.revision !== 'number') return null;
-  return latestWorkspace as DmaicWorkspace;
+  return latestWorkspace as unknown as DmaicWorkspace;
 }
 
 const createProjectCharterDraft = (): ProjectCharterDraft => ({
@@ -120,6 +133,66 @@ const createProjectCharterDraft = (): ProjectCharterDraft => ({
   businessContributions: '',
 });
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function parseCharterTeamMember(value: unknown): CharterTeamMember | null {
+  if (!isObject(value) || typeof value.name !== 'string' || typeof value.position !== 'string' || typeof value.areaCompany !== 'string') return null;
+  return { name: value.name, position: value.position, areaCompany: value.areaCompany };
+}
+
+function parseProjectCharterDraft(value: unknown): ProjectCharterDraft | null {
+  if (!isObject(value) || !isObject(value.team)) return null;
+  const textValues = {} as Record<CharterTextField, string>;
+  for (const field of charterTextFields) {
+    if (typeof value[field] !== 'string') return null;
+    textValues[field] = value[field];
+  }
+  const leader = parseCharterTeamMember(value.team.leader);
+  const sponsor = parseCharterTeamMember(value.team.sponsor);
+  const teamMembers = parseCharterTeamMember(value.team.teamMembers);
+  const technicalSupport = parseCharterTeamMember(value.team.technicalSupport);
+  if (!leader || !sponsor || !teamMembers || !technicalSupport) return null;
+  return { ...textValues, team: { leader, sponsor, teamMembers, technicalSupport } };
+}
+
+function parseGeneratedCharterFields(value: unknown): GeneratedCharterFields | null {
+  if (value === null) return null;
+  if (!isObject(value)) return null;
+  const fields = {} as GeneratedCharterFields;
+  for (const field of generatedCharterFields) {
+    if (typeof value[field] !== 'string') return null;
+    fields[field] = value[field];
+  }
+  return fields;
+}
+
+function readWorkspaceLocalDraft(): WorkspaceLocalDraft | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(WORKSPACE_DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+    if (!isObject(value) || value.version !== 1 || typeof value.savedAt !== 'string' || typeof value.baseRevision !== 'number' || !Number.isSafeInteger(value.baseRevision) || value.baseRevision < 0 || typeof value.statement !== 'string') return null;
+    const charter = parseProjectCharterDraft(value.charter);
+    const confirmedCharter = parseProjectCharterDraft(value.confirmedCharter);
+    const aiCharterSuggestions = parseGeneratedCharterFields(value.aiCharterSuggestions);
+    return charter && confirmedCharter ? { version: 1, savedAt: value.savedAt, baseRevision: value.baseRevision, statement: value.statement, charter, confirmedCharter, aiCharterSuggestions } : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeWorkspaceLocalDraft(draft: WorkspaceLocalDraft): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(WORKSPACE_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+  } catch {
+    // Browsers can block local storage. The explicit Neon save remains available.
+  }
+}
+
 const toProjectCharterContext = (charter: ProjectCharterDraft): ProjectCharterContext => ({
   ...charter,
   team: [
@@ -145,6 +218,20 @@ const toProjectCharterDraft = (context: ProjectCharterContext): ProjectCharterDr
       teamMembers: getMember('Membros da equipe'),
       technicalSupport: getMember('Especialistas para suporte técnico'),
     },
+  };
+};
+
+const workspaceToLocalDraft = (workspace: DmaicWorkspace): WorkspaceLocalDraft => {
+  const confirmedCharter = toProjectCharterDraft(workspace.projectCharterContext);
+  const aiCharterSuggestions = workspace.aiCharterSuggestions;
+  return {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    baseRevision: workspace.revision,
+    statement: workspace.problemStatement,
+    charter: aiCharterSuggestions ? applyGeneratedCharterFields(confirmedCharter, aiCharterSuggestions) : confirmedCharter,
+    confirmedCharter,
+    aiCharterSuggestions,
   };
 };
 
@@ -845,19 +932,22 @@ function Workspace() {
   const pipelineMutation = useRunDmaicPipeline();
   const workspaceQuery = useGetDmaicWorkspace();
   const workspaceMutation = useSaveDmaicWorkspace();
+  const [initialLocalDraft] = useState<WorkspaceLocalDraft | null>(() => readWorkspaceLocalDraft());
   const [area, setArea] = useState<Area>('overview');
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [statement, setStatement] = useState('O tempo entre a entrada da solicitação e a aprovação do crédito varia de 8 a 31 minutos, gerando retrabalho e previsibilidade baixa para as agências no fechamento do mês.');
+  const [statement, setStatement] = useState(() => initialLocalDraft?.statement ?? DEFAULT_PROBLEM_STATEMENT);
   const [saved, setSaved] = useState(false);
-  const [charter, setCharter] = useState<ProjectCharterDraft>(createProjectCharterDraft);
+  const [charter, setCharter] = useState<ProjectCharterDraft>(() => initialLocalDraft?.charter ?? createProjectCharterDraft());
   const [charterSaved, setCharterSaved] = useState(false);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [workspaceConflict, setWorkspaceConflict] = useState<{ latest: DmaicWorkspace; source: WorkspaceSaveSource } | null>(null);
+  const [localDraftConflict, setLocalDraftConflict] = useState<{ local: WorkspaceLocalDraft; latest: DmaicWorkspace } | null>(null);
+  const [localDraftRecovered, setLocalDraftRecovered] = useState(Boolean(initialLocalDraft));
   const [workspaceHydrated, setWorkspaceHydrated] = useState(false);
   const [pipelineLoading, setPipelineLoading] = useState(false);
   const [pipelineDone, setPipelineDone] = useState(false);
-  const [confirmedCharter, setConfirmedCharter] = useState<ProjectCharterDraft>(createProjectCharterDraft);
-  const [aiCharterSuggestions, setAiCharterSuggestions] = useState<GeneratedCharterFields | null>(null);
+  const [confirmedCharter, setConfirmedCharter] = useState<ProjectCharterDraft>(() => initialLocalDraft?.confirmedCharter ?? createProjectCharterDraft());
+  const [aiCharterSuggestions, setAiCharterSuggestions] = useState<GeneratedCharterFields | null>(() => initialLocalDraft?.aiCharterSuggestions ?? null);
   const [pipelineData, setPipelineData] = useState<DmaicPipeline | null>(null);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
@@ -870,25 +960,61 @@ function Workspace() {
   const uploadVersionRef = useRef(0);
   const charterReviewVersionRef = useRef(0);
   const workspaceSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const workspaceRevisionRef = useRef(0);
+  const workspaceRevisionRef = useRef(initialLocalDraft?.baseRevision ?? 0);
+  const workspaceLocalDraftRef = useRef<WorkspaceLocalDraft | null>(initialLocalDraft);
+  const draftWriteEnabledRef = useRef(Boolean(initialLocalDraft));
+  const workspaceStateRef = useRef({ statement, charter, confirmedCharter, aiCharterSuggestions });
   const displayArea = area === 'overview' ? 'overview' : area;
   const inputAnalysis = useMemo(() => inputDataset ? summarizeIndicator(inputDataset, selectedIndicator, analysisMonths) : null, [analysisMonths, inputDataset, selectedIndicator]);
   const pareto = useMemo(() => !inputDataset ? initialPareto : inputAnalysis?.kind === 'discrete' ? inputAnalysis.distribution.map((item) => ({ name: item.label, value: item.count })) : null, [inputAnalysis, inputDataset]);
   const imr = useMemo(() => !inputDataset ? initialImr : inputAnalysis?.kind === 'continuous' && inputAnalysis.values.length >= 2 ? inputAnalysis.values : null, [inputAnalysis, inputDataset]);
 
+  const writeCurrentLocalDraft = (revision = workspaceRevisionRef.current) => {
+    const current = workspaceStateRef.current;
+    const draft: WorkspaceLocalDraft = {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      baseRevision: revision,
+      statement: current.statement,
+      charter: current.charter,
+      confirmedCharter: current.confirmedCharter,
+      aiCharterSuggestions: current.aiCharterSuggestions,
+    };
+    workspaceLocalDraftRef.current = draft;
+    storeWorkspaceLocalDraft(draft);
+  };
+  const applyWorkspaceSnapshot = (workspace: DmaicWorkspace) => {
+    const draft = workspaceToLocalDraft(workspace);
+    setStatement(draft.statement);
+    setConfirmedCharter(draft.confirmedCharter);
+    setCharter(draft.charter);
+    setAiCharterSuggestions(draft.aiCharterSuggestions);
+    workspaceRevisionRef.current = workspace.revision;
+  };
+
+  useEffect(() => {
+    workspaceStateRef.current = { statement, charter, confirmedCharter, aiCharterSuggestions };
+  }, [aiCharterSuggestions, charter, confirmedCharter, statement]);
+
   useEffect(() => {
     if (!workspaceQuery.data || workspaceHydrated) return;
-    if (workspaceQuery.data.hasSavedData) {
-      setStatement(workspaceQuery.data.problemStatement);
-      const persistedCharter = toProjectCharterDraft(workspaceQuery.data.projectCharterContext);
-      const pendingSuggestions = workspaceQuery.data.aiCharterSuggestions;
-      setConfirmedCharter(persistedCharter);
-      setCharter(pendingSuggestions ? applyGeneratedCharterFields(persistedCharter, pendingSuggestions) : persistedCharter);
-      setAiCharterSuggestions(pendingSuggestions);
-    }
+    const localDraft = workspaceLocalDraftRef.current;
     workspaceRevisionRef.current = workspaceQuery.data.revision;
+    if (workspaceQuery.data.hasSavedData && localDraft && localDraft.baseRevision < workspaceQuery.data.revision) {
+      applyWorkspaceSnapshot(workspaceQuery.data);
+      setLocalDraftConflict({ local: localDraft, latest: workspaceQuery.data });
+    } else if (workspaceQuery.data.hasSavedData && !localDraft) {
+      applyWorkspaceSnapshot(workspaceQuery.data);
+    } else if (localDraft) {
+      setLocalDraftRecovered(true);
+    }
     setWorkspaceHydrated(true);
   }, [workspaceHydrated, workspaceQuery.data]);
+
+  useEffect(() => {
+    if (localDraftConflict || !draftWriteEnabledRef.current) return;
+    writeCurrentLocalDraft();
+  }, [aiCharterSuggestions, charter, confirmedCharter, localDraftConflict, statement]);
 
   const queueWorkspaceSave = (
     attempt: WorkspaceSaveAttempt,
@@ -939,7 +1065,20 @@ function Workspace() {
     queueWorkspaceSave(
       attempt,
       {
-        onSuccess: () => {
+        onSuccess: (savedWorkspace) => {
+          draftWriteEnabledRef.current = true;
+          const current = workspaceStateRef.current;
+          const updatedDraft: WorkspaceLocalDraft = {
+            version: 1,
+            savedAt: new Date().toISOString(),
+            baseRevision: savedWorkspace.revision,
+            statement: current.statement,
+            charter: current.charter,
+            confirmedCharter: source === 'charter' ? charterToPersist : current.confirmedCharter,
+            aiCharterSuggestions: source === 'charter' ? null : current.aiCharterSuggestions,
+          };
+          workspaceLocalDraftRef.current = updatedDraft;
+          storeWorkspaceLocalDraft(updatedDraft);
           if (source === 'statement') {
             setSaved(true);
             window.setTimeout(() => setSaved(false), 2200);
@@ -958,13 +1097,7 @@ function Workspace() {
   const saveStatement = () => saveWorkspace('statement');
   const saveCharter = () => saveWorkspace('charter');
   const applyLatestWorkspace = (latestWorkspace: DmaicWorkspace) => {
-    const persistedCharter = toProjectCharterDraft(latestWorkspace.projectCharterContext);
-    const pendingSuggestions = latestWorkspace.aiCharterSuggestions;
-    setStatement(latestWorkspace.problemStatement);
-    setConfirmedCharter(persistedCharter);
-    setCharter(pendingSuggestions ? applyGeneratedCharterFields(persistedCharter, pendingSuggestions) : persistedCharter);
-    setAiCharterSuggestions(pendingSuggestions);
-    workspaceRevisionRef.current = latestWorkspace.revision;
+    applyWorkspaceSnapshot(latestWorkspace);
     setWorkspaceConflict(null);
     setWorkspaceError(null);
   };
@@ -974,10 +1107,46 @@ function Workspace() {
   const overwriteLatestWorkspace = () => {
     if (workspaceConflict) saveWorkspace(workspaceConflict.source, workspaceConflict.latest.revision);
   };
+  const useServerVersionForLocalDraft = () => {
+    if (!localDraftConflict) return;
+    const serverDraft = workspaceToLocalDraft(localDraftConflict.latest);
+    applyWorkspaceSnapshot(localDraftConflict.latest);
+    draftWriteEnabledRef.current = true;
+    workspaceLocalDraftRef.current = serverDraft;
+    storeWorkspaceLocalDraft(serverDraft);
+    setLocalDraftConflict(null);
+    setLocalDraftRecovered(false);
+    setWorkspaceError(null);
+  };
+  const recoverLocalDraft = () => {
+    if (!localDraftConflict) return;
+    const recoveredDraft: WorkspaceLocalDraft = {
+      ...localDraftConflict.local,
+      savedAt: new Date().toISOString(),
+      baseRevision: localDraftConflict.latest.revision,
+    };
+    setStatement(recoveredDraft.statement);
+    setCharter(recoveredDraft.charter);
+    setConfirmedCharter(recoveredDraft.confirmedCharter);
+    setAiCharterSuggestions(recoveredDraft.aiCharterSuggestions);
+    workspaceRevisionRef.current = recoveredDraft.baseRevision;
+    draftWriteEnabledRef.current = true;
+    workspaceLocalDraftRef.current = recoveredDraft;
+    storeWorkspaceLocalDraft(recoveredDraft);
+    setLocalDraftConflict(null);
+    setLocalDraftRecovered(true);
+    setWorkspaceError(null);
+  };
+  const updateStatement = (value: string) => {
+    draftWriteEnabledRef.current = true;
+    setStatement(value);
+  };
   const updateCharter = (field: CharterTextField, value: string) => {
+    draftWriteEnabledRef.current = true;
     setCharter((current) => ({ ...current, [field]: value }));
   };
   const updateCharterTeam = (role: CharterTeamRole, field: keyof CharterTeamMember, value: string) => {
+    draftWriteEnabledRef.current = true;
     setCharter((current) => ({ ...current, team: { ...current.team, [role]: { ...current.team[role], [field]: value } } }));
   };
   const startPipeline = () => {
@@ -1073,11 +1242,13 @@ function Workspace() {
            {pipelineLoading && <div data-testid="status-pipeline-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><RefreshCw size={15} className="animate-spin text-primary" /><span><strong>Montando seu caminho DMAIC...</strong> O Gemini está estruturando os entregáveis para a sessão.</span></div>}
            {pipelineError && <div data-testid="status-pipeline-error" className="reveal mb-6 flex items-center justify-between gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive"><span>{pipelineError}</span><Button testId="button-retry-pipeline" onClick={startPipeline} variant="outline">Tentar novamente</Button></div>}
            {workspaceQuery.isLoading && <div data-testid="status-workspace-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-border bg-muted/55 px-4 py-3 text-xs"><RefreshCw size={15} className="animate-spin text-primary" /><span>Carregando o Project Charter salvo...</span></div>}
+            {localDraftConflict && <div data-testid="status-local-draft-conflict" className="reveal mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-xs"><div className="flex min-w-0 gap-3"><Info size={16} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="font-bold text-foreground">Encontramos um rascunho neste navegador e uma versão mais recente no Neon.</p><p className="mt-1 leading-relaxed text-muted-foreground">Nenhum conteúdo foi apagado. Escolha qual versão deseja manter na tela antes de continuar editando.</p></div></div><div className="flex shrink-0 flex-wrap gap-2"><Button testId="button-use-server-version" onClick={useServerVersionForLocalDraft} variant="outline">Usar versão do Neon</Button><Button testId="button-recover-local-draft" onClick={recoverLocalDraft}>Recuperar meu rascunho</Button></div></div>}
            {workspaceConflict && <div data-testid="status-workspace-conflict" className="reveal mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-accent/35 bg-accent/10 px-4 py-3 text-xs"><div className="flex min-w-0 gap-3"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><div><p className="font-bold text-foreground">Há uma edição mais recente neste workspace.</p><p className="mt-1 leading-relaxed text-muted-foreground">Seus campos e sugestões continuam aqui. Carregue a versão mais recente para revisá-la ou substitua-a conscientemente pela sua edição.</p></div></div><div className="flex shrink-0 flex-wrap gap-2"><Button testId="button-use-latest-workspace" onClick={useLatestWorkspace} variant="outline">Usar versão mais recente</Button><Button testId="button-overwrite-workspace" onClick={overwriteLatestWorkspace}>Substituir mesmo assim</Button></div></div>}
            {(workspaceError || workspaceQuery.isError) && <div data-testid="status-workspace-error" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive"><Info size={15} /><span>{workspaceError ?? 'Não foi possível carregar os dados salvos no Neon.'}</span></div>}
+            {localDraftRecovered && !localDraftConflict && <div data-testid="status-local-draft-recovered" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Rascunho recuperado deste navegador.</strong> Suas edições continuam protegidas localmente; use os botões de salvar para confirmá-las também no Neon.</span></div>}
            {saved && <div data-testid="status-statement-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Mudança salva no Neon.</strong> O enunciado estará disponível ao reabrir este workspace.</span></div>}
            {charterSaved && <div data-testid="status-charter-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Project charter salvo no Neon.</strong> Essas informações serão carregadas ao reabrir este workspace e usadas como contexto na geração do pipeline.</span></div>}
-           {area === 'overview' ? <Overview statement={statement} setStatement={setStatement} onSave={saveStatement} charter={charter} onCharterChange={updateCharter} onTeamChange={updateCharterTeam} onSaveCharter={saveCharter} pipelineDone={pipelineDone} hasAiSuggestions={Boolean(aiCharterSuggestions)} onOpenArea={setArea} /> : <SprintView area={area} onOpenTool={openTool} onChangeVital={setVitalId} vitalId={vitalId} inputDataset={inputDataset} inputAnalysis={inputAnalysis} inputError={csvError} analysisMonths={analysisMonths} onAnalysisMonthsChange={setAnalysisMonths} selectedIndicator={selectedIndicator} onSelectedIndicatorChange={setSelectedIndicator} onUpload={handleUpload} inputRef={fileRef} />}
+            {area === 'overview' ? <Overview statement={statement} setStatement={updateStatement} onSave={saveStatement} charter={charter} onCharterChange={updateCharter} onTeamChange={updateCharterTeam} onSaveCharter={saveCharter} pipelineDone={pipelineDone} hasAiSuggestions={Boolean(aiCharterSuggestions)} onOpenArea={setArea} /> : <SprintView area={area} onOpenTool={openTool} onChangeVital={setVitalId} vitalId={vitalId} inputDataset={inputDataset} inputAnalysis={inputAnalysis} inputError={csvError} analysisMonths={analysisMonths} onAnalysisMonthsChange={setAnalysisMonths} selectedIndicator={selectedIndicator} onSelectedIndicatorChange={setSelectedIndicator} onUpload={handleUpload} inputRef={fileRef} />}
             <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-[10px] text-muted-foreground"><span className="mono-label">DMAIC Ágil Suite · workspace no Neon</span><span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> {pipelineData ? 'artefatos gerados por IA · revise com o time' : 'dados de exemplo sinalizados · sem envio externo'}</span></footer>
         </div>
       </main>
