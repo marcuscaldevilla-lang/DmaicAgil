@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import dmaicRouter from "./dmaic";
+import dmaicRouter from "./dmaic.production";
 import healthRouter from "./health";
 
 const router: IRouter = Router();

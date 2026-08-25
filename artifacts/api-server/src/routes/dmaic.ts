@@ -1,6 +1,4 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, sql } from "drizzle-orm";
-import { db, dmaicWorkspaces } from "@workspace/db";
 import {
   GetDmaicWorkspaceResponse,
   ListDmaicWorkspacesResponse,
@@ -11,7 +9,35 @@ import {
   SaveDmaicWorkspaceBody,
 } from "@workspace/api-zod";
 
-const router: IRouter = Router();
+export type DmaicWorkspaceRow = {
+  projectKey: number;
+  problemStatement: string;
+  projectCharterContext: unknown;
+  aiCharterSuggestions: unknown;
+  analysisArtifacts: unknown;
+  revision: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type DmaicWorkspaceWriteValues = Pick<
+  DmaicWorkspaceRow,
+  "problemStatement" | "projectCharterContext" | "aiCharterSuggestions"
+> & {
+  analysisArtifacts?: unknown;
+};
+
+export type DmaicWorkspaceRepository = {
+  findByProjectKey: (projectKey: number) => Promise<DmaicWorkspaceRow | undefined>;
+  findMostRecent: () => Promise<DmaicWorkspaceRow | undefined>;
+  listWorkspaces: () => Promise<DmaicWorkspaceRow[]>;
+  create: (values: DmaicWorkspaceWriteValues) => Promise<DmaicWorkspaceRow | undefined>;
+  updateIfRevisionMatches: (
+    projectKey: number,
+    expectedRevision: number,
+    values: DmaicWorkspaceWriteValues,
+  ) => Promise<DmaicWorkspaceRow | undefined>;
+};
 
 const DMAIC_SYSTEM_PROMPT = `Você é um Master Black Belt especialista em Lean Seis Sigma e Scrum.
 Crie artefatos acionáveis em português do Brasil para um projeto DMAIC Ágil.
@@ -223,7 +249,7 @@ function emptyAnalysisArtifacts() {
   };
 }
 
-function serializeWorkspace(row?: typeof dmaicWorkspaces.$inferSelect) {
+function serializeWorkspace(row?: DmaicWorkspaceRow) {
   const now = new Date();
   if (!row) {
     return {
@@ -257,7 +283,7 @@ function serializeWorkspace(row?: typeof dmaicWorkspaces.$inferSelect) {
   };
 }
 
-function serializeWorkspaceSummary(row: typeof dmaicWorkspaces.$inferSelect) {
+function serializeWorkspaceSummary(row: DmaicWorkspaceRow) {
   const projectCharterContext = row.projectCharterContext && typeof row.projectCharterContext === "object"
     ? row.projectCharterContext as Record<string, unknown>
     : {};
@@ -271,6 +297,9 @@ function serializeWorkspaceSummary(row: typeof dmaicWorkspaces.$inferSelect) {
   };
 }
 
+export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository): IRouter {
+  const router: IRouter = Router();
+
 router.get("/dmaic/workspace", async (req, res): Promise<void> => {
   const requestedProjectKey = req.query.projectKey;
   const projectKey = requestedProjectKey === undefined ? null : parseProjectKey(requestedProjectKey);
@@ -280,17 +309,9 @@ router.get("/dmaic/workspace", async (req, res): Promise<void> => {
   }
 
   try {
-    const [workspace] = projectKey
-      ? await db
-        .select()
-        .from(dmaicWorkspaces)
-        .where(eq(dmaicWorkspaces.projectKey, projectKey))
-        .limit(1)
-      : await db
-        .select()
-        .from(dmaicWorkspaces)
-        .orderBy(desc(dmaicWorkspaces.updatedAt))
-        .limit(1);
+    const workspace = projectKey
+      ? await workspaceRepository.findByProjectKey(projectKey)
+      : await workspaceRepository.findMostRecent();
     const payload = GetDmaicWorkspaceResponse.safeParse(serializeWorkspace(workspace));
     if (!payload.success) {
       req.log.error({ errors: payload.error.flatten() }, "Stored DMAIC workspace has an invalid shape");
@@ -306,10 +327,7 @@ router.get("/dmaic/workspace", async (req, res): Promise<void> => {
 
 router.get("/dmaic/workspaces", async (req, res): Promise<void> => {
   try {
-    const workspaces = await db
-      .select()
-      .from(dmaicWorkspaces)
-      .orderBy(desc(dmaicWorkspaces.updatedAt), desc(dmaicWorkspaces.projectKey));
+    const workspaces = await workspaceRepository.listWorkspaces();
     const payload = ListDmaicWorkspacesResponse.safeParse(workspaces.map(serializeWorkspaceSummary));
     if (!payload.success) {
       req.log.error({ errors: payload.error.flatten() }, "Stored DMAIC workspace list has an invalid shape");
@@ -363,36 +381,19 @@ router.put("/dmaic/workspace", async (req, res): Promise<void> => {
       aiCharterSuggestions,
       analysisArtifacts: body.data.analysisArtifacts,
     };
-    let workspace: typeof dmaicWorkspaces.$inferSelect | undefined;
+    let workspace: DmaicWorkspaceRow | undefined;
 
     if (expectedRevision === 0) {
-      [workspace] = await db
-        .insert(dmaicWorkspaces)
-        .values({
-          ...values,
-          analysisArtifacts: values.analysisArtifacts ?? emptyAnalysisArtifacts(),
-        })
-        .onConflictDoNothing({ target: dmaicWorkspaces.projectKey })
-        .returning();
+      workspace = await workspaceRepository.create({
+        ...values,
+        analysisArtifacts: values.analysisArtifacts ?? emptyAnalysisArtifacts(),
+      });
     } else {
-      const existingProjectKey = projectKey as number;
-      [workspace] = await db
-        .update(dmaicWorkspaces)
-        .set({
-          problemStatement: values.problemStatement,
-          projectCharterContext: values.projectCharterContext,
-          aiCharterSuggestions: values.aiCharterSuggestions,
-           analysisArtifacts: values.analysisArtifacts === undefined ? sql`${dmaicWorkspaces.analysisArtifacts}` : values.analysisArtifacts,
-          revision: sql`${dmaicWorkspaces.revision} + 1`,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(dmaicWorkspaces.projectKey, existingProjectKey),
-            eq(dmaicWorkspaces.revision, expectedRevision),
-          ),
-        )
-        .returning();
+      workspace = await workspaceRepository.updateIfRevisionMatches(
+        projectKey as number,
+        expectedRevision,
+        values,
+      );
     }
 
     if (!workspace) {
@@ -401,11 +402,7 @@ router.put("/dmaic/workspace", async (req, res): Promise<void> => {
         res.status(500).json({ error: "Não foi possível criar o projeto no Neon." });
         return;
       }
-      const [latestWorkspace] = await db
-        .select()
-        .from(dmaicWorkspaces)
-        .where(eq(dmaicWorkspaces.projectKey, projectKey))
-        .limit(1);
+      const latestWorkspace = await workspaceRepository.findByProjectKey(projectKey);
       const latestPayload = GetDmaicWorkspaceResponse.safeParse(serializeWorkspace(latestWorkspace));
       if (!latestPayload.success) {
         req.log.error({ errors: latestPayload.error.flatten() }, "Workspace conflict response has an invalid shape");
@@ -631,4 +628,5 @@ router.post("/dmaic/pipeline", async (req, res): Promise<void> => {
   }
 });
 
-export default router;
+  return router;
+}

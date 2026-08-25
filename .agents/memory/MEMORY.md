@@ -5,3 +5,4 @@
 - [DMAIC project codes](dmaic-project-codes.md) — Neon generates numeric project codes on first Problem Statement save; clients reuse the returned code.
 - [AI financial estimates](ai-financial-suggestions.md) — Gemini may calculate a labeled estimate only from team-entered quantitative and financial inputs.
 - [Versioned workspace saves](versioned-workspace-saves.md) — Resolve revisions only at serialized execution, while isolating queued writes across project switches.
+- [Workspace concurrency test isolation](workspace-concurrency-test-isolation.md) — Exercise conflict saves through an injected in-memory repository, never a live active workspace.
