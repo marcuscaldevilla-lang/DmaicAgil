@@ -119,54 +119,102 @@ export interface DmaicGeneratedCharter {
   financialGainValue: string;
 }
 
-export interface DmaicWorkspaceInput {
+export interface DmaicCsvRow {[key: string]: string}
+
+/**
+ * Dataset interpretado localmente no navegador, sem os bytes do arquivo original.
+ */
+export interface DmaicCsvDataset {
+  /** @maxLength 255 */
+  fileName: string;
   /**
-     * Numeric project code returned after the first save. Omit it when creating a new project.
-     * @minimum 1
+     * @maxItems 100
+     * @items.maxLength 255
      */
-  projectKey?: number;
+  headers: string[];
+  /** @maxItems 10000 */
+  rows: DmaicCsvRow[];
+  dateColumn: string | null;
   /**
-     * @minLength 10
-     * @maxLength 4000
+     * @maxItems 100
+     * @items.maxLength 255
      */
-  problemStatement: string;
-  projectCharterContext: DmaicCharterContext;
-  /** AI-generated Charter content that remains pending team review. Send null when the Charter is confirmed. */
-  aiCharterSuggestions: DmaicGeneratedCharter | null;
-  /**
-     * Monotonic version returned by the last workspace read or save. Send 0 when creating the workspace for the first time.
-     * @minimum 0
-     */
-  expectedRevision: number;
+  indicatorColumns: string[];
 }
 
-export interface DmaicWorkspace {
-  /** Automatically generated numeric project code, or null before the first save. */
-  projectKey: number | null;
-  hasSavedData: boolean;
-  problemStatement: string;
-  projectCharterContext: DmaicCharterContext;
-  /** AI-generated Charter content that remains pending team review, or null after confirmation. */
-  aiCharterSuggestions: DmaicGeneratedCharter | null;
+export type DmaicContinuousAnalysisKind = typeof DmaicContinuousAnalysisKind[keyof typeof DmaicContinuousAnalysisKind];
+
+
+export const DmaicContinuousAnalysisKind = {
+  continuous: 'continuous',
+} as const;
+
+export interface DmaicContinuousAnalysis {
+  kind: DmaicContinuousAnalysisKind;
+  indicator: string;
   /** @minimum 0 */
-  revision: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface DmaicWorkspaceConflict {
-  error: string;
-  latestWorkspace: DmaicWorkspace;
-}
-
-export interface DmaicWorkspaceSummary {
-  /** @minimum 1 */
-  projectKey: number;
-  projectName: string;
-  problemStatement: string;
+  rows: number;
+  values: number[];
+  mean: number;
+  median: number;
+  minimum: number;
+  maximum: number;
   /** @minimum 0 */
-  revision: number;
-  updatedAt: string;
+  standardDeviation: number;
+  normality: string;
+  normalityDetail: string;
+}
+
+export type DmaicDiscreteAnalysisKind = typeof DmaicDiscreteAnalysisKind[keyof typeof DmaicDiscreteAnalysisKind];
+
+
+export const DmaicDiscreteAnalysisKind = {
+  discrete: 'discrete',
+} as const;
+
+export type DmaicDiscreteAnalysisDistributionItem = {
+  label: string;
+  /** @minimum 0 */
+  count: number;
+  /** @minimum 0 */
+  percentage: number;
+};
+
+export interface DmaicDiscreteAnalysis {
+  kind: DmaicDiscreteAnalysisKind;
+  indicator: string;
+  /** @minimum 0 */
+  rows: number;
+  /** @minimum 0 */
+  categoryCount: number;
+  topCategory: string;
+  /** @minimum 0 */
+  topCategoryCount: number;
+  distribution: DmaicDiscreteAnalysisDistributionItem[];
+}
+
+export type DmaicIndicatorAnalysis = DmaicContinuousAnalysis | DmaicDiscreteAnalysis;
+
+export interface DmaicExploratorySummary {
+  points: DmaicExploratoryPoint[];
+  minimum: number;
+  q1: number;
+  median: number;
+  q3: number;
+  maximum: number;
+  iqr: number;
+  mean: number;
+  /** @minimum 0 */
+  standardDeviation: number;
+  shapiroW: number | null;
+  shapiroPValue: number | null;
+  shapiroDetail: string;
+}
+
+export interface DmaicParetoItem {
+  name: string;
+  /** @minimum 0 */
+  value: number;
 }
 
 export interface DmaicCharter {
@@ -229,6 +277,81 @@ export interface DmaicPipeline {
   actionPlan: DmaicRow[];
   controlPlan: DmaicRow[];
   standardizationSop: DmaicRow[];
+}
+
+/**
+ * Current derived data and generated artifacts associated with a DMAIC project.
+ */
+export interface DmaicAnalysisArtifacts {
+  /** @minimum 1 */
+  version: number;
+  dataset: DmaicCsvDataset | null;
+  /**
+     * @minimum 1
+     * @maximum 120
+     */
+  analysisMonths: number;
+  selectedIndicator: string;
+  indicatorAnalysis: DmaicIndicatorAnalysis | null;
+  exploratorySummary: DmaicExploratorySummary | null;
+  diagnosis: string | null;
+  diagnosisInput: DmaicExploratoryDiagnosisInput | null;
+  pareto: DmaicParetoItem[];
+  imr: number[];
+  pipeline: DmaicPipeline | null;
+}
+
+export interface DmaicWorkspaceInput {
+  /**
+     * Numeric project code returned after the first save. Omit it when creating a new project.
+     * @minimum 1
+     */
+  projectKey?: number;
+  /**
+     * @minLength 10
+     * @maxLength 4000
+     */
+  problemStatement: string;
+  projectCharterContext: DmaicCharterContext;
+  /** AI-generated Charter content that remains pending team review. Send null when the Charter is confirmed. */
+  aiCharterSuggestions: DmaicGeneratedCharter | null;
+  /** Current CSV-derived analysis data and generated artifacts. Omit for backwards-compatible saves without analysis data. */
+  analysisArtifacts?: DmaicAnalysisArtifacts;
+  /**
+     * Monotonic version returned by the last workspace read or save. Send 0 when creating the workspace for the first time.
+     * @minimum 0
+     */
+  expectedRevision: number;
+}
+
+export interface DmaicWorkspace {
+  /** Automatically generated numeric project code, or null before the first save. */
+  projectKey: number | null;
+  hasSavedData: boolean;
+  problemStatement: string;
+  projectCharterContext: DmaicCharterContext;
+  /** AI-generated Charter content that remains pending team review, or null after confirmation. */
+  aiCharterSuggestions: DmaicGeneratedCharter | null;
+  analysisArtifacts: DmaicAnalysisArtifacts;
+  /** @minimum 0 */
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DmaicWorkspaceConflict {
+  error: string;
+  latestWorkspace: DmaicWorkspace;
+}
+
+export interface DmaicWorkspaceSummary {
+  /** @minimum 1 */
+  projectKey: number;
+  projectName: string;
+  problemStatement: string;
+  /** @minimum 0 */
+  revision: number;
+  updatedAt: string;
 }
 
 export type GetDmaicWorkspaceParams = {

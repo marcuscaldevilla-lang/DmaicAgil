@@ -275,13 +275,16 @@ components:
           anyOf:
             - $ref: "#/components/schemas/DmaicGeneratedCharter"
             - type: "null"
+        analysisArtifacts:
+          description: Current CSV-derived analysis data and generated artifacts. Omit for backwards-compatible saves without analysis data.
+          $ref: "#/components/schemas/DmaicAnalysisArtifacts"
         expectedRevision:
           description: Monotonic version returned by the last workspace read or save. Send 0 when creating the workspace for the first time.
           type: number
           minimum: 0
     DmaicWorkspace:
       type: object
-      required: [projectKey, hasSavedData, problemStatement, projectCharterContext, aiCharterSuggestions, revision, createdAt, updatedAt]
+      required: [projectKey, hasSavedData, problemStatement, projectCharterContext, aiCharterSuggestions, analysisArtifacts, revision, createdAt, updatedAt]
       properties:
         projectKey:
           description: Automatically generated numeric project code, or null before the first save.
@@ -298,6 +301,8 @@ components:
           anyOf:
             - $ref: "#/components/schemas/DmaicGeneratedCharter"
             - type: "null"
+        analysisArtifacts:
+          $ref: "#/components/schemas/DmaicAnalysisArtifacts"
         revision: { type: number, minimum: 0 }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
@@ -358,6 +363,148 @@ components:
         businessContributionsQuantitative: { type: string }
         businessContributionsQualitative: { type: string }
         financialGainValue: { type: string }
+    DmaicCsvDataset:
+      type: object
+      description: Dataset interpretado localmente no navegador, sem os bytes do arquivo original.
+      required: [fileName, headers, rows, dateColumn, indicatorColumns]
+      properties:
+        fileName: { type: string, maxLength: 255 }
+        headers:
+          type: array
+          maxItems: 100
+          items: { type: string, maxLength: 255 }
+        rows:
+          type: array
+          maxItems: 10000
+          items:
+            $ref: "#/components/schemas/DmaicCsvRow"
+        dateColumn:
+          anyOf:
+            - type: string
+            - type: "null"
+        indicatorColumns:
+          type: array
+          maxItems: 100
+          items: { type: string, maxLength: 255 }
+    DmaicCsvRow:
+      type: object
+      additionalProperties:
+        type: string
+        maxLength: 4000
+    DmaicContinuousAnalysis:
+      type: object
+      required: [kind, indicator, rows, values, mean, median, minimum, maximum, standardDeviation, normality, normalityDetail]
+      properties:
+        kind: { type: string, enum: [continuous] }
+        indicator: { type: string }
+        rows: { type: number, minimum: 0 }
+        values:
+          type: array
+          items: { type: number }
+        mean: { type: number }
+        median: { type: number }
+        minimum: { type: number }
+        maximum: { type: number }
+        standardDeviation: { type: number, minimum: 0 }
+        normality: { type: string }
+        normalityDetail: { type: string }
+    DmaicDiscreteAnalysis:
+      type: object
+      required: [kind, indicator, rows, categoryCount, topCategory, topCategoryCount, distribution]
+      properties:
+        kind: { type: string, enum: [discrete] }
+        indicator: { type: string }
+        rows: { type: number, minimum: 0 }
+        categoryCount: { type: number, minimum: 0 }
+        topCategory: { type: string }
+        topCategoryCount: { type: number, minimum: 0 }
+        distribution:
+          type: array
+          items:
+            type: object
+            required: [label, count, percentage]
+            properties:
+              label: { type: string }
+              count: { type: number, minimum: 0 }
+              percentage: { type: number, minimum: 0 }
+    DmaicIndicatorAnalysis:
+      anyOf:
+        - $ref: "#/components/schemas/DmaicContinuousAnalysis"
+        - $ref: "#/components/schemas/DmaicDiscreteAnalysis"
+    DmaicExploratorySummary:
+      type: object
+      required: [points, minimum, q1, median, q3, maximum, iqr, mean, standardDeviation, shapiroW, shapiroPValue, shapiroDetail]
+      properties:
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicExploratoryPoint"
+        minimum: { type: number }
+        q1: { type: number }
+        median: { type: number }
+        q3: { type: number }
+        maximum: { type: number }
+        iqr: { type: number }
+        mean: { type: number }
+        standardDeviation: { type: number, minimum: 0 }
+        shapiroW:
+          anyOf:
+            - type: number
+              minimum: 0
+              maximum: 1
+            - type: "null"
+        shapiroPValue:
+          anyOf:
+            - type: number
+              minimum: 0
+              maximum: 1
+            - type: "null"
+        shapiroDetail: { type: string }
+    DmaicParetoItem:
+      type: object
+      required: [name, value]
+      properties:
+        name: { type: string }
+        value: { type: number, minimum: 0 }
+    DmaicAnalysisArtifacts:
+      type: object
+      description: Current derived data and generated artifacts associated with a DMAIC project.
+      required: [version, dataset, analysisMonths, selectedIndicator, indicatorAnalysis, exploratorySummary, diagnosis, diagnosisInput, pareto, imr, pipeline]
+      properties:
+        version: { type: number, minimum: 1 }
+        dataset:
+          anyOf:
+            - $ref: "#/components/schemas/DmaicCsvDataset"
+            - type: "null"
+        analysisMonths: { type: number, minimum: 1, maximum: 120 }
+        selectedIndicator: { type: string }
+        indicatorAnalysis:
+          anyOf:
+            - $ref: "#/components/schemas/DmaicIndicatorAnalysis"
+            - type: "null"
+        exploratorySummary:
+          anyOf:
+            - $ref: "#/components/schemas/DmaicExploratorySummary"
+            - type: "null"
+        diagnosis:
+          anyOf:
+            - type: string
+            - type: "null"
+        diagnosisInput:
+          anyOf:
+            - $ref: "#/components/schemas/DmaicExploratoryDiagnosisInput"
+            - type: "null"
+        pareto:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicParetoItem"
+        imr:
+          type: array
+          items: { type: number }
+        pipeline:
+          anyOf:
+            - $ref: "#/components/schemas/DmaicPipeline"
+            - type: "null"
     DmaicTeam:
       type: object
       required: [productOwner, scrumMaster, beltSquadMembers]

@@ -6,15 +6,26 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './dmaicAnalysisArtifacts';
 export * from './dmaicCharter';
 export * from './dmaicCharterContext';
 export * from './dmaicCharterTeamMember';
+export * from './dmaicContinuousAnalysis';
+export * from './dmaicContinuousAnalysisKind';
+export * from './dmaicCsvDataset';
+export * from './dmaicCsvRow';
+export * from './dmaicDiscreteAnalysis';
+export * from './dmaicDiscreteAnalysisDistributionItem';
+export * from './dmaicDiscreteAnalysisKind';
 export * from './dmaicExploratoryDiagnosis';
 export * from './dmaicExploratoryDiagnosisInput';
 export * from './dmaicExploratoryPoint';
 export * from './dmaicExploratoryStatistics';
+export * from './dmaicExploratorySummary';
 export * from './dmaicGeneratedCharter';
 export * from './dmaicIndicator';
+export * from './dmaicIndicatorAnalysis';
+export * from './dmaicParetoItem';
 export * from './dmaicPipeline';
 export * from './dmaicPipelineInput';
 export * from './dmaicPipelineIshikawa';

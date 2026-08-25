@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getDmaicWorkspace, type DmaicPipeline, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
+import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicExploratoryDiagnosisInput, type DmaicPipeline, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -82,7 +82,7 @@ type CharterTextField = Exclude<keyof ProjectCharterDraft, 'team'>;
 type ProjectCharterContext = Omit<ProjectCharterDraft, 'team'> & { team: Array<CharterTeamMember & { role: string }> };
 type GeneratedCharterFields = Pick<ProjectCharterDraft, 'objective' | 'history' | 'goalDefinition' | 'kpis' | 'includedScope' | 'excludedScope' | 'assumptionsAndConstraints' | 'customerRequirements' | 'businessContributions' | 'businessContributionsQuantitative' | 'businessContributionsQualitative' | 'financialGainValue'>;
 type WorkspaceSaveSource = 'statement' | 'charter' | 'suggestions';
-type WorkspaceSaveData = { projectKey?: number; problemStatement: string; projectCharterContext: ProjectCharterContext; aiCharterSuggestions: GeneratedCharterFields | null };
+type WorkspaceSaveData = { projectKey?: number; problemStatement: string; projectCharterContext: ProjectCharterContext; aiCharterSuggestions: GeneratedCharterFields | null; analysisArtifacts: DmaicAnalysisArtifacts };
 type WorkspaceSaveAttempt = { source: WorkspaceSaveSource; data: WorkspaceSaveData; charterToPersist?: ProjectCharterDraft; expectedRevision?: number };
 type WorkspaceLocalDraft = {
   version: 1;
@@ -93,6 +93,7 @@ type WorkspaceLocalDraft = {
   charter: ProjectCharterDraft;
   confirmedCharter: ProjectCharterDraft;
   aiCharterSuggestions: GeneratedCharterFields | null;
+  analysisArtifacts: DmaicAnalysisArtifacts;
 };
 type InputDataset = { fileName: string; headers: string[]; rows: Record<string, string>[]; dateColumn: string | null; indicatorColumns: string[] };
 type ContinuousAnalysis = { kind: 'continuous'; indicator: string; rows: number; values: number[]; mean: number; median: number; minimum: number; maximum: number; standardDeviation: number; normality: string; normalityDetail: string };
@@ -101,12 +102,40 @@ type IndicatorAnalysis = ContinuousAnalysis | DiscreteAnalysis;
 type ExploratoryPoint = { period: string; value: number };
 type ExploratorySummary = { points: ExploratoryPoint[]; minimum: number; q1: number; median: number; q3: number; maximum: number; iqr: number; mean: number; standardDeviation: number; shapiroW: number | null; shapiroPValue: number | null; shapiroDetail: string };
 const DIAGNOSIS_POINT_LIMIT = 240;
+const MAX_PERSISTED_CSV_ROWS = 10_000;
+const MAX_PERSISTED_CSV_CHARACTERS = 1_500_000;
+const MAX_PERSISTED_CSV_COLUMNS = 100;
+const MAX_PERSISTED_CSV_CELL_CHARACTERS = 4_000;
+const MAX_ANALYSIS_ARTIFACT_BYTES = 3_000_000;
 const WORKSPACE_DRAFT_STORAGE_KEY = 'dmaic-agil-suite.workspace-draft.v1';
 const DEFAULT_PROBLEM_STATEMENT = 'O tempo entre a entrada da solicitação e a aprovação do crédito varia de 8 a 31 minutos, gerando retrabalho e previsibilidade baixa para as agências no fechamento do mês.';
 const charterTextFields = ['projectName', 'client', 'area', 'leader', 'sponsor', 'date', 'objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions', 'businessContributionsQuantitative', 'businessContributionsQualitative', 'financialGainValue', 'financialInformation'] as const satisfies readonly CharterTextField[];
 const legacyCharterTextFields = ['projectName', 'client', 'area', 'leader', 'sponsor', 'date', 'objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions'] as const;
 const generatedCharterFields = ['objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions', 'businessContributionsQuantitative', 'businessContributionsQualitative', 'financialGainValue'] as const satisfies readonly (keyof GeneratedCharterFields)[];
 const legacyGeneratedCharterFields = ['objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions'] as const;
+
+const createEmptyAnalysisArtifacts = (): DmaicAnalysisArtifacts => ({
+  version: 1,
+  dataset: null,
+  analysisMonths: 12,
+  selectedIndicator: '',
+  indicatorAnalysis: null,
+  exploratorySummary: null,
+  diagnosis: null,
+  diagnosisInput: null,
+  pareto: [],
+  imr: [],
+  pipeline: null,
+});
+
+function parseAnalysisArtifacts(value: unknown): DmaicAnalysisArtifacts {
+  if (!isObject(value) || value.version !== 1 || !('dataset' in value) || !('analysisMonths' in value) || !('selectedIndicator' in value)) return createEmptyAnalysisArtifacts();
+  return value as unknown as DmaicAnalysisArtifacts;
+}
+
+function analysisArtifactsSizeInBytes(artifacts: DmaicAnalysisArtifacts): number {
+  return new TextEncoder().encode(JSON.stringify(artifacts)).byteLength;
+}
 
 function getWorkspaceConflict(error: unknown): DmaicWorkspace | null {
   if (!error || typeof error !== 'object' || !('status' in error) || error.status !== 409 || !('data' in error)) return null;
@@ -203,7 +232,7 @@ function readWorkspaceLocalDraft(): WorkspaceLocalDraft | null {
     const charter = parseProjectCharterDraft(value.charter);
     const confirmedCharter = parseProjectCharterDraft(value.confirmedCharter);
     const aiCharterSuggestions = parseGeneratedCharterFields(value.aiCharterSuggestions);
-    return charter && confirmedCharter ? { version: 1, savedAt: value.savedAt, baseRevision: value.baseRevision, projectKey, statement: value.statement, charter, confirmedCharter, aiCharterSuggestions } : null;
+    return charter && confirmedCharter ? { version: 1, savedAt: value.savedAt, baseRevision: value.baseRevision, projectKey, statement: value.statement, charter, confirmedCharter, aiCharterSuggestions, analysisArtifacts: parseAnalysisArtifacts(value.analysisArtifacts) } : null;
   } catch {
     return null;
   }
@@ -258,6 +287,7 @@ const workspaceToLocalDraft = (workspace: DmaicWorkspace): WorkspaceLocalDraft =
     charter: aiCharterSuggestions ? applyGeneratedCharterFields(confirmedCharter, aiCharterSuggestions) : confirmedCharter,
     confirmedCharter,
     aiCharterSuggestions,
+    analysisArtifacts: workspace.analysisArtifacts,
   };
 };
 
@@ -467,14 +497,19 @@ function parseDateValue(value: string): Date | null {
 }
 
 function parseInputCsv(text: string, fileName: string): InputDataset {
+  if (text.length > MAX_PERSISTED_CSV_CHARACTERS) throw new Error('Este CSV excede o limite de 1,5 MB para salvar a análise no projeto. Reduza as colunas ou filtre o período antes do upload.');
   const delimiter = detectCsvDelimiter(text);
   const records = parseCsvRecords(text, delimiter);
   if (records.length < 2) throw new Error('O CSV precisa ter cabeçalho e pelo menos uma linha de dados.');
+  if (records.length - 1 > MAX_PERSISTED_CSV_ROWS) throw new Error(`Este CSV tem mais de ${MAX_PERSISTED_CSV_ROWS.toLocaleString('pt-BR')} linhas. Filtre ou agregue os dados antes do upload para que a análise possa ser salva.`);
   const headers = records[0].map((header, index) => header || `Coluna ${index + 1}`);
+  if (headers.length > MAX_PERSISTED_CSV_COLUMNS) throw new Error(`Este CSV tem mais de ${MAX_PERSISTED_CSV_COLUMNS} colunas. Mantenha somente os campos necessários para a análise.`);
+  if (headers.some((header) => header.length > 255)) throw new Error('Um cabeçalho do CSV excede 255 caracteres. Renomeie as colunas antes do upload.');
   const rows = records.slice(1).map((values, index) => {
     if (values.length !== headers.length) {
       throw new Error(`O registro ${index + 2} tem ${values.length} campos, mas o cabeçalho tem ${headers.length}. Confira o separador e as aspas do CSV.`);
     }
+    if (values.some((value) => value.length > MAX_PERSISTED_CSV_CELL_CHARACTERS)) throw new Error(`O registro ${index + 2} possui um campo muito longo para ser salvo na análise.`);
     return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
   });
   const dateColumn = headers.find((header) => {
@@ -793,14 +828,14 @@ function ToolCard({ tool, onOpen }: { tool: Tool; onOpen: (tool: Tool) => void }
   return <button data-testid={`card-tool-${tool.id}`} onClick={() => onOpen(tool)} className="group panel flex min-h-[154px] flex-col rounded-xl p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/45"><div className="flex items-start justify-between"><span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: `hsl(${tool.accent} / .12)`, color: `hsl(${tool.accent})` }}><Icon size={17} strokeWidth={1.8} /></span><span className="opacity-0 transition-opacity group-hover:opacity-100"><ArrowRight size={16} className="text-primary" /></span></div><div className="mt-auto pt-5"><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-bold">{tool.title}</h3>{tool.tag && <span className="rounded bg-muted px-1.5 py-0.5 mono-label text-muted-foreground">{tool.tag}</span>}</div><p className="mt-1 text-[11px] text-muted-foreground">{tool.subtitle}</p><p className="mt-3 mono-label text-primary">{tool.status}</p></div></button>;
 }
 
-function SprintView({ area, onOpenTool, onChangeVital, vitalId, inputDataset, inputAnalysis, inputError, analysisMonths, onAnalysisMonthsChange, selectedIndicator, onSelectedIndicatorChange, onUpload, inputRef }: { area: 'definition' | 'measurement' | 'aic'; onOpenTool: (tool: Tool) => void; onChangeVital: (id: string) => void; vitalId: string; inputDataset: InputDataset | null; inputAnalysis: IndicatorAnalysis | null; inputError: string | null; analysisMonths: number; onAnalysisMonthsChange: (months: number) => void; selectedIndicator: string; onSelectedIndicatorChange: (indicator: string) => void; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; inputRef: { current: HTMLInputElement | null } }) {
+function SprintView({ area, onOpenTool, onChangeVital, vitalId, inputDataset, inputAnalysis, inputError, analysisMonths, onAnalysisMonthsChange, selectedIndicator, onSelectedIndicatorChange, diagnosis, onDiagnosisChange, onSaveAnalysis, onUpload, inputRef }: { area: 'definition' | 'measurement' | 'aic'; onOpenTool: (tool: Tool) => void; onChangeVital: (id: string) => void; vitalId: string; inputDataset: InputDataset | null; inputAnalysis: IndicatorAnalysis | null; inputError: string | null; analysisMonths: number; onAnalysisMonthsChange: (months: number) => void; selectedIndicator: string; onSelectedIndicatorChange: (indicator: string) => void; diagnosis: string | null; onDiagnosisChange: (diagnosis: string | null, input: DmaicExploratoryDiagnosisInput) => void; onSaveAnalysis: () => void; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; inputRef: { current: HTMLInputElement | null } }) {
   const meta = areaMeta[area];
   const selectedVital = vitalXs.find((vital) => vital.id === vitalId) ?? vitalXs[0];
   return <div className="space-y-7">
     <div className="reveal flex flex-wrap items-end justify-between gap-4"><div><p className="mono-label mb-2" style={{ color: meta.color }}>{meta.kicker}</p><h2 className="font-serif text-3xl font-bold tracking-tight sm:text-4xl">{meta.label}</h2><p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">{meta.description}</p></div><div className="flex items-center gap-2"><StatusPill tone="green">Em andamento</StatusPill><button data-testid="button-sprint-options" onClick={() => onOpenTool(tools[area][0])} className="rounded-lg border border-border bg-card p-2 text-muted-foreground hover:text-foreground"><MoreHorizontal size={17} /></button></div></div>
     {area === 'measurement' && <div className="reveal-2 panel flex flex-wrap items-center justify-between gap-4 rounded-xl border-l-4 border-l-chart-3 p-4"><div className="flex items-center gap-3"><IconBadge icon={Gauge} tone="chart-3" /><div><p className="text-sm font-bold">Indicador Y em foco</p><p className="mt-0.5 text-xs text-muted-foreground">Tempo total até aprovação · <span className="font-bold text-foreground">12,8 min</span> mediana</p></div></div><div className="flex items-center gap-2"><label htmlFor="vital-select" className="mono-label text-muted-foreground">Vital X</label><select id="vital-select" data-testid="select-vital-x" value={vitalId} onChange={(event) => onChangeVital(event.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold outline-none focus:border-primary/50">{vitalXs.map((vital) => <option key={vital.id} value={vital.id}>{vital.label}</option>)}</select></div></div>}
     {area === 'measurement' && <div className="reveal-3 panel rounded-xl p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="mono-label text-chart-3">Vital X selecionado</p><h3 className="mt-2 font-serif text-xl font-bold">{selectedVital.label}</h3><p className="mt-1 text-xs text-muted-foreground">{selectedVital.note} · janela de 30 dias</p></div><div className="text-right"><p className="font-serif text-2xl font-bold">{selectedVital.value}</p><p className="mt-1 text-[11px] font-bold text-primary">{selectedVital.delta} vs. baseline</p></div></div><div className="mt-5 grid h-14 grid-cols-12 items-end gap-1.5 border-b border-border pb-0 sm:grid-cols-24">{[30,36,34,42,38,45,40,49,46,54,51,48,58,53,56,62,59,64,57,68,61,65,72,66].map((height, index) => <div key={index} className="rounded-t-sm bg-chart-3/60 transition-all hover:bg-chart-3" style={{ height: `${height}%` }} />)}</div><div className="mt-2 flex justify-between mono-label text-muted-foreground"><span>01 mai</span><span>30 mai</span></div></div>}
-     {(area === 'definition' || area === 'measurement') && <InputDataPanel dataset={inputDataset} analysis={inputAnalysis} error={inputError} months={analysisMonths} onMonthsChange={onAnalysisMonthsChange} selectedIndicator={selectedIndicator} onIndicatorChange={onSelectedIndicatorChange} onUpload={onUpload} inputRef={inputRef} />}
+     {(area === 'definition' || area === 'measurement') && <InputDataPanel dataset={inputDataset} analysis={inputAnalysis} error={inputError} months={analysisMonths} onMonthsChange={onAnalysisMonthsChange} selectedIndicator={selectedIndicator} onIndicatorChange={onSelectedIndicatorChange} diagnosis={diagnosis} onDiagnosisChange={onDiagnosisChange} onSaveAnalysis={onSaveAnalysis} onUpload={onUpload} inputRef={inputRef} />}
     <div className="reveal-2 flex items-center justify-between"><div><SectionHeading eyebrow={area === 'definition' ? 'Entregáveis de enquadramento' : area === 'measurement' ? 'Entregáveis de evidência' : 'Entregáveis de mudança'} title={area === 'definition' ? 'Dê nome ao problema certo' : area === 'measurement' ? 'Meça sem adivinhar' : 'Faça a solução pegar'} /></div><Button testId={`button-add-${area}`} onClick={() => onOpenTool(tools[area][0])} variant="outline"><Plus size={14} /> Adicionar item</Button></div>
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{tools[area].map((tool) => <ToolCard key={tool.id} tool={tool} onOpen={onOpenTool} />)}</div>
     {area === 'aic' && <div className="reveal-4 grid gap-4 lg:grid-cols-[1.1fr_.9fr]"><div className="panel rounded-xl p-5"><div className="flex items-center justify-between"><div><p className="mono-label text-chart-4">Hipóteses em teste</p><h3 className="mt-2 font-serif text-lg font-bold">Do provável ao comprovado</h3></div><TestTube2 size={18} className="text-chart-4" /></div><div className="mt-5 space-y-4">{[{ name: 'H1 · Padronização da triagem', status: 'Em teste', pct: 68 }, { name: 'H2 · Regra de aprovação automática', status: 'Próximo', pct: 32 }, { name: 'H3 · Balanceamento da célula', status: 'Backlog', pct: 12 }].map((item) => <div key={item.name}><div className="flex justify-between gap-3 text-xs"><span className="font-semibold">{item.name}</span><span className="mono-label text-muted-foreground">{item.status}</span></div><div className="mt-2 h-1.5 rounded-full bg-muted"><div className="h-full rounded-full bg-chart-4" style={{ width: `${item.pct}%` }} /></div></div>)}</div></div><div className="panel rounded-xl bg-accent/10 p-5"><p className="mono-label text-accent-foreground">Próximo checkpoint</p><h3 className="mt-2 font-serif text-lg font-bold">Review de controle</h3><p className="mt-2 text-xs leading-relaxed text-muted-foreground">Quinta, 06 jun · 14:30<br />Validar plano de reação e dono do SOP.</p><Button testId="button-schedule-review" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} variant="dark" className="mt-5">Abrir agenda <ArrowRight size={14} /></Button></div></div>}
@@ -852,7 +887,7 @@ function ExploratoryBoxPlot({ summary, indicator }: { summary: ExploratorySummar
   </div>;
 }
 
-function ExploratoryAnalysisPanel({ dataset, analysis, months }: { dataset: InputDataset; analysis: IndicatorAnalysis; months: number }) {
+function ExploratoryAnalysisPanel({ dataset, analysis, months, diagnosis, onDiagnosisChange }: { dataset: InputDataset; analysis: IndicatorAnalysis; months: number; diagnosis: string | null; onDiagnosisChange: (diagnosis: string | null, input: DmaicExploratoryDiagnosisInput) => void }) {
   const summary = buildExploratorySummary(dataset, analysis, months);
   const diagnosisMutation = useRunDmaicExploratoryDiagnosis();
   const diagnosisPoints = summary ? samplePointsForDiagnosis(summary.points) : [];
@@ -887,6 +922,8 @@ function ExploratoryAnalysisPanel({ dataset, analysis, months }: { dataset: Inpu
         shapiroPValue: summary.shapiroPValue ?? undefined,
       },
     },
+  }, {
+    onSuccess: (result, variables) => onDiagnosisChange(result.diagnosis, variables.data),
   });
   return <section data-testid="panel-exploratory-analysis" className="mt-5 rounded-xl border border-primary/15 bg-primary/5 p-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -914,16 +951,16 @@ function ExploratoryAnalysisPanel({ dataset, analysis, months }: { dataset: Inpu
     <div className="mt-4 rounded-xl border border-primary/20 bg-background p-4">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="mono-label text-primary">Diagnóstico detalhado com IA</p><p className="mt-1 text-xs text-muted-foreground">Peça ao Gemini uma leitura completa de tendência, estabilidade, distribuição, normalidade e próximos passos do DMAIC.</p>{diagnosisIsSampled && <p className="mt-1 text-[11px] text-muted-foreground">Para manter a leitura focada, o Gemini recebe uma amostra cronológica de {DIAGNOSIS_POINT_LIMIT} pontos; os gráficos e estatísticas usam todas as {summary.points.length} observações.</p>}</div><Button testId="button-generate-exploratory-diagnosis" onClick={runDiagnosis} disabled={diagnosisMutation.isPending || diagnosisPoints.length < 2} variant="outline">{diagnosisMutation.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}{diagnosisMutation.isPending ? 'Analisando...' : 'Gerar diagnóstico detalhado'}</Button></div>
       {diagnosisMutation.isError && <p data-testid="status-exploratory-diagnosis-error" className="mt-3 rounded-lg bg-destructive/5 p-3 text-xs text-destructive">{diagnosisMutation.error instanceof Error ? diagnosisMutation.error.message.replace(/^HTTP \d+ [^:]+:\s*/, '') : 'Não foi possível obter o diagnóstico textual agora. A análise estatística local continua disponível.'}</p>}
-      {diagnosisMutation.data?.diagnosis && <div data-testid="text-exploratory-diagnosis" className="mt-4 max-w-none overflow-visible whitespace-pre-wrap break-words border-t border-border pt-4 text-sm leading-relaxed text-muted-foreground"><p className="mb-3 text-xs font-bold text-foreground">Leitura detalhada do comportamento da série</p>{diagnosisMutation.data.diagnosis.split(/\n{2,}/).map((paragraph, index) => <p key={index} className="mb-3 last:mb-0">{paragraph.trim()}</p>)}</div>}
+      {(diagnosisMutation.data?.diagnosis ?? diagnosis) && <div data-testid="text-exploratory-diagnosis" className="mt-4 max-w-none overflow-visible whitespace-pre-wrap break-words border-t border-border pt-4 text-sm leading-relaxed text-muted-foreground"><p className="mb-3 text-xs font-bold text-foreground">Leitura detalhada do comportamento da série</p>{(diagnosisMutation.data?.diagnosis ?? diagnosis)?.split(/\n{2,}/).map((paragraph, index) => <p key={index} className="mb-3 last:mb-0">{paragraph.trim()}</p>)}</div>}
     </div>
   </section>;
 }
 
-function InputDataPanel({ dataset, analysis, error, months, onMonthsChange, selectedIndicator, onIndicatorChange, onUpload, inputRef }: { dataset: InputDataset | null; analysis: IndicatorAnalysis | null; error: string | null; months: number; onMonthsChange: (months: number) => void; selectedIndicator: string; onIndicatorChange: (indicator: string) => void; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; inputRef: { current: HTMLInputElement | null } }) {
+function InputDataPanel({ dataset, analysis, error, months, onMonthsChange, selectedIndicator, onIndicatorChange, diagnosis, onDiagnosisChange, onSaveAnalysis, onUpload, inputRef }: { dataset: InputDataset | null; analysis: IndicatorAnalysis | null; error: string | null; months: number; onMonthsChange: (months: number) => void; selectedIndicator: string; onIndicatorChange: (indicator: string) => void; diagnosis: string | null; onDiagnosisChange: (diagnosis: string | null, input: DmaicExploratoryDiagnosisInput) => void; onSaveAnalysis: () => void; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; inputRef: { current: HTMLInputElement | null } }) {
   return <section data-testid="panel-input-data" className="reveal-4 panel rounded-xl border-dashed p-5">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="flex items-start gap-3"><IconBadge icon={CloudUpload} tone="accent" /><div><p className="mono-label text-accent-foreground">Entrada da Sprint 1</p><h3 className="mt-1.5 text-sm font-bold">Dados para análise</h3><p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">{dataset ? `${dataset.fileName} · ${dataset.rows.length} linhas · ${dataset.headers.length} colunas` : 'Carregue um CSV para selecionar o indicador e medir o comportamento do processo.'}</p></div></div>
-      <label data-testid="button-upload-csv" className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-bold transition-colors hover:border-primary/45 hover:bg-primary/5"><Upload size={14} /> {dataset ? 'Trocar CSV' : 'Carregar CSV'}<input ref={inputRef} data-testid="input-upload-csv" type="file" accept=".csv,text/csv" onChange={onUpload} className="sr-only" /></label>
+      <div className="flex flex-wrap gap-2"><label data-testid="button-upload-csv" className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-bold transition-colors hover:border-primary/45 hover:bg-primary/5"><Upload size={14} /> {dataset ? 'Trocar CSV' : 'Carregar CSV'}<input ref={inputRef} data-testid="input-upload-csv" type="file" accept=".csv,text/csv" onChange={onUpload} className="sr-only" /></label>{dataset && <Button testId="button-save-analysis" onClick={onSaveAnalysis} variant="outline"><Save size={14} /> Salvar análise</Button>}</div>
     </div>
     {error && <div data-testid="status-input-data-error" className="mt-4 flex gap-3 rounded-xl border border-destructive/25 bg-destructive/5 p-4 text-xs text-destructive"><Info size={16} className="mt-0.5 shrink-0" /><p>{error}</p></div>}
     {dataset && <div className="mt-5 grid gap-3 rounded-xl border border-border bg-background/60 p-4 md:grid-cols-[1fr_150px]">
@@ -934,7 +971,7 @@ function InputDataPanel({ dataset, analysis, error, months, onMonthsChange, sele
       <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="mono-label text-primary">Resumo do indicador</p><h4 className="mt-1 text-sm font-bold">{analysis.indicator}</h4></div><div className="flex items-center gap-2"><StatusPill tone="green">{analysis.kind === 'continuous' ? 'Contínuo' : 'Discreto'}</StatusPill><span data-testid="text-analysis-rows" className="mono-label text-muted-foreground">{analysis.rows} observações · {dataset.dateColumn ? `últimos ${months} meses` : 'sem coluna de período'}</span></div></div>
       {analysis.kind === 'continuous' ? <><div className="mt-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">{[['Média', analysis.mean, 'stat-analysis-mean'], ['Mediana', analysis.median, 'stat-analysis-median'], ['Mínimo', analysis.minimum, 'stat-analysis-min'], ['Máximo', analysis.maximum, 'stat-analysis-max'], ['Desvio-padrão', analysis.standardDeviation, 'stat-analysis-standard-deviation']].map(([label, value, testId]) => <div key={String(label)} data-testid={String(testId)} className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">{label}</p><p className="mt-1 font-mono text-sm font-bold">{formatMetric(Number(value))}</p></div>)}<div data-testid="stat-analysis-normality" className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Normalidade</p><p className={`mt-1 text-xs font-bold ${analysis.normality === 'Não normal' ? 'text-destructive' : 'text-primary'}`}>{analysis.normality}</p></div></div><p data-testid="text-analysis-normality-detail" className="mt-3 text-[11px] text-muted-foreground">{analysis.normalityDetail}</p></> : <><div className="mt-4 grid gap-2 sm:grid-cols-3"><div data-testid="stat-analysis-top-category" className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Categoria dominante</p><p className="mt-1 truncate text-sm font-bold">{analysis.topCategory}</p></div><div className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Ocorrências</p><p className="mt-1 font-mono text-sm font-bold">{analysis.topCategoryCount}</p></div><div className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Categorias</p><p className="mt-1 font-mono text-sm font-bold">{analysis.categoryCount}</p></div></div><div className="mt-4 space-y-2">{analysis.distribution.map((item) => <div key={item.label} className="grid grid-cols-[minmax(0,1fr)_48px] items-center gap-3 text-[11px]"><div><div className="mb-1 flex justify-between gap-2"><span className="truncate font-semibold">{item.label}</span><span className="mono-label text-muted-foreground">{item.percentage.toFixed(1)}%</span></div><div className="h-2 overflow-hidden rounded-r bg-muted"><div className="h-full rounded-r bg-accent" style={{ width: `${item.percentage}%` }} /></div></div><span className="text-right font-mono font-bold">{item.count}</span></div>)}</div><p className="mt-3 text-[11px] text-muted-foreground">Média, mediana, mínimo, máximo, desvio-padrão e normalidade não se aplicam a este indicador categórico.</p></>}
     </div>}
-     {dataset && analysis && <ExploratoryAnalysisPanel dataset={dataset} analysis={analysis} months={months} />}
+     {dataset && analysis && <ExploratoryAnalysisPanel dataset={dataset} analysis={analysis} months={months} diagnosis={diagnosis} onDiagnosisChange={onDiagnosisChange} />}
     <p className="mt-4 text-[11px] text-muted-foreground"><Info size={13} className="mr-1 inline-block align-[-2px]" /> O arquivo é processado localmente no navegador. A coluna de data, quando identificada, define o recorte dos últimos N meses.</p>
   </section>;
 }
@@ -1016,21 +1053,25 @@ function Workspace() {
   const [localDraftRecovered, setLocalDraftRecovered] = useState(Boolean(initialLocalDraft));
   const [workspaceHydrated, setWorkspaceHydrated] = useState(false);
   const [pipelineLoading, setPipelineLoading] = useState(false);
-  const [pipelineDone, setPipelineDone] = useState(false);
+  const [pipelineDone, setPipelineDone] = useState(() => Boolean(initialLocalDraft?.analysisArtifacts.pipeline));
   const [confirmedCharter, setConfirmedCharter] = useState<ProjectCharterDraft>(() => initialLocalDraft?.confirmedCharter ?? createProjectCharterDraft());
   const [aiCharterSuggestions, setAiCharterSuggestions] = useState<GeneratedCharterFields | null>(() => initialLocalDraft?.aiCharterSuggestions ?? null);
-  const [pipelineData, setPipelineData] = useState<DmaicPipeline | null>(null);
+  const [pipelineData, setPipelineData] = useState<DmaicPipeline | null>(() => initialLocalDraft?.analysisArtifacts.pipeline ?? null);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [vitalId, setVitalId] = useState('x1');
-  const [inputDataset, setInputDataset] = useState<InputDataset | null>(null);
-  const [analysisMonths, setAnalysisMonths] = useState(12);
-  const [selectedIndicator, setSelectedIndicator] = useState('');
+  const [inputDataset, setInputDataset] = useState<InputDataset | null>(() => initialLocalDraft?.analysisArtifacts.dataset ?? null);
+  const [analysisMonths, setAnalysisMonths] = useState(() => initialLocalDraft?.analysisArtifacts.analysisMonths ?? 12);
+  const [selectedIndicator, setSelectedIndicator] = useState(() => initialLocalDraft?.analysisArtifacts.selectedIndicator ?? initialLocalDraft?.analysisArtifacts.dataset?.indicatorColumns[0] ?? '');
+  const [exploratoryDiagnosis, setExploratoryDiagnosis] = useState<string | null>(() => initialLocalDraft?.analysisArtifacts.diagnosis ?? null);
+  const [exploratoryDiagnosisInput, setExploratoryDiagnosisInput] = useState<DmaicExploratoryDiagnosisInput | null>(() => initialLocalDraft?.analysisArtifacts.diagnosisInput ?? null);
   const [csvError, setCsvError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const uploadVersionRef = useRef(0);
   const charterReviewVersionRef = useRef(0);
   const workspaceSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const workspaceSessionRef = useRef(0);
+  const workspaceProjectKeyRef = useRef<number | null>(initialLocalDraft?.projectKey ?? null);
   const workspaceRevisionRef = useRef(initialLocalDraft?.baseRevision ?? 0);
   const workspaceLocalDraftRef = useRef<WorkspaceLocalDraft | null>(initialLocalDraft);
   const draftWriteEnabledRef = useRef(Boolean(initialLocalDraft));
@@ -1040,6 +1081,22 @@ function Workspace() {
   const pareto = useMemo(() => !inputDataset ? initialPareto : inputAnalysis?.kind === 'discrete' ? inputAnalysis.distribution.map((item) => ({ name: item.label, value: item.count })) : null, [inputAnalysis, inputDataset]);
   const imr = useMemo(() => !inputDataset ? initialImr : inputAnalysis?.kind === 'continuous' && inputAnalysis.values.length >= 2 ? inputAnalysis.values : null, [inputAnalysis, inputDataset]);
   const activeProjectName = projectKey ? (workspacesQuery.data?.find((project) => project.projectKey === projectKey)?.projectName ?? (charter.projectName.trim() || `Projeto #${projectKey}`)) : (charter.projectName.trim() || 'Novo projeto');
+  const createAnalysisArtifacts = (): DmaicAnalysisArtifacts => {
+    const exploratorySummary = inputDataset && inputAnalysis ? buildExploratorySummary(inputDataset, inputAnalysis, analysisMonths) : null;
+    return {
+      version: 1,
+      dataset: inputDataset,
+      analysisMonths,
+      selectedIndicator,
+      indicatorAnalysis: inputAnalysis,
+      exploratorySummary,
+      diagnosis: exploratoryDiagnosis,
+      diagnosisInput: exploratoryDiagnosis ? exploratoryDiagnosisInput : null,
+      pareto: inputDataset ? pareto ?? [] : [],
+      imr: inputDataset ? imr ?? [] : [],
+      pipeline: pipelineData,
+    };
+  };
 
   const writeCurrentLocalDraft = (revision = workspaceRevisionRef.current) => {
     const current = workspaceStateRef.current;
@@ -1052,6 +1109,7 @@ function Workspace() {
       charter: current.charter,
       confirmedCharter: current.confirmedCharter,
       aiCharterSuggestions: current.aiCharterSuggestions,
+      analysisArtifacts: createAnalysisArtifacts(),
     };
     workspaceLocalDraftRef.current = draft;
     storeWorkspaceLocalDraft(draft);
@@ -1059,10 +1117,19 @@ function Workspace() {
   const applyWorkspaceSnapshot = (workspace: DmaicWorkspace) => {
     const draft = workspaceToLocalDraft(workspace);
     setProjectKey(draft.projectKey);
+    workspaceProjectKeyRef.current = draft.projectKey;
     setStatement(draft.statement);
     setConfirmedCharter(draft.confirmedCharter);
     setCharter(draft.charter);
     setAiCharterSuggestions(draft.aiCharterSuggestions);
+    setInputDataset(draft.analysisArtifacts.dataset);
+    setAnalysisMonths(draft.analysisArtifacts.analysisMonths);
+    setSelectedIndicator(draft.analysisArtifacts.selectedIndicator || draft.analysisArtifacts.dataset?.indicatorColumns[0] || '');
+    setExploratoryDiagnosis(draft.analysisArtifacts.diagnosis);
+    setExploratoryDiagnosisInput(draft.analysisArtifacts.diagnosisInput);
+    setPipelineData(draft.analysisArtifacts.pipeline);
+    setPipelineDone(Boolean(draft.analysisArtifacts.pipeline));
+    setCsvError(null);
     workspaceRevisionRef.current = workspace.revision;
   };
 
@@ -1094,29 +1161,44 @@ function Workspace() {
   useEffect(() => {
     if (localDraftConflict || !draftWriteEnabledRef.current) return;
     writeCurrentLocalDraft();
-  }, [aiCharterSuggestions, charter, confirmedCharter, localDraftConflict, statement]);
+  }, [aiCharterSuggestions, analysisMonths, charter, confirmedCharter, exploratoryDiagnosis, exploratoryDiagnosisInput, inputDataset, localDraftConflict, pipelineData, selectedIndicator, statement]);
 
   const queueWorkspaceSave = (
     attempt: WorkspaceSaveAttempt,
     callbacks: { onSuccess?: (savedWorkspace: DmaicWorkspace) => void; onConflict?: (latestWorkspace: DmaicWorkspace) => void; onError: () => void },
   ) => {
+    if (analysisArtifactsSizeInBytes(attempt.data.analysisArtifacts) > MAX_ANALYSIS_ARTIFACT_BYTES) {
+      setWorkspaceError('Os dados da análise excedem o limite de 3 MB. Reduza as colunas ou filtre o período do CSV antes de salvar.');
+      return;
+    }
+    const targetProjectKey = workspaceProjectKeyRef.current;
+    const targetRevision = attempt.expectedRevision === undefined ? workspaceRevisionRef.current : attempt.expectedRevision;
+    const targetSession = workspaceSessionRef.current;
     const queuedSave = workspaceSaveQueueRef.current
       .catch(() => undefined)
       .then(async () => {
+        const useCurrentWorkspace = targetSession === workspaceSessionRef.current;
+        const requestProjectKey = useCurrentWorkspace ? workspaceProjectKeyRef.current : targetProjectKey;
+        const requestRevision = useCurrentWorkspace ? workspaceRevisionRef.current : targetRevision;
         const savedWorkspace = await workspaceMutation.mutateAsync({
           data: {
-            ...(projectKey ? { projectKey } : {}),
+            ...(requestProjectKey ? { projectKey: requestProjectKey } : {}),
             ...attempt.data,
-            expectedRevision: attempt.expectedRevision === undefined ? workspaceRevisionRef.current : attempt.expectedRevision,
+            expectedRevision: requestRevision,
           },
         });
+        if (targetSession !== workspaceSessionRef.current) return savedWorkspace;
         workspaceRevisionRef.current = savedWorkspace.revision;
+        workspaceProjectKeyRef.current = savedWorkspace.projectKey;
         setProjectKey(savedWorkspace.projectKey);
         void workspacesQuery.refetch();
         return savedWorkspace;
       });
     workspaceSaveQueueRef.current = queuedSave.then(() => undefined, () => undefined);
-    void queuedSave.then((savedWorkspace) => callbacks.onSuccess?.(savedWorkspace)).catch((error: unknown) => {
+    void queuedSave.then((savedWorkspace) => {
+      if (targetSession === workspaceSessionRef.current) callbacks.onSuccess?.(savedWorkspace);
+    }).catch((error: unknown) => {
+      if (targetSession !== workspaceSessionRef.current) return;
       const latestWorkspace = getWorkspaceConflict(error);
       if (latestWorkspace) {
         callbacks.onConflict?.(latestWorkspace);
@@ -1126,7 +1208,7 @@ function Workspace() {
     });
   };
 
-  const saveWorkspace = (source: WorkspaceSaveSource, expectedRevision?: number) => {
+  const saveWorkspace = (source: WorkspaceSaveSource, expectedRevision?: number, analysisArtifactsOverride?: DmaicAnalysisArtifacts) => {
     if (statement.trim().length < 10) {
       setWorkspaceError('Descreva o problema com pelo menos 10 caracteres antes de salvar no Neon.');
       return;
@@ -1135,6 +1217,11 @@ function Workspace() {
     setWorkspaceError(null);
     setWorkspaceConflict(null);
     const charterToPersist = source === 'charter' ? charter : confirmedCharter;
+    const analysisArtifacts = analysisArtifactsOverride ?? createAnalysisArtifacts();
+    if (analysisArtifactsSizeInBytes(analysisArtifacts) > MAX_ANALYSIS_ARTIFACT_BYTES) {
+      setWorkspaceError('Os dados da análise excedem o limite de 3 MB. Reduza as colunas ou filtre o período do CSV antes de salvar.');
+      return;
+    }
     const attempt: WorkspaceSaveAttempt = {
       source,
       charterToPersist,
@@ -1143,6 +1230,7 @@ function Workspace() {
         problemStatement: statement.trim(),
         projectCharterContext: toProjectCharterContext(charterToPersist),
         aiCharterSuggestions: source === 'charter' ? null : aiCharterSuggestions,
+        analysisArtifacts,
       },
     };
     queueWorkspaceSave(
@@ -1160,6 +1248,7 @@ function Workspace() {
             charter: current.charter,
             confirmedCharter: source === 'charter' ? charterToPersist : current.confirmedCharter,
             aiCharterSuggestions: source === 'charter' ? null : current.aiCharterSuggestions,
+            analysisArtifacts: analysisArtifactsOverride ?? createAnalysisArtifacts(),
           };
           workspaceLocalDraftRef.current = updatedDraft;
           storeWorkspaceLocalDraft(updatedDraft);
@@ -1180,6 +1269,11 @@ function Workspace() {
   };
   const saveStatement = () => saveWorkspace('statement');
   const saveCharter = () => saveWorkspace('charter');
+  const handleDiagnosisChange = (diagnosis: string | null, diagnosisInput: DmaicExploratoryDiagnosisInput) => {
+    setExploratoryDiagnosis(diagnosis);
+    setExploratoryDiagnosisInput(diagnosisInput);
+    if (diagnosis && projectKey) saveWorkspace('statement', undefined, { ...createAnalysisArtifacts(), diagnosis, diagnosisInput });
+  };
   const applyLatestWorkspace = (latestWorkspace: DmaicWorkspace) => {
     applyWorkspaceSnapshot(latestWorkspace);
     setWorkspaceConflict(null);
@@ -1211,10 +1305,18 @@ function Workspace() {
       projectKey: localDraftConflict.local.projectKey ?? localDraftConflict.latest.projectKey,
     };
     setProjectKey(recoveredDraft.projectKey);
+    workspaceProjectKeyRef.current = recoveredDraft.projectKey;
     setStatement(recoveredDraft.statement);
     setCharter(recoveredDraft.charter);
     setConfirmedCharter(recoveredDraft.confirmedCharter);
     setAiCharterSuggestions(recoveredDraft.aiCharterSuggestions);
+    setInputDataset(recoveredDraft.analysisArtifacts.dataset);
+    setAnalysisMonths(recoveredDraft.analysisArtifacts.analysisMonths);
+    setSelectedIndicator(recoveredDraft.analysisArtifacts.selectedIndicator || recoveredDraft.analysisArtifacts.dataset?.indicatorColumns[0] || '');
+    setExploratoryDiagnosis(recoveredDraft.analysisArtifacts.diagnosis);
+    setExploratoryDiagnosisInput(recoveredDraft.analysisArtifacts.diagnosisInput);
+    setPipelineData(recoveredDraft.analysisArtifacts.pipeline);
+    setPipelineDone(Boolean(recoveredDraft.analysisArtifacts.pipeline));
     workspaceRevisionRef.current = recoveredDraft.baseRevision;
     draftWriteEnabledRef.current = true;
     workspaceLocalDraftRef.current = recoveredDraft;
@@ -1235,11 +1337,18 @@ function Workspace() {
     draftWriteEnabledRef.current = true;
     setCharter((current) => ({ ...current, team: { ...current.team, [role]: { ...current.team[role], [field]: value } } }));
   };
+  const updateAnalysisMonths = (months: number) => {
+    setAnalysisMonths(months);
+  };
+  const updateSelectedIndicator = (indicator: string) => {
+    setSelectedIndicator(indicator);
+  };
   const loadSelectedProject = async () => {
     const nextProjectKey = Number(selectedProjectKey);
     if (!Number.isSafeInteger(nextProjectKey) || nextProjectKey < 1 || projectLoading) return;
     const hasCurrentContent = Boolean(projectKey || statement.trim() || charter.projectName.trim());
     if (hasCurrentContent && !window.confirm('Carregar este projeto trocará o conteúdo que está na tela. Edições não salvas não serão mantidas. Deseja continuar?')) return;
+    workspaceSessionRef.current += 1;
     setProjectLoading(true);
     setWorkspaceError(null);
     setProjectLoadedMessage(null);
@@ -1255,8 +1364,6 @@ function Workspace() {
       setWorkspaceConflict(null);
       setLocalDraftConflict(null);
       setLocalDraftRecovered(false);
-      setPipelineData(null);
-      setPipelineDone(false);
       setPipelineError(null);
       setProjectLoadedMessage(`Projeto #${nextProjectKey} carregado do Neon.`);
       window.setTimeout(() => setProjectLoadedMessage(null), 2600);
@@ -1269,8 +1376,10 @@ function Workspace() {
   const startNewProject = () => {
     const hasCurrentContent = Boolean(projectKey || statement.trim() || charter.projectName.trim());
     if (hasCurrentContent && !window.confirm('Começar um novo projeto trocará o conteúdo que está na tela. Edições não salvas não serão mantidas. Deseja continuar?')) return;
+    workspaceSessionRef.current += 1;
     const freshCharter = createProjectCharterDraft();
     setProjectKey(null);
+    workspaceProjectKeyRef.current = null;
     setSelectedProjectKey('');
     setStatement('');
     setCharter(freshCharter);
@@ -1278,6 +1387,12 @@ function Workspace() {
     setAiCharterSuggestions(null);
     setPipelineData(null);
     setPipelineDone(false);
+    setInputDataset(null);
+    setAnalysisMonths(12);
+    setSelectedIndicator('');
+    setExploratoryDiagnosis(null);
+    setExploratoryDiagnosisInput(null);
+    setCsvError(null);
     setPipelineError(null);
     setWorkspaceError(null);
     setWorkspaceConflict(null);
@@ -1330,6 +1445,7 @@ function Workspace() {
                 problemStatement: statement.trim(),
                 projectCharterContext: toProjectCharterContext(charter),
                 aiCharterSuggestions: data.generatedCharter,
+                analysisArtifacts: { ...createAnalysisArtifacts(), pipeline: data },
               },
             },
             {
@@ -1353,6 +1469,8 @@ function Workspace() {
     const clearInputAnalysis = () => {
       setInputDataset(null);
       setSelectedIndicator('');
+      setExploratoryDiagnosis(null);
+      setExploratoryDiagnosisInput(null);
     };
     setCsvError(null);
     clearInputAnalysis();
@@ -1397,7 +1515,7 @@ function Workspace() {
             {localDraftRecovered && !localDraftConflict && <div data-testid="status-local-draft-recovered" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Rascunho recuperado deste navegador.</strong> Suas edições continuam protegidas localmente; use os botões de salvar para confirmá-las também no Neon.</span></div>}
            {saved && <div data-testid="status-statement-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Mudança salva no Neon.</strong> O enunciado estará disponível ao reabrir este workspace.</span></div>}
            {charterSaved && <div data-testid="status-charter-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Project charter salvo no Neon.</strong> Essas informações serão carregadas ao reabrir este workspace e usadas como contexto na geração do pipeline.</span></div>}
-            {area === 'overview' ? <Overview statement={statement} setStatement={updateStatement} onSave={saveStatement} charter={charter} onCharterChange={updateCharter} onTeamChange={updateCharterTeam} onSaveCharter={saveCharter} pipelineDone={pipelineDone} hasAiSuggestions={Boolean(aiCharterSuggestions)} onOpenArea={setArea} /> : <SprintView area={area} onOpenTool={openTool} onChangeVital={setVitalId} vitalId={vitalId} inputDataset={inputDataset} inputAnalysis={inputAnalysis} inputError={csvError} analysisMonths={analysisMonths} onAnalysisMonthsChange={setAnalysisMonths} selectedIndicator={selectedIndicator} onSelectedIndicatorChange={setSelectedIndicator} onUpload={handleUpload} inputRef={fileRef} />}
+             {area === 'overview' ? <Overview statement={statement} setStatement={updateStatement} onSave={saveStatement} charter={charter} onCharterChange={updateCharter} onTeamChange={updateCharterTeam} onSaveCharter={saveCharter} pipelineDone={pipelineDone} hasAiSuggestions={Boolean(aiCharterSuggestions)} onOpenArea={setArea} /> : <SprintView area={area} onOpenTool={openTool} onChangeVital={setVitalId} vitalId={vitalId} inputDataset={inputDataset} inputAnalysis={inputAnalysis} inputError={csvError} analysisMonths={analysisMonths} onAnalysisMonthsChange={updateAnalysisMonths} selectedIndicator={selectedIndicator} onSelectedIndicatorChange={updateSelectedIndicator} diagnosis={exploratoryDiagnosis} onDiagnosisChange={handleDiagnosisChange} onSaveAnalysis={saveStatement} onUpload={handleUpload} inputRef={fileRef} />}
              <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-[10px] text-muted-foreground"><span className="mono-label">DMAIC Ágil Suite · workspace no Neon {projectKey ? `· projeto #${projectKey}` : '· novo projeto'}</span><span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> {pipelineData ? 'artefatos gerados por IA · revise com o time' : 'dados de exemplo sinalizados · sem envio externo'}</span></footer>
         </div>
       </main>

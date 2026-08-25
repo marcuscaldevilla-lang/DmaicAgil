@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { DmaicAnalysisArtifacts } from './dmaicAnalysisArtifacts';
 import type { DmaicCharterContext } from './dmaicCharterContext';
 import type { DmaicGeneratedCharter } from './dmaicGeneratedCharter';
 
@@ -16,6 +17,7 @@ export interface DmaicWorkspace {
   projectCharterContext: DmaicCharterContext;
   /** AI-generated Charter content that remains pending team review, or null after confirmation. */
   aiCharterSuggestions: DmaicGeneratedCharter | null;
+  analysisArtifacts: DmaicAnalysisArtifacts;
   /** @minimum 0 */
   revision: number;
   createdAt: Date;

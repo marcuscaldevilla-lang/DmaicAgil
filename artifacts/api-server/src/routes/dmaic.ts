@@ -45,6 +45,7 @@ Considere que os gráficos e estatísticas podem conter todas as observações, 
 
 const DIAGNOSIS_WINDOW_MS = 10 * 60 * 1000;
 const DIAGNOSIS_MAX_REQUESTS_PER_WINDOW = 6;
+const MAX_ANALYSIS_ARTIFACT_BYTES = 3_000_000;
 const diagnosisRequests = new Map<string, { count: number; windowStartedAt: number }>();
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 const RETRYABLE_GEMINI_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
@@ -206,6 +207,22 @@ function parseProjectKey(value: unknown): number | null {
   return Number.isSafeInteger(projectKey) ? projectKey : null;
 }
 
+function emptyAnalysisArtifacts() {
+  return {
+    version: 1,
+    dataset: null,
+    analysisMonths: 12,
+    selectedIndicator: "",
+    indicatorAnalysis: null,
+    exploratorySummary: null,
+    diagnosis: null,
+    diagnosisInput: null,
+    pareto: [],
+    imr: [],
+    pipeline: null,
+  };
+}
+
 function serializeWorkspace(row?: typeof dmaicWorkspaces.$inferSelect) {
   const now = new Date();
   if (!row) {
@@ -215,6 +232,7 @@ function serializeWorkspace(row?: typeof dmaicWorkspaces.$inferSelect) {
       problemStatement: "",
       projectCharterContext: emptyCharterContext(),
       aiCharterSuggestions: null,
+      analysisArtifacts: emptyAnalysisArtifacts(),
       revision: 0,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
@@ -232,6 +250,7 @@ function serializeWorkspace(row?: typeof dmaicWorkspaces.$inferSelect) {
       projectCharterContext.financialInformation,
       projectCharterContext.businessContributionsQuantitative,
     ),
+    analysisArtifacts: row.analysisArtifacts ?? emptyAnalysisArtifacts(),
     revision: row.revision,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -316,6 +335,10 @@ router.put("/dmaic/workspace", async (req, res): Promise<void> => {
     res.status(400).json({ error: "A revisão do workspace deve ser um número inteiro válido." });
     return;
   }
+  if (body.data.analysisArtifacts && Buffer.byteLength(JSON.stringify(body.data.analysisArtifacts), "utf8") > MAX_ANALYSIS_ARTIFACT_BYTES) {
+    res.status(413).json({ error: "Os dados da análise excedem o limite de 3 MB. Reduza as colunas ou filtre o período do CSV antes de salvar." });
+    return;
+  }
 
   const projectCharterContext = {
     ...body.data.projectCharterContext,
@@ -338,13 +361,17 @@ router.put("/dmaic/workspace", async (req, res): Promise<void> => {
       problemStatement: body.data.problemStatement,
       projectCharterContext,
       aiCharterSuggestions,
+      analysisArtifacts: body.data.analysisArtifacts,
     };
     let workspace: typeof dmaicWorkspaces.$inferSelect | undefined;
 
     if (expectedRevision === 0) {
       [workspace] = await db
         .insert(dmaicWorkspaces)
-        .values(values)
+        .values({
+          ...values,
+          analysisArtifacts: values.analysisArtifacts ?? emptyAnalysisArtifacts(),
+        })
         .onConflictDoNothing({ target: dmaicWorkspaces.projectKey })
         .returning();
     } else {
@@ -355,6 +382,7 @@ router.put("/dmaic/workspace", async (req, res): Promise<void> => {
           problemStatement: values.problemStatement,
           projectCharterContext: values.projectCharterContext,
           aiCharterSuggestions: values.aiCharterSuggestions,
+           analysisArtifacts: values.analysisArtifacts === undefined ? sql`${dmaicWorkspaces.analysisArtifacts}` : values.analysisArtifacts,
           revision: sql`${dmaicWorkspaces.revision} + 1`,
           updatedAt: new Date(),
         })

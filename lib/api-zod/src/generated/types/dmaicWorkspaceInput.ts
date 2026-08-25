@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { DmaicAnalysisArtifacts } from './dmaicAnalysisArtifacts';
 import type { DmaicCharterContext } from './dmaicCharterContext';
 import type { DmaicGeneratedCharter } from './dmaicGeneratedCharter';
 
@@ -22,6 +23,8 @@ export interface DmaicWorkspaceInput {
   projectCharterContext: DmaicCharterContext;
   /** AI-generated Charter content that remains pending team review. Send null when the Charter is confirmed. */
   aiCharterSuggestions: DmaicGeneratedCharter | null;
+  /** Current CSV-derived analysis data and generated artifacts. Omit for backwards-compatible saves without analysis data. */
+  analysisArtifacts?: DmaicAnalysisArtifacts;
   /**
      * Monotonic version returned by the last workspace read or save. Send 0 when creating the workspace for the first time.
      * @minimum 0

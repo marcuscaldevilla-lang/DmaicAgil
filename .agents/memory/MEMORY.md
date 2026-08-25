@@ -4,3 +4,4 @@
 - [Local draft recovery](local-draft-recovery.md) — Local browser drafts must be compared against Neon revision, never auto-overwritten.
 - [DMAIC project codes](dmaic-project-codes.md) — Neon generates numeric project codes on first Problem Statement save; clients reuse the returned code.
 - [AI financial estimates](ai-financial-suggestions.md) — Gemini may calculate a labeled estimate only from team-entered quantitative and financial inputs.
+- [Versioned workspace saves](versioned-workspace-saves.md) — Resolve revisions only at serialized execution, while isolating queued writes across project switches.
