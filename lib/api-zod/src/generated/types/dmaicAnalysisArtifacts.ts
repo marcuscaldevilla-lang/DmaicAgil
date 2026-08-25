@@ -11,6 +11,7 @@ import type { DmaicExploratorySummary } from './dmaicExploratorySummary';
 import type { DmaicIndicatorAnalysis } from './dmaicIndicatorAnalysis';
 import type { DmaicParetoItem } from './dmaicParetoItem';
 import type { DmaicPipeline } from './dmaicPipeline';
+import type { DmaicPipelineAnalysisContext } from './dmaicPipelineAnalysisContext';
 
 /**
  * Current derived data and generated artifacts associated with a DMAIC project.
@@ -29,6 +30,8 @@ export interface DmaicAnalysisArtifacts {
   exploratorySummary: DmaicExploratorySummary | null;
   diagnosis: string | null;
   diagnosisInput: DmaicExploratoryDiagnosisInput | null;
+  /** Cópia das evidências estatísticas usadas na última geração do pipeline. */
+  pipelineAnalysisContext?: DmaicPipelineAnalysisContext | null;
   pareto: DmaicParetoItem[];
   imr: number[];
   pipeline: DmaicPipeline | null;

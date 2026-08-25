@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DmaicCharterContext } from './dmaicCharterContext';
+import type { DmaicPipelineAnalysisContext } from './dmaicPipelineAnalysisContext';
 
 export interface DmaicPipelineInput {
   /**
@@ -14,4 +15,6 @@ export interface DmaicPipelineInput {
      */
   problemStatement: string;
   projectCharterContext?: DmaicCharterContext;
+  /** Resumo estatístico calculado localmente, sem linhas ou valores brutos do CSV. */
+  analysisContext?: DmaicPipelineAnalysisContext;
 }

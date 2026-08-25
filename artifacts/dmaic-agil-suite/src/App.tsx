@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicExploratoryDiagnosisInput, type DmaicPipeline, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
+import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicExploratoryDiagnosisInput, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -102,6 +102,7 @@ type IndicatorAnalysis = ContinuousAnalysis | DiscreteAnalysis;
 type ExploratoryPoint = { period: string; value: number };
 type ExploratorySummary = { points: ExploratoryPoint[]; minimum: number; q1: number; median: number; q3: number; maximum: number; iqr: number; mean: number; standardDeviation: number; shapiroW: number | null; shapiroPValue: number | null; shapiroDetail: string };
 const DIAGNOSIS_POINT_LIMIT = 240;
+const PIPELINE_CATEGORY_LIMIT = 20;
 const MAX_PERSISTED_CSV_ROWS = 10_000;
 const MAX_PERSISTED_CSV_CHARACTERS = 1_500_000;
 const MAX_PERSISTED_CSV_COLUMNS = 100;
@@ -123,6 +124,7 @@ const createEmptyAnalysisArtifacts = (): DmaicAnalysisArtifacts => ({
   exploratorySummary: null,
   diagnosis: null,
   diagnosisInput: null,
+  pipelineAnalysisContext: null,
   pareto: [],
   imr: [],
   pipeline: null,
@@ -663,6 +665,88 @@ function buildExploratorySummary(dataset: InputDataset, analysis: IndicatorAnaly
   return { points, minimum: sorted[0], q1, median: percentile(sorted, 0.5), q3, maximum: sorted[sorted.length - 1], iqr: q3 - q1, mean, standardDeviation, shapiroW: shapiro.statistic, shapiroPValue: shapiro.pValue, shapiroDetail: shapiro.detail };
 }
 
+function diagnosisMatchesCurrentAnalysis(
+  diagnosis: string | null,
+  diagnosisInput: DmaicExploratoryDiagnosisInput | null,
+  indicator: string,
+  summary: ExploratorySummary | null,
+): boolean {
+  if (!diagnosis || !diagnosisInput || !summary || diagnosisInput.indicator !== indicator) return false;
+  const statistics = diagnosisInput.statistics;
+  return statistics.count === summary.points.length
+    && statistics.mean === summary.mean
+    && statistics.median === summary.median
+    && statistics.minimum === summary.minimum
+    && statistics.q1 === summary.q1
+    && statistics.q3 === summary.q3
+    && statistics.maximum === summary.maximum
+    && statistics.iqr === summary.iqr
+    && statistics.standardDeviation === summary.standardDeviation
+    && (statistics.shapiroW ?? null) === summary.shapiroW
+    && (statistics.shapiroPValue ?? null) === summary.shapiroPValue;
+}
+
+function sanitizeDiagnosisForPipeline(diagnosis: string): string {
+  return diagnosis
+    .replace(/[-+]?\d+(?:[.,]\d+)?(?:\s*(?:%|pp|min|h|horas?|dias?|meses?))?/gi, '[valor estatístico]')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 2000);
+}
+
+function createPipelineAnalysisContext(
+  analysis: IndicatorAnalysis | null,
+  summary: ExploratorySummary | null,
+  analysisMonths: number,
+  diagnosis: string | null,
+  diagnosisInput: DmaicExploratoryDiagnosisInput | null,
+): DmaicPipelineAnalysisContext | null {
+  if (!analysis) return null;
+  const indicatorSummary = analysis.kind === 'continuous'
+    ? {
+        kind: analysis.kind,
+        indicator: analysis.indicator,
+        rows: analysis.rows,
+        mean: analysis.mean,
+        median: analysis.median,
+        minimum: analysis.minimum,
+        maximum: analysis.maximum,
+        standardDeviation: analysis.standardDeviation,
+        normality: analysis.normality,
+        normalityDetail: analysis.normalityDetail,
+      }
+    : {
+        kind: analysis.kind,
+        indicator: analysis.indicator,
+        rows: analysis.rows,
+        categoryCount: analysis.categoryCount,
+        topCategory: analysis.topCategory,
+        topCategoryCount: analysis.topCategoryCount,
+        distribution: analysis.distribution.slice(0, PIPELINE_CATEGORY_LIMIT),
+      };
+  return {
+    indicator: analysis.indicator,
+    analysisMonths,
+    indicatorSummary,
+    exploratoryStatistics: summary
+      ? {
+          count: summary.points.length,
+          mean: summary.mean,
+          median: summary.median,
+          minimum: summary.minimum,
+          q1: summary.q1,
+          q3: summary.q3,
+          maximum: summary.maximum,
+          iqr: summary.iqr,
+          standardDeviation: summary.standardDeviation,
+          shapiroW: summary.shapiroW ?? undefined,
+          shapiroPValue: summary.shapiroPValue ?? undefined,
+        }
+      : null,
+    diagnosis: diagnosisMatchesCurrentAnalysis(diagnosis, diagnosisInput, analysis.indicator, summary) ? sanitizeDiagnosisForPipeline(diagnosis as string) : null,
+  };
+}
+
 function samplePointsForDiagnosis(points: ExploratoryPoint[]): ExploratoryPoint[] {
   if (points.length <= DIAGNOSIS_POINT_LIMIT) return points;
   return Array.from({ length: DIAGNOSIS_POINT_LIMIT }, (_, index) => points[Math.round((index * (points.length - 1)) / (DIAGNOSIS_POINT_LIMIT - 1))]);
@@ -1066,6 +1150,7 @@ function Workspace() {
   const [selectedIndicator, setSelectedIndicator] = useState(() => initialLocalDraft?.analysisArtifacts.selectedIndicator ?? initialLocalDraft?.analysisArtifacts.dataset?.indicatorColumns[0] ?? '');
   const [exploratoryDiagnosis, setExploratoryDiagnosis] = useState<string | null>(() => initialLocalDraft?.analysisArtifacts.diagnosis ?? null);
   const [exploratoryDiagnosisInput, setExploratoryDiagnosisInput] = useState<DmaicExploratoryDiagnosisInput | null>(() => initialLocalDraft?.analysisArtifacts.diagnosisInput ?? null);
+  const [pipelineAnalysisContext, setPipelineAnalysisContext] = useState<DmaicPipelineAnalysisContext | null>(() => initialLocalDraft?.analysisArtifacts.pipelineAnalysisContext ?? null);
   const [csvError, setCsvError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const uploadVersionRef = useRef(0);
@@ -1094,6 +1179,7 @@ function Workspace() {
       exploratorySummary,
       diagnosis: exploratoryDiagnosis,
       diagnosisInput: exploratoryDiagnosis ? exploratoryDiagnosisInput : null,
+      pipelineAnalysisContext,
       pareto: inputDataset ? pareto ?? [] : [],
       imr: inputDataset ? imr ?? [] : [],
       pipeline: pipelineData,
@@ -1130,6 +1216,7 @@ function Workspace() {
     setSelectedIndicator(draft.analysisArtifacts.selectedIndicator || draft.analysisArtifacts.dataset?.indicatorColumns[0] || '');
     setExploratoryDiagnosis(draft.analysisArtifacts.diagnosis);
     setExploratoryDiagnosisInput(draft.analysisArtifacts.diagnosisInput);
+    setPipelineAnalysisContext(draft.analysisArtifacts.pipelineAnalysisContext ?? null);
     setPipelineData(draft.analysisArtifacts.pipeline);
     setPipelineDone(Boolean(draft.analysisArtifacts.pipeline));
     setCsvError(null);
@@ -1164,7 +1251,7 @@ function Workspace() {
   useEffect(() => {
     if (localDraftConflict || !draftWriteEnabledRef.current) return;
     writeCurrentLocalDraft();
-  }, [aiCharterSuggestions, analysisMonths, charter, confirmedCharter, exploratoryDiagnosis, exploratoryDiagnosisInput, inputDataset, localDraftConflict, pipelineData, selectedIndicator, statement]);
+  }, [aiCharterSuggestions, analysisMonths, charter, confirmedCharter, exploratoryDiagnosis, exploratoryDiagnosisInput, inputDataset, localDraftConflict, pipelineAnalysisContext, pipelineData, selectedIndicator, statement]);
 
   const queueWorkspaceSave = (
     attempt: WorkspaceSaveAttempt,
@@ -1324,6 +1411,7 @@ function Workspace() {
     setSelectedIndicator(recoveredDraft.analysisArtifacts.selectedIndicator || recoveredDraft.analysisArtifacts.dataset?.indicatorColumns[0] || '');
     setExploratoryDiagnosis(recoveredDraft.analysisArtifacts.diagnosis);
     setExploratoryDiagnosisInput(recoveredDraft.analysisArtifacts.diagnosisInput);
+    setPipelineAnalysisContext(recoveredDraft.analysisArtifacts.pipelineAnalysisContext ?? null);
     setPipelineData(recoveredDraft.analysisArtifacts.pipeline);
     setPipelineDone(Boolean(recoveredDraft.analysisArtifacts.pipeline));
     workspaceRevisionRef.current = recoveredDraft.baseRevision;
@@ -1404,6 +1492,7 @@ function Workspace() {
     setSelectedIndicator('');
     setExploratoryDiagnosis(null);
     setExploratoryDiagnosisInput(null);
+    setPipelineAnalysisContext(null);
     setCsvError(null);
     setPipelineError(null);
     setWorkspaceError(null);
@@ -1430,11 +1519,20 @@ function Workspace() {
     setPipelineError(null);
     setPipelineLoading(true);
     const generationReviewVersion = charterReviewVersionRef.current;
+    const exploratorySummary = inputDataset && inputAnalysis ? buildExploratorySummary(inputDataset, inputAnalysis, analysisMonths) : null;
+    const analysisContext = createPipelineAnalysisContext(
+      inputAnalysis,
+      exploratorySummary,
+      analysisMonths,
+      exploratoryDiagnosis,
+      exploratoryDiagnosisInput,
+    );
     pipelineMutation.mutate(
       {
         data: {
           problemStatement: statement.trim(),
           projectCharterContext: toProjectCharterContext(charter),
+          analysisContext: analysisContext ?? undefined,
         },
       },
       {
@@ -1445,6 +1543,7 @@ function Workspace() {
           }
           const generatedCharter = applyGeneratedCharterFields(charter, data.generatedCharter);
           setPipelineData(data);
+          setPipelineAnalysisContext(analysisContext);
           setCharter(generatedCharter);
           setAiCharterSuggestions(data.generatedCharter);
           setPipelineDone(true);
@@ -1457,7 +1556,7 @@ function Workspace() {
                 problemStatement: statement.trim(),
                 projectCharterContext: toProjectCharterContext(charter),
                 aiCharterSuggestions: data.generatedCharter,
-                analysisArtifacts: { ...createAnalysisArtifacts(), pipeline: data },
+                analysisArtifacts: { ...createAnalysisArtifacts(), pipeline: data, pipelineAnalysisContext: analysisContext },
               },
             },
             {
@@ -1521,6 +1620,7 @@ function Workspace() {
            {projectLoadedMessage && <div data-testid="status-project-loaded" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span>{projectLoadedMessage}</span></div>}
            {pipelineLoading && <div data-testid="status-pipeline-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><RefreshCw size={15} className="animate-spin text-primary" /><span><strong>Montando seu caminho DMAIC...</strong> O Gemini está estruturando os entregáveis para a sessão.</span></div>}
            {pipelineError && <div data-testid="status-pipeline-error" className="reveal mb-6 flex items-center justify-between gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive"><span>{pipelineError}</span><Button testId="button-retry-pipeline" onClick={startPipeline} variant="outline">Tentar novamente</Button></div>}
+            {pipelineData && <div data-testid="status-pipeline-analysis-context" className="reveal mb-6 flex items-start gap-3 rounded-xl border border-chart-3/25 bg-chart-3/5 px-4 py-3 text-xs"><FileBarChart size={15} className="mt-0.5 shrink-0 text-chart-3" /><span>{pipelineAnalysisContext ? <><strong>Pipeline fundamentado na análise local.</strong> Indicador <strong>{pipelineAnalysisContext.indicator}</strong>, janela de {pipelineAnalysisContext.analysisMonths} mês(es) e resumo estatístico foram registrados junto aos artefatos gerados.</> : <><strong>Pipeline gerado sem análise estatística anexada.</strong> Carregue um CSV e gere novamente para fundamentar as sugestões em evidências locais.</>}</span></div>}
            {workspaceQuery.isLoading && <div data-testid="status-workspace-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-border bg-muted/55 px-4 py-3 text-xs"><RefreshCw size={15} className="animate-spin text-primary" /><span>Carregando o Project Charter salvo...</span></div>}
             {localDraftConflict && <div data-testid="status-local-draft-conflict" className="reveal mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-xs"><div className="flex min-w-0 gap-3"><Info size={16} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="font-bold text-foreground">Encontramos um rascunho neste navegador e uma versão mais recente no Neon.</p><p className="mt-1 leading-relaxed text-muted-foreground">Nenhum conteúdo foi apagado. Escolha qual versão deseja manter na tela antes de continuar editando.</p></div></div><div className="flex shrink-0 flex-wrap gap-2"><Button testId="button-use-server-version" onClick={useServerVersionForLocalDraft} variant="outline">Usar versão do Neon</Button><Button testId="button-recover-local-draft" onClick={recoverLocalDraft}>Recuperar meu rascunho</Button></div></div>}
            {workspaceConflict && <div data-testid="status-workspace-conflict" className="reveal mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-accent/35 bg-accent/10 px-4 py-3 text-xs"><div className="flex min-w-0 gap-3"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><div><p className="font-bold text-foreground">Há uma edição mais recente neste workspace.</p><p className="mt-1 leading-relaxed text-muted-foreground">Seus campos e sugestões continuam aqui. Carregue a versão mais recente para revisá-la ou substitua-a conscientemente pela sua edição.</p></div></div><div className="flex shrink-0 flex-wrap gap-2"><Button testId="button-use-latest-workspace" onClick={useLatestWorkspace} variant="outline">Usar versão mais recente</Button><Button testId="button-overwrite-workspace" onClick={overwriteLatestWorkspace}>Substituir mesmo assim</Button></div></div>}

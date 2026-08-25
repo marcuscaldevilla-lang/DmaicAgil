@@ -39,19 +39,53 @@ export interface DmaicCharterContext {
   financialInformation: string;
 }
 
-export interface DmaicPipelineInput {
-  /**
-     * @minLength 10
-     * @maxLength 4000
-     */
-  problemStatement: string;
-  projectCharterContext?: DmaicCharterContext;
-}
+export type DmaicPipelineIndicatorSummaryKind = typeof DmaicPipelineIndicatorSummaryKind[keyof typeof DmaicPipelineIndicatorSummaryKind];
 
-export interface DmaicExploratoryPoint {
+
+export const DmaicPipelineIndicatorSummaryKind = {
+  continuous: 'continuous',
+  discrete: 'discrete',
+} as const;
+
+export type DmaicPipelineIndicatorSummaryDistributionItem = {
+  /** @maxLength 255 */
+  label: string;
+  /** @minimum 0 */
+  count: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  percentage: number;
+};
+
+export interface DmaicPipelineIndicatorSummary {
+  kind: DmaicPipelineIndicatorSummaryKind;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  indicator: string;
+  /** @minimum 0 */
+  rows: number;
+  mean?: number;
+  median?: number;
+  minimum?: number;
+  maximum?: number;
+  /** @minimum 0 */
+  standardDeviation?: number;
   /** @maxLength 120 */
-  period: string;
-  value: number;
+  normality?: string;
+  /** @maxLength 500 */
+  normalityDetail?: string;
+  /** @minimum 0 */
+  categoryCount?: number;
+  /** @maxLength 255 */
+  topCategory?: string;
+  /** @minimum 0 */
+  topCategoryCount?: number;
+  /** @maxItems 20 */
+  distribution?: DmaicPipelineIndicatorSummaryDistributionItem[];
 }
 
 export interface DmaicExploratoryStatistics {
@@ -75,6 +109,42 @@ export interface DmaicExploratoryStatistics {
      * @maximum 1
      */
   shapiroPValue?: number;
+}
+
+/**
+ * Evidências estatísticas resumidas usadas para gerar o pipeline. Não contém o CSV bruto.
+ */
+export interface DmaicPipelineAnalysisContext {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  indicator: string;
+  /**
+     * @minimum 1
+     * @maximum 120
+     */
+  analysisMonths: number;
+  indicatorSummary: DmaicPipelineIndicatorSummary;
+  exploratoryStatistics?: DmaicExploratoryStatistics | null;
+  diagnosis?: string | null;
+}
+
+export interface DmaicPipelineInput {
+  /**
+     * @minLength 10
+     * @maxLength 4000
+     */
+  problemStatement: string;
+  projectCharterContext?: DmaicCharterContext;
+  /** Resumo estatístico calculado localmente, sem linhas ou valores brutos do CSV. */
+  analysisContext?: DmaicPipelineAnalysisContext;
+}
+
+export interface DmaicExploratoryPoint {
+  /** @maxLength 120 */
+  period: string;
+  value: number;
 }
 
 export interface DmaicExploratoryDiagnosisInput {
@@ -296,6 +366,8 @@ export interface DmaicAnalysisArtifacts {
   exploratorySummary: DmaicExploratorySummary | null;
   diagnosis: string | null;
   diagnosisInput: DmaicExploratoryDiagnosisInput | null;
+  /** Cópia das evidências estatísticas usadas na última geração do pipeline. */
+  pipelineAnalysisContext?: DmaicPipelineAnalysisContext | null;
   pareto: DmaicParetoItem[];
   imr: number[];
   pipeline: DmaicPipeline | null;

@@ -60,7 +60,7 @@ Responda SOMENTE com JSON válido, sem markdown, seguindo exatamente esta estrut
   "controlPlan":[{"parameter":"","specification":"","measurementFreq":"","responsible":"","reactionPlan":""}],
   "standardizationSop":[{"procedureName":"","pokaYokeFeature":"","ocapTrigger":""}]
 }
-Use 1 ou 2 itens concisos por lista. Todos os valores devem ser strings. Em "generatedCharter", preencha todos os doze campos com sugestões diretamente derivadas do problema informado e do contexto do Charter. Reescreva "goalDefinition" como uma meta SMART coerente com objetivo, KPIs, baseline, escopo, contribuições quantitativas e informações financeiras coletadas; não repita automaticamente uma meta antiga se os dados coletados apontarem outra. Quando as informações financeiras trouxerem uma meta ideal e um prazo, esses valores definem a meta principal do projeto: escreva explicitamente a evolução do baseline até a meta ideal no prazo informado, em vez de manter a meta antiga como objetivo principal e citar a meta ideal apenas como visão futura. Para "financialGainValue", calcule uma estimativa somente a partir dos números, moeda, período, volume, custo unitário, percentual e premissas explicitamente presentes em "businessContributionsQuantitative" e "financialInformation". Mostre a fórmula ou a lógica usada e deixe claro o período, a moeda e as premissas. Quando uma fórmula informar um ganho por ponto percentual acima de um limiar e o contexto informar uma meta acima desse limiar, calcule os pontos elegíveis como (meta - limiar), multiplique pelo ganho por ponto e pelo volume informado, e prorrogue proporcionalmente ao período informado; não descarte a conta apenas porque o baseline está abaixo do limiar. Por exemplo, uma fórmula de ganho acima de 75%, com meta de 90%, volume anual de 192.000 clientes e prazo de 6 meses, usa 15 pontos percentuais, 192 lotes de 1.000 clientes e metade do valor anual. Se os campos realmente não trouxerem dados suficientes para uma conta defensável, diga que não foi possível calcular e liste o dado faltante. Nunca invente valor, custo, volume, receita, economia, ROI ou payback, nem apresente estimativa como valor confirmado. O campo de informações financeiras coletadas é factual e pertence ao time, não à IA. As contribuições quantitativas, qualitativas e o ganho financeiro devem permanecer como propostas para validação; valores calculados devem ser validados com Financeiro. Seja específico ao problema e realista, sem afirmar como medidos dados que não foram informados. Quando houver contexto de Project Charter fornecido pela equipe, trate-o como fonte prioritária e reaproveite seus termos, metas, responsáveis, limites e informações financeiras coletadas.`;
+Use 1 ou 2 itens concisos por lista. Todos os valores devem ser strings. Em "generatedCharter", preencha todos os doze campos com sugestões diretamente derivadas do problema informado e do contexto do Charter. Reescreva "goalDefinition" como uma meta SMART coerente com objetivo, KPIs, baseline, escopo, contribuições quantitativas e informações financeiras coletadas; não repita automaticamente uma meta antiga se os dados coletados apontarem outra. Quando houver resumo estatístico, use a mediana/média, a dispersão, quartis, IQR, normalidade e categorias como evidências explícitas para o baseline, a meta proposta e as contribuições. Diferencie o que foi observado nos dados do que é uma recomendação: estatísticas não confirmam uma meta, uma causa ou um ganho. Não invente causalidade, tendência, distribuição ou números ausentes; se não houver análise, declare que a linha de base estatística ainda precisa ser medida. Quando as informações financeiras trouxerem uma meta ideal e um prazo, esses valores definem a meta principal do projeto: escreva explicitamente a evolução do baseline até a meta ideal no prazo informado, em vez de manter a meta antiga como objetivo principal e citar a meta ideal apenas como visão futura. Para "financialGainValue", calcule uma estimativa somente a partir dos números, moeda, período, volume, custo unitário, percentual e premissas explicitamente presentes em "businessContributionsQuantitative" e "financialInformation". Mostre a fórmula ou a lógica usada e deixe claro o período, a moeda e as premissas. Quando uma fórmula informar um ganho por ponto percentual acima de um limiar e o contexto informar uma meta acima desse limiar, calcule os pontos elegíveis como (meta - limiar), multiplique pelo ganho por ponto e pelo volume informado, e prorrogue proporcionalmente ao período informado; não descarte a conta apenas porque o baseline está abaixo do limiar. Por exemplo, uma fórmula de ganho acima de 75%, com meta de 90%, volume anual de 192.000 clientes e prazo de 6 meses, usa 15 pontos percentuais, 192 lotes de 1.000 clientes e metade do valor anual. Se os campos realmente não trouxerem dados suficientes para uma conta defensável, diga que não foi possível calcular e liste o dado faltante. Nunca invente valor, custo, volume, receita, economia, ROI ou payback, nem apresente estimativa como valor confirmado. O campo de informações financeiras coletadas é factual e pertence ao time, não à IA. As contribuições quantitativas, qualitativas e o ganho financeiro devem permanecer como propostas para validação; valores calculados devem ser validados com Financeiro. Seja específico ao problema e realista, sem afirmar como medidos dados que não foram informados. Quando houver contexto de Project Charter fornecido pela equipe, trate-o como fonte prioritária e reaproveite seus termos, metas, responsáveis, limites e informações financeiras coletadas.`;
 
 const EXPLORATORY_SYSTEM_PROMPT = `Você é um Master Black Belt em Lean Six Sigma, com experiência em análise estatística aplicada.
 Elabore um diagnóstico detalhado em português do Brasil sobre a série temporal e as estatísticas fornecidas.
@@ -72,9 +72,14 @@ Considere que os gráficos e estatísticas podem conter todas as observações, 
 const DIAGNOSIS_WINDOW_MS = 10 * 60 * 1000;
 const DIAGNOSIS_MAX_REQUESTS_PER_WINDOW = 6;
 const MAX_ANALYSIS_ARTIFACT_BYTES = 3_000_000;
+const MAX_PIPELINE_ANALYSIS_CONTEXT_BYTES = 80_000;
 const diagnosisRequests = new Map<string, { count: number; windowStartedAt: number }>();
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 const RETRYABLE_GEMINI_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+const PIPELINE_ANALYSIS_CONTEXT_KEYS = new Set(["indicator", "analysisMonths", "indicatorSummary", "exploratoryStatistics", "diagnosis"]);
+const PIPELINE_INDICATOR_SUMMARY_KEYS = new Set(["kind", "indicator", "rows", "mean", "median", "minimum", "maximum", "standardDeviation", "normality", "normalityDetail", "categoryCount", "topCategory", "topCategoryCount", "distribution"]);
+const PIPELINE_EXPLORATORY_STATISTICS_KEYS = new Set(["count", "mean", "median", "minimum", "q1", "q3", "maximum", "iqr", "standardDeviation", "shapiroW", "shapiroPValue"]);
+const PIPELINE_DISTRIBUTION_ITEM_KEYS = new Set(["label", "count", "percentage"]);
 
 function completeDiagnosisText(value: string): string {
   const text = value.trim();
@@ -82,6 +87,55 @@ function completeDiagnosisText(value: string): string {
   const endings = [...text.matchAll(/[.!?…](?=\s|$)/g)];
   const lastEnding = endings.at(-1);
   return lastEnding && lastEnding.index !== undefined ? text.slice(0, lastEnding.index + 1).trim() : text;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasOnlyKnownKeys(value: unknown, allowedKeys: Set<string>): value is Record<string, unknown> {
+  return isPlainRecord(value) && Object.keys(value).every((key) => allowedKeys.has(key));
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function sanitizeDiagnosisForPipeline(value: string): string {
+  return value
+    .replace(/[-+]?\d+(?:[.,]\d+)?(?:\s*(?:%|pp|min|h|horas?|dias?|meses?))?/gi, "[valor estatístico]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 2000);
+}
+
+function hasValidPipelineAnalysisContext(value: unknown): boolean {
+  if (!hasOnlyKnownKeys(value, PIPELINE_ANALYSIS_CONTEXT_KEYS)) return false;
+  const context = value;
+  if (typeof context.indicator !== "string" || !context.indicator.trim() || !Number.isSafeInteger(context.analysisMonths) || (context.analysisMonths as number) < 1 || (context.analysisMonths as number) > 120) return false;
+  if (!hasOnlyKnownKeys(context.indicatorSummary, PIPELINE_INDICATOR_SUMMARY_KEYS)) return false;
+  const summary = context.indicatorSummary;
+  if ((summary.kind !== "continuous" && summary.kind !== "discrete") || summary.indicator !== context.indicator || !Number.isSafeInteger(summary.rows) || (summary.rows as number) < 0) return false;
+  if (context.diagnosis !== undefined && context.diagnosis !== null && (typeof context.diagnosis !== "string" || context.diagnosis.length > 2000)) return false;
+
+  if (summary.kind === "continuous") {
+    const requiredNumbers = ["mean", "median", "minimum", "maximum", "standardDeviation"];
+    if (!requiredNumbers.every((key) => isFiniteNumber(summary[key]))) return false;
+    if (typeof summary.normality !== "string" || typeof summary.normalityDetail !== "string") return false;
+    if (!hasOnlyKnownKeys(context.exploratoryStatistics, PIPELINE_EXPLORATORY_STATISTICS_KEYS)) return false;
+    const statistics = context.exploratoryStatistics;
+    const statisticNumbers = ["count", "mean", "median", "minimum", "q1", "q3", "maximum", "iqr", "standardDeviation"];
+    if (!statisticNumbers.every((key) => isFiniteNumber(statistics[key]))) return false;
+    if (statistics.count !== summary.rows || statistics.mean !== summary.mean || statistics.median !== summary.median || statistics.minimum !== summary.minimum || statistics.maximum !== summary.maximum || statistics.standardDeviation !== summary.standardDeviation) return false;
+    return true;
+  }
+
+  if (![summary.categoryCount, summary.topCategoryCount].every(isFiniteNumber) || typeof summary.topCategory !== "string") return false;
+  if (summary.distribution !== undefined) {
+    if (!Array.isArray(summary.distribution) || summary.distribution.length > 20) return false;
+    if (!summary.distribution.every((item) => hasOnlyKnownKeys(item, PIPELINE_DISTRIBUTION_ITEM_KEYS) && typeof item.label === "string" && isFiniteNumber(item.count) && isFiniteNumber(item.percentage) && item.percentage >= 0 && item.percentage <= 100)) return false;
+  }
+  return context.exploratoryStatistics === undefined || context.exploratoryStatistics === null;
 }
 
 function canGenerateExploratoryDiagnosis(clientKey: string): boolean {
@@ -186,9 +240,9 @@ function normalizeGeneratedCharterSuggestions(
   const source = suggestions as Record<string, unknown>;
   return {
     ...source,
-    businessContributions: createBusinessContributionSuggestion("summary"),
-    businessContributionsQuantitative: createBusinessContributionSuggestion("quantitative"),
-    businessContributionsQualitative: createBusinessContributionSuggestion("qualitative"),
+    businessContributions: normalizeBusinessContributionSuggestion(source.businessContributions, "summary"),
+    businessContributionsQuantitative: normalizeBusinessContributionSuggestion(source.businessContributionsQuantitative, "quantitative"),
+    businessContributionsQualitative: normalizeBusinessContributionSuggestion(source.businessContributionsQualitative, "qualitative"),
     financialGainValue: createFinancialGainSuggestion(
       financialInformation,
       businessContributionsQuantitative,
@@ -225,6 +279,16 @@ function createBusinessContributionSuggestion(kind: "summary" | "quantitative" |
     return "Proposta da IA para validação: descreva ganhos não financeiros para cliente, operação, qualidade ou risco, sempre ligados à VOC e ao escopo.";
   }
   return "Proposta da IA para validação: relacione o benefício do projeto à VOC, à meta e ao escopo. Valores financeiros devem ser confirmados pelo time responsável.";
+}
+
+function normalizeBusinessContributionSuggestion(
+  value: unknown,
+  kind: "summary" | "quantitative" | "qualitative",
+): string {
+  const suggestion = typeof value === "string" ? value.trim() : "";
+  if (!suggestion) return createBusinessContributionSuggestion(kind);
+  if (/valida(?:r|ção)|proposta da ia/i.test(suggestion)) return suggestion;
+  return `${suggestion} Proposta da IA para validação com o time.`;
 }
 
 function parseProjectKey(value: unknown): number | null {
@@ -527,6 +591,12 @@ router.post("/dmaic/pipeline", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Informe um problema com pelo menos 10 caracteres." });
     return;
   }
+  const rawAnalysisContext = isPlainRecord(req.body) ? req.body.analysisContext : undefined;
+  if (body.data.analysisContext && !hasValidPipelineAnalysisContext(rawAnalysisContext)) {
+    req.log.warn("Invalid DMAIC pipeline analysis context");
+    res.status(400).json({ error: "O resumo estatístico está incompleto ou contém campos não permitidos." });
+    return;
+  }
 
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) {
@@ -536,13 +606,26 @@ router.post("/dmaic/pipeline", async (req, res): Promise<void> => {
   }
 
   try {
+    const analysisContext = body.data.analysisContext
+      ? {
+          ...body.data.analysisContext,
+          diagnosis: body.data.analysisContext.diagnosis ? sanitizeDiagnosisForPipeline(body.data.analysisContext.diagnosis) : null,
+        }
+      : undefined;
+    if (analysisContext && Buffer.byteLength(JSON.stringify(analysisContext), "utf8") > MAX_PIPELINE_ANALYSIS_CONTEXT_BYTES) {
+      res.status(400).json({ error: "O resumo estatístico excede o limite permitido. Reduza o diagnóstico antes de gerar o pipeline." });
+      return;
+    }
+    const analysisContextPrompt = analysisContext
+      ? `\n\nResumo estatístico calculado localmente (evidência, não meta confirmada; não contém o CSV bruto):\n${JSON.stringify(analysisContext, null, 2)}`
+      : "\n\nResumo estatístico: não há análise exploratória disponível. Não invente baseline, distribuição ou evidência numérica.";
     const response = await requestGemini(apiKey, {
           contents: [
             {
               role: "user",
               parts: [
                 {
-                  text: `${DMAIC_SYSTEM_PROMPT}\n\nProblema do projeto:\n${body.data.problemStatement}\n\nContexto preenchido no Project Charter:\n${body.data.projectCharterContext ? JSON.stringify(body.data.projectCharterContext, null, 2) : "Nenhum contexto adicional foi preenchido."}`,
+                  text: `${DMAIC_SYSTEM_PROMPT}\n\nProblema do projeto:\n${body.data.problemStatement}\n\nContexto preenchido no Project Charter:\n${body.data.projectCharterContext ? JSON.stringify(body.data.projectCharterContext, null, 2) : "Nenhum contexto adicional foi preenchido."}${analysisContextPrompt}`,
                 },
               ],
             },
@@ -603,9 +686,9 @@ router.post("/dmaic/pipeline", async (req, res): Promise<void> => {
            body.data.projectCharterContext?.businessContributionsQuantitative,
            pipeline.data.generatedCharter.financialGainValue,
          ),
-        businessContributions: createBusinessContributionSuggestion("summary"),
-        businessContributionsQuantitative: createBusinessContributionSuggestion("quantitative"),
-        businessContributionsQualitative: createBusinessContributionSuggestion("qualitative"),
+         businessContributions: normalizeBusinessContributionSuggestion(pipeline.data.generatedCharter.businessContributions, "summary"),
+         businessContributionsQuantitative: normalizeBusinessContributionSuggestion(pipeline.data.generatedCharter.businessContributionsQuantitative, "quantitative"),
+         businessContributionsQualitative: normalizeBusinessContributionSuggestion(pipeline.data.generatedCharter.businessContributionsQualitative, "qualitative"),
       },
     };
 

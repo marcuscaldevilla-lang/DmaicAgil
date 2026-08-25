@@ -161,6 +161,54 @@ components:
           maxLength: 4000
         projectCharterContext:
           $ref: "#/components/schemas/DmaicCharterContext"
+        analysisContext:
+          description: Resumo estatístico calculado localmente, sem linhas ou valores brutos do CSV.
+          $ref: "#/components/schemas/DmaicPipelineAnalysisContext"
+    DmaicPipelineIndicatorSummary:
+      type: object
+      required: [kind, indicator, rows]
+      properties:
+        kind: { type: string, enum: [continuous, discrete] }
+        indicator: { type: string, minLength: 1, maxLength: 120 }
+        rows: { type: number, minimum: 0 }
+        mean: { type: number }
+        median: { type: number }
+        minimum: { type: number }
+        maximum: { type: number }
+        standardDeviation: { type: number, minimum: 0 }
+        normality: { type: string, maxLength: 120 }
+        normalityDetail: { type: string, maxLength: 500 }
+        categoryCount: { type: number, minimum: 0 }
+        topCategory: { type: string, maxLength: 255 }
+        topCategoryCount: { type: number, minimum: 0 }
+        distribution:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            required: [label, count, percentage]
+            properties:
+              label: { type: string, maxLength: 255 }
+              count: { type: number, minimum: 0 }
+              percentage: { type: number, minimum: 0, maximum: 100 }
+    DmaicPipelineAnalysisContext:
+      type: object
+      description: Evidências estatísticas resumidas usadas para gerar o pipeline. Não contém o CSV bruto.
+      required: [indicator, analysisMonths, indicatorSummary]
+      properties:
+        indicator: { type: string, minLength: 1, maxLength: 120 }
+        analysisMonths: { type: number, minimum: 1, maximum: 120 }
+        indicatorSummary:
+          $ref: "#/components/schemas/DmaicPipelineIndicatorSummary"
+        exploratoryStatistics:
+          anyOf:
+            - $ref: "#/components/schemas/DmaicExploratoryStatistics"
+            - type: "null"
+        diagnosis:
+          anyOf:
+            - type: string
+              maxLength: 2000
+            - type: "null"
     DmaicExploratoryPoint:
       type: object
       required: [period, value]
@@ -493,6 +541,11 @@ components:
         diagnosisInput:
           anyOf:
             - $ref: "#/components/schemas/DmaicExploratoryDiagnosisInput"
+            - type: "null"
+        pipelineAnalysisContext:
+          description: Cópia das evidências estatísticas usadas na última geração do pipeline.
+          anyOf:
+            - $ref: "#/components/schemas/DmaicPipelineAnalysisContext"
             - type: "null"
         pareto:
           type: array

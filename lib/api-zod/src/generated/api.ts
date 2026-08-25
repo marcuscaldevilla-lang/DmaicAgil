@@ -24,6 +24,44 @@ export const HealthCheckResponse = zod.object({
 export const runDmaicPipelineBodyProblemStatementMin = 10;
 export const runDmaicPipelineBodyProblemStatementMax = 4000;
 
+export const runDmaicPipelineBodyAnalysisContextIndicatorMax = 120;
+
+export const runDmaicPipelineBodyAnalysisContextAnalysisMonthsMax = 120;
+
+export const runDmaicPipelineBodyAnalysisContextIndicatorSummaryIndicatorMax = 120;
+
+export const runDmaicPipelineBodyAnalysisContextIndicatorSummaryRowsMin = 0;
+
+export const runDmaicPipelineBodyAnalysisContextIndicatorSummaryStandardDeviationMin = 0;
+
+export const runDmaicPipelineBodyAnalysisContextIndicatorSummaryNormalityMax = 120;
+
+export const runDmaicPipelineBodyAnalysisContextIndicatorSummaryNormalityDetailMax = 500;
+
+export const runDmaicPipelineBodyAnalysisContextIndicatorSummaryCategoryCountMin = 0;
+
+export const runDmaicPipelineBodyAnalysisContextIndicatorSummaryTopCategoryMax = 255;
+
+export const runDmaicPipelineBodyAnalysisContextIndicatorSummaryTopCategoryCountMin = 0;
+
+export const runDmaicPipelineBodyAnalysisContextIndicatorSummaryDistributionItemLabelMax = 255;
+
+export const runDmaicPipelineBodyAnalysisContextIndicatorSummaryDistributionItemCountMin = 0;
+
+export const runDmaicPipelineBodyAnalysisContextIndicatorSummaryDistributionItemPercentageMin = 0;
+export const runDmaicPipelineBodyAnalysisContextIndicatorSummaryDistributionItemPercentageMax = 100;
+
+export const runDmaicPipelineBodyAnalysisContextIndicatorSummaryDistributionMax = 20;
+
+
+export const runDmaicPipelineBodyAnalysisContextExploratoryStatisticsOneShapiroWMin = 0;
+export const runDmaicPipelineBodyAnalysisContextExploratoryStatisticsOneShapiroWMax = 1;
+
+export const runDmaicPipelineBodyAnalysisContextExploratoryStatisticsOneShapiroPValueMin = 0;
+export const runDmaicPipelineBodyAnalysisContextExploratoryStatisticsOneShapiroPValueMax = 1;
+
+export const runDmaicPipelineBodyAnalysisContextDiagnosisOneMax = 2000;
+
 
 
 export const RunDmaicPipelineBody = zod.object({
@@ -54,7 +92,45 @@ export const RunDmaicPipelineBody = zod.object({
   "businessContributionsQualitative": zod.string(),
   "financialGainValue": zod.string(),
   "financialInformation": zod.string()
-}).optional()
+}).optional(),
+  "analysisContext": zod.object({
+  "indicator": zod.string().min(1).max(runDmaicPipelineBodyAnalysisContextIndicatorMax),
+  "analysisMonths": zod.number().min(1).max(runDmaicPipelineBodyAnalysisContextAnalysisMonthsMax),
+  "indicatorSummary": zod.object({
+  "kind": zod.enum(['continuous', 'discrete']),
+  "indicator": zod.string().min(1).max(runDmaicPipelineBodyAnalysisContextIndicatorSummaryIndicatorMax),
+  "rows": zod.number().min(runDmaicPipelineBodyAnalysisContextIndicatorSummaryRowsMin),
+  "mean": zod.number().optional(),
+  "median": zod.number().optional(),
+  "minimum": zod.number().optional(),
+  "maximum": zod.number().optional(),
+  "standardDeviation": zod.number().min(runDmaicPipelineBodyAnalysisContextIndicatorSummaryStandardDeviationMin).optional(),
+  "normality": zod.string().max(runDmaicPipelineBodyAnalysisContextIndicatorSummaryNormalityMax).optional(),
+  "normalityDetail": zod.string().max(runDmaicPipelineBodyAnalysisContextIndicatorSummaryNormalityDetailMax).optional(),
+  "categoryCount": zod.number().min(runDmaicPipelineBodyAnalysisContextIndicatorSummaryCategoryCountMin).optional(),
+  "topCategory": zod.string().max(runDmaicPipelineBodyAnalysisContextIndicatorSummaryTopCategoryMax).optional(),
+  "topCategoryCount": zod.number().min(runDmaicPipelineBodyAnalysisContextIndicatorSummaryTopCategoryCountMin).optional(),
+  "distribution": zod.array(zod.object({
+  "label": zod.string().max(runDmaicPipelineBodyAnalysisContextIndicatorSummaryDistributionItemLabelMax),
+  "count": zod.number().min(runDmaicPipelineBodyAnalysisContextIndicatorSummaryDistributionItemCountMin),
+  "percentage": zod.number().min(runDmaicPipelineBodyAnalysisContextIndicatorSummaryDistributionItemPercentageMin).max(runDmaicPipelineBodyAnalysisContextIndicatorSummaryDistributionItemPercentageMax)
+})).max(runDmaicPipelineBodyAnalysisContextIndicatorSummaryDistributionMax).optional()
+}),
+  "exploratoryStatistics": zod.union([zod.object({
+  "count": zod.number().min(1),
+  "mean": zod.number(),
+  "median": zod.number(),
+  "minimum": zod.number(),
+  "q1": zod.number(),
+  "q3": zod.number(),
+  "maximum": zod.number(),
+  "iqr": zod.number(),
+  "standardDeviation": zod.number(),
+  "shapiroW": zod.number().min(runDmaicPipelineBodyAnalysisContextExploratoryStatisticsOneShapiroWMin).max(runDmaicPipelineBodyAnalysisContextExploratoryStatisticsOneShapiroWMax).optional(),
+  "shapiroPValue": zod.number().min(runDmaicPipelineBodyAnalysisContextExploratoryStatisticsOneShapiroPValueMin).max(runDmaicPipelineBodyAnalysisContextExploratoryStatisticsOneShapiroPValueMax).optional()
+}),zod.null()]).optional(),
+  "diagnosis": zod.union([zod.string().max(runDmaicPipelineBodyAnalysisContextDiagnosisOneMax),zod.null()]).optional()
+}).optional().describe('Resumo estatístico calculado localmente, sem linhas ou valores brutos do CSV.')
 })
 
 export const RunDmaicPipelineResponse = zod.object({
@@ -186,6 +262,44 @@ export const getDmaicWorkspaceResponseAnalysisArtifactsDiagnosisInputOneStatisti
 export const getDmaicWorkspaceResponseAnalysisArtifactsDiagnosisInputOneStatisticsShapiroPValueMin = 0;
 export const getDmaicWorkspaceResponseAnalysisArtifactsDiagnosisInputOneStatisticsShapiroPValueMax = 1;
 
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorMax = 120;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneAnalysisMonthsMax = 120;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryIndicatorMax = 120;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryRowsMin = 0;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryStandardDeviationMin = 0;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryNormalityMax = 120;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryNormalityDetailMax = 500;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryCategoryCountMin = 0;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryTopCategoryMax = 255;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryTopCategoryCountMin = 0;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemLabelMax = 255;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemCountMin = 0;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemPercentageMin = 0;
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemPercentageMax = 100;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionMax = 20;
+
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroWMin = 0;
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroWMax = 1;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroPValueMin = 0;
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroPValueMax = 1;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneDiagnosisOneMax = 2000;
+
 export const getDmaicWorkspaceResponseAnalysisArtifactsParetoItemValueMin = 0;
 
 export const getDmaicWorkspaceResponseRevisionMin = 0;
@@ -312,6 +426,44 @@ export const GetDmaicWorkspaceResponse = zod.object({
   "shapiroPValue": zod.number().min(getDmaicWorkspaceResponseAnalysisArtifactsDiagnosisInputOneStatisticsShapiroPValueMin).max(getDmaicWorkspaceResponseAnalysisArtifactsDiagnosisInputOneStatisticsShapiroPValueMax).optional()
 })
 }),zod.null()]),
+  "pipelineAnalysisContext": zod.union([zod.object({
+  "indicator": zod.string().min(1).max(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorMax),
+  "analysisMonths": zod.number().min(1).max(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneAnalysisMonthsMax),
+  "indicatorSummary": zod.object({
+  "kind": zod.enum(['continuous', 'discrete']),
+  "indicator": zod.string().min(1).max(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryIndicatorMax),
+  "rows": zod.number().min(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryRowsMin),
+  "mean": zod.number().optional(),
+  "median": zod.number().optional(),
+  "minimum": zod.number().optional(),
+  "maximum": zod.number().optional(),
+  "standardDeviation": zod.number().min(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryStandardDeviationMin).optional(),
+  "normality": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryNormalityMax).optional(),
+  "normalityDetail": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryNormalityDetailMax).optional(),
+  "categoryCount": zod.number().min(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryCategoryCountMin).optional(),
+  "topCategory": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryTopCategoryMax).optional(),
+  "topCategoryCount": zod.number().min(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryTopCategoryCountMin).optional(),
+  "distribution": zod.array(zod.object({
+  "label": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemLabelMax),
+  "count": zod.number().min(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemCountMin),
+  "percentage": zod.number().min(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemPercentageMin).max(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemPercentageMax)
+})).max(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionMax).optional()
+}),
+  "exploratoryStatistics": zod.union([zod.object({
+  "count": zod.number().min(1),
+  "mean": zod.number(),
+  "median": zod.number(),
+  "minimum": zod.number(),
+  "q1": zod.number(),
+  "q3": zod.number(),
+  "maximum": zod.number(),
+  "iqr": zod.number(),
+  "standardDeviation": zod.number(),
+  "shapiroW": zod.number().min(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroWMin).max(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroWMax).optional(),
+  "shapiroPValue": zod.number().min(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroPValueMin).max(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroPValueMax).optional()
+}),zod.null()]).optional(),
+  "diagnosis": zod.union([zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneDiagnosisOneMax),zod.null()]).optional()
+}).describe('Evidências estatísticas resumidas usadas para gerar o pipeline. Não contém o CSV bruto.'),zod.null()]).optional().describe('Cópia das evidências estatísticas usadas na última geração do pipeline.'),
   "pareto": zod.array(zod.object({
   "name": zod.string(),
   "value": zod.number().min(getDmaicWorkspaceResponseAnalysisArtifactsParetoItemValueMin)
@@ -447,6 +599,44 @@ export const saveDmaicWorkspaceBodyAnalysisArtifactsDiagnosisInputOneStatisticsS
 export const saveDmaicWorkspaceBodyAnalysisArtifactsDiagnosisInputOneStatisticsShapiroPValueMin = 0;
 export const saveDmaicWorkspaceBodyAnalysisArtifactsDiagnosisInputOneStatisticsShapiroPValueMax = 1;
 
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorMax = 120;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneAnalysisMonthsMax = 120;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryIndicatorMax = 120;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryRowsMin = 0;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryStandardDeviationMin = 0;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryNormalityMax = 120;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryNormalityDetailMax = 500;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryCategoryCountMin = 0;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryTopCategoryMax = 255;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryTopCategoryCountMin = 0;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemLabelMax = 255;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemCountMin = 0;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemPercentageMin = 0;
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemPercentageMax = 100;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionMax = 20;
+
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroWMin = 0;
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroWMax = 1;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroPValueMin = 0;
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroPValueMax = 1;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneDiagnosisOneMax = 2000;
+
 export const saveDmaicWorkspaceBodyAnalysisArtifactsParetoItemValueMin = 0;
 
 export const saveDmaicWorkspaceBodyExpectedRevisionMin = 0;
@@ -572,6 +762,44 @@ export const SaveDmaicWorkspaceBody = zod.object({
   "shapiroPValue": zod.number().min(saveDmaicWorkspaceBodyAnalysisArtifactsDiagnosisInputOneStatisticsShapiroPValueMin).max(saveDmaicWorkspaceBodyAnalysisArtifactsDiagnosisInputOneStatisticsShapiroPValueMax).optional()
 })
 }),zod.null()]),
+  "pipelineAnalysisContext": zod.union([zod.object({
+  "indicator": zod.string().min(1).max(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorMax),
+  "analysisMonths": zod.number().min(1).max(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneAnalysisMonthsMax),
+  "indicatorSummary": zod.object({
+  "kind": zod.enum(['continuous', 'discrete']),
+  "indicator": zod.string().min(1).max(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryIndicatorMax),
+  "rows": zod.number().min(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryRowsMin),
+  "mean": zod.number().optional(),
+  "median": zod.number().optional(),
+  "minimum": zod.number().optional(),
+  "maximum": zod.number().optional(),
+  "standardDeviation": zod.number().min(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryStandardDeviationMin).optional(),
+  "normality": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryNormalityMax).optional(),
+  "normalityDetail": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryNormalityDetailMax).optional(),
+  "categoryCount": zod.number().min(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryCategoryCountMin).optional(),
+  "topCategory": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryTopCategoryMax).optional(),
+  "topCategoryCount": zod.number().min(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryTopCategoryCountMin).optional(),
+  "distribution": zod.array(zod.object({
+  "label": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemLabelMax),
+  "count": zod.number().min(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemCountMin),
+  "percentage": zod.number().min(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemPercentageMin).max(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemPercentageMax)
+})).max(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionMax).optional()
+}),
+  "exploratoryStatistics": zod.union([zod.object({
+  "count": zod.number().min(1),
+  "mean": zod.number(),
+  "median": zod.number(),
+  "minimum": zod.number(),
+  "q1": zod.number(),
+  "q3": zod.number(),
+  "maximum": zod.number(),
+  "iqr": zod.number(),
+  "standardDeviation": zod.number(),
+  "shapiroW": zod.number().min(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroWMin).max(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroWMax).optional(),
+  "shapiroPValue": zod.number().min(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroPValueMin).max(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroPValueMax).optional()
+}),zod.null()]).optional(),
+  "diagnosis": zod.union([zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneDiagnosisOneMax),zod.null()]).optional()
+}).describe('Evidências estatísticas resumidas usadas para gerar o pipeline. Não contém o CSV bruto.'),zod.null()]).optional().describe('Cópia das evidências estatísticas usadas na última geração do pipeline.'),
   "pareto": zod.array(zod.object({
   "name": zod.string(),
   "value": zod.number().min(saveDmaicWorkspaceBodyAnalysisArtifactsParetoItemValueMin)
@@ -696,6 +924,44 @@ export const saveDmaicWorkspaceResponseAnalysisArtifactsDiagnosisInputOneStatist
 
 export const saveDmaicWorkspaceResponseAnalysisArtifactsDiagnosisInputOneStatisticsShapiroPValueMin = 0;
 export const saveDmaicWorkspaceResponseAnalysisArtifactsDiagnosisInputOneStatisticsShapiroPValueMax = 1;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorMax = 120;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneAnalysisMonthsMax = 120;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryIndicatorMax = 120;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryRowsMin = 0;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryStandardDeviationMin = 0;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryNormalityMax = 120;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryNormalityDetailMax = 500;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryCategoryCountMin = 0;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryTopCategoryMax = 255;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryTopCategoryCountMin = 0;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemLabelMax = 255;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemCountMin = 0;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemPercentageMin = 0;
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemPercentageMax = 100;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionMax = 20;
+
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroWMin = 0;
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroWMax = 1;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroPValueMin = 0;
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroPValueMax = 1;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneDiagnosisOneMax = 2000;
 
 export const saveDmaicWorkspaceResponseAnalysisArtifactsParetoItemValueMin = 0;
 
@@ -823,6 +1089,44 @@ export const SaveDmaicWorkspaceResponse = zod.object({
   "shapiroPValue": zod.number().min(saveDmaicWorkspaceResponseAnalysisArtifactsDiagnosisInputOneStatisticsShapiroPValueMin).max(saveDmaicWorkspaceResponseAnalysisArtifactsDiagnosisInputOneStatisticsShapiroPValueMax).optional()
 })
 }),zod.null()]),
+  "pipelineAnalysisContext": zod.union([zod.object({
+  "indicator": zod.string().min(1).max(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorMax),
+  "analysisMonths": zod.number().min(1).max(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneAnalysisMonthsMax),
+  "indicatorSummary": zod.object({
+  "kind": zod.enum(['continuous', 'discrete']),
+  "indicator": zod.string().min(1).max(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryIndicatorMax),
+  "rows": zod.number().min(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryRowsMin),
+  "mean": zod.number().optional(),
+  "median": zod.number().optional(),
+  "minimum": zod.number().optional(),
+  "maximum": zod.number().optional(),
+  "standardDeviation": zod.number().min(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryStandardDeviationMin).optional(),
+  "normality": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryNormalityMax).optional(),
+  "normalityDetail": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryNormalityDetailMax).optional(),
+  "categoryCount": zod.number().min(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryCategoryCountMin).optional(),
+  "topCategory": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryTopCategoryMax).optional(),
+  "topCategoryCount": zod.number().min(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryTopCategoryCountMin).optional(),
+  "distribution": zod.array(zod.object({
+  "label": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemLabelMax),
+  "count": zod.number().min(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemCountMin),
+  "percentage": zod.number().min(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemPercentageMin).max(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionItemPercentageMax)
+})).max(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneIndicatorSummaryDistributionMax).optional()
+}),
+  "exploratoryStatistics": zod.union([zod.object({
+  "count": zod.number().min(1),
+  "mean": zod.number(),
+  "median": zod.number(),
+  "minimum": zod.number(),
+  "q1": zod.number(),
+  "q3": zod.number(),
+  "maximum": zod.number(),
+  "iqr": zod.number(),
+  "standardDeviation": zod.number(),
+  "shapiroW": zod.number().min(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroWMin).max(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroWMax).optional(),
+  "shapiroPValue": zod.number().min(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroPValueMin).max(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneExploratoryStatisticsOneShapiroPValueMax).optional()
+}),zod.null()]).optional(),
+  "diagnosis": zod.union([zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneDiagnosisOneMax),zod.null()]).optional()
+}).describe('Evidências estatísticas resumidas usadas para gerar o pipeline. Não contém o CSV bruto.'),zod.null()]).optional().describe('Cópia das evidências estatísticas usadas na última geração do pipeline.'),
   "pareto": zod.array(zod.object({
   "name": zod.string(),
   "value": zod.number().min(saveDmaicWorkspaceResponseAnalysisArtifactsParetoItemValueMin)
