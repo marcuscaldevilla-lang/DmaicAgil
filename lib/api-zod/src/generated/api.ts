@@ -161,6 +161,14 @@ export const RunDmaicPipelineResponse = zod.object({
 }),
   "vocCtq": zod.array(zod.object({
   "vocNeed": zod.string(),
+  "clientType": zod.enum(['internal', 'external']),
+  "client": zod.string(),
+  "sourceType": zod.enum(['reactive', 'active']),
+  "source": zod.string(),
+  "directioner": zod.string(),
+  "ctq": zod.string(),
+  "ctp": zod.string(),
+  "measure": zod.string(),
   "issue": zod.string(),
   "ctqMetric": zod.string()
 })),
@@ -497,6 +505,14 @@ export const GetDmaicWorkspaceResponse = zod.object({
 }),
   "vocCtq": zod.array(zod.object({
   "vocNeed": zod.string(),
+  "clientType": zod.enum(['internal', 'external']),
+  "client": zod.string(),
+  "sourceType": zod.enum(['reactive', 'active']),
+  "source": zod.string(),
+  "directioner": zod.string(),
+  "ctq": zod.string(),
+  "ctp": zod.string(),
+  "measure": zod.string(),
   "issue": zod.string(),
   "ctqMetric": zod.string()
 })),
@@ -833,6 +849,14 @@ export const SaveDmaicWorkspaceBody = zod.object({
 }),
   "vocCtq": zod.array(zod.object({
   "vocNeed": zod.string(),
+  "clientType": zod.enum(['internal', 'external']),
+  "client": zod.string(),
+  "sourceType": zod.enum(['reactive', 'active']),
+  "source": zod.string(),
+  "directioner": zod.string(),
+  "ctq": zod.string(),
+  "ctp": zod.string(),
+  "measure": zod.string(),
   "issue": zod.string(),
   "ctqMetric": zod.string()
 })),
@@ -1160,6 +1184,14 @@ export const SaveDmaicWorkspaceResponse = zod.object({
 }),
   "vocCtq": zod.array(zod.object({
   "vocNeed": zod.string(),
+  "clientType": zod.enum(['internal', 'external']),
+  "client": zod.string(),
+  "sourceType": zod.enum(['reactive', 'active']),
+  "source": zod.string(),
+  "directioner": zod.string(),
+  "ctq": zod.string(),
+  "ctp": zod.string(),
+  "measure": zod.string(),
   "issue": zod.string(),
   "ctqMetric": zod.string()
 })),

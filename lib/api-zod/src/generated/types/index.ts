@@ -38,6 +38,8 @@ export * from './dmaicScope';
 export * from './dmaicSipoc';
 export * from './dmaicTeam';
 export * from './dmaicVocCqt';
+export * from './dmaicVocCqtClientType';
+export * from './dmaicVocCqtSourceType';
 export * from './dmaicWorkspace';
 export * from './dmaicWorkspaceConflict';
 export * from './dmaicWorkspaceInput';

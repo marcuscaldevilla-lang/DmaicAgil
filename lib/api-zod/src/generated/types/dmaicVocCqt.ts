@@ -5,9 +5,19 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { DmaicVocCqtClientType } from './dmaicVocCqtClientType';
+import type { DmaicVocCqtSourceType } from './dmaicVocCqtSourceType';
 
 export interface DmaicVocCqt {
   vocNeed: string;
+  clientType: DmaicVocCqtClientType;
+  client: string;
+  sourceType: DmaicVocCqtSourceType;
+  source: string;
+  directioner: string;
+  ctq: string;
+  ctp: string;
+  measure: string;
   issue: string;
   ctqMetric: string;
 }

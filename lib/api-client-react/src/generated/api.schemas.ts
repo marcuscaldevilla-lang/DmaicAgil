@@ -300,8 +300,32 @@ export interface DmaicTeam {
   beltSquadMembers: string;
 }
 
+export type DmaicVocCqtClientType = typeof DmaicVocCqtClientType[keyof typeof DmaicVocCqtClientType];
+
+
+export const DmaicVocCqtClientType = {
+  internal: 'internal',
+  external: 'external',
+} as const;
+
+export type DmaicVocCqtSourceType = typeof DmaicVocCqtSourceType[keyof typeof DmaicVocCqtSourceType];
+
+
+export const DmaicVocCqtSourceType = {
+  reactive: 'reactive',
+  active: 'active',
+} as const;
+
 export interface DmaicVocCqt {
   vocNeed: string;
+  clientType: DmaicVocCqtClientType;
+  client: string;
+  sourceType: DmaicVocCqtSourceType;
+  source: string;
+  directioner: string;
+  ctq: string;
+  ctp: string;
+  measure: string;
   issue: string;
   ctqMetric: string;
 }

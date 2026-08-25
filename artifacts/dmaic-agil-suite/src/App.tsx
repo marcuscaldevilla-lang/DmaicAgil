@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicExploratoryDiagnosisInput, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
+import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicExploratoryDiagnosisInput, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicVocCqt, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -132,7 +132,10 @@ const createEmptyAnalysisArtifacts = (): DmaicAnalysisArtifacts => ({
 
 function parseAnalysisArtifacts(value: unknown): DmaicAnalysisArtifacts {
   if (!isObject(value) || value.version !== 1 || !('dataset' in value) || !('analysisMonths' in value) || !('selectedIndicator' in value)) return createEmptyAnalysisArtifacts();
-  return value as unknown as DmaicAnalysisArtifacts;
+  return {
+    ...value,
+    pipeline: normalizePipelineSnapshot(value.pipeline),
+  } as unknown as DmaicAnalysisArtifacts;
 }
 
 function analysisArtifactsSizeInBytes(artifacts: DmaicAnalysisArtifacts): number {
@@ -178,6 +181,45 @@ const createProjectCharterDraft = (): ProjectCharterDraft => ({
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function toVocText(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function normalizeVocSnapshot(value: unknown): DmaicVocCqt {
+  const source = isObject(value) ? value : {};
+  const vocNeed = toVocText(source.vocNeed, 'Necessidade do cliente a validar com a equipe.');
+  const ctqMetric = toVocText(source.ctqMetric ?? source.measure, 'Medida principal a definir com o cliente.');
+  const sourceType = source.sourceType === 'active' ? 'active' : 'reactive';
+  return {
+    vocNeed,
+    clientType: source.clientType === 'external' ? 'external' : 'internal',
+    client: toVocText(source.client, 'Cliente a identificar com o time.'),
+    sourceType,
+    source: toVocText(source.source, sourceType === 'active' ? 'Pesquisa, entrevista ou observação a planejar.' : 'Registro, reclamação ou suporte a confirmar.'),
+    directioner: toVocText(source.directioner, 'Requisito orientador a validar com o cliente.'),
+    ctq: toVocText(source.ctq, ctqMetric),
+    ctp: toVocText(source.ctp, 'Etapa do processo a definir e validar.'),
+    measure: toVocText(source.measure ?? source.ctqMetric, ctqMetric),
+    issue: toVocText(source.issue, 'Dor do cliente a confirmar por fonte de voz.'),
+    ctqMetric,
+  };
+}
+
+function isLegacyVocSnapshot(value: unknown): boolean {
+  if (!isObject(value)) return false;
+  const legacyFields = ['vocNeed', 'issue', 'ctqMetric'];
+  return Object.keys(value).length === legacyFields.length && legacyFields.every((field) => typeof value[field] === 'string');
+}
+
+function normalizePipelineSnapshot(value: unknown): DmaicPipeline | null {
+  if (!isObject(value)) return null;
+  if (!Array.isArray(value.vocCtq) || value.vocCtq.length === 0 || !value.vocCtq.every(isLegacyVocSnapshot)) return value as unknown as DmaicPipeline;
+  return {
+    ...value,
+    vocCtq: value.vocCtq.map(normalizeVocSnapshot),
+  } as unknown as DmaicPipeline;
 }
 
 function parseCharterTeamMember(value: unknown): CharterTeamMember | null {
@@ -1061,7 +1103,7 @@ function InputDataPanel({ dataset, analysis, error, months, onMonthsChange, sele
   </section>;
 }
 
-function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDataset, csvError, onRetry, pipeline }: { tool: Tool; onClose: () => void; pareto: { name: string; value: number }[] | null; imr: number[] | null; inputAnalysis: IndicatorAnalysis | null; hasInputDataset: boolean; csvError: string | null; onRetry: () => void; pipeline: DmaicPipeline | null }) {
+function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDataset, csvError, onRetry, pipeline, hasDiagnosis = false }: { tool: Tool; onClose: () => void; pareto: { name: string; value: number }[] | null; imr: number[] | null; inputAnalysis?: IndicatorAnalysis | null; hasInputDataset: boolean; csvError: string | null; onRetry: () => void; pipeline: DmaicPipeline | null; hasDiagnosis?: boolean }) {
   const [tab, setTab] = useState<'preview' | 'data'>('preview');
   const isPareto = tool.id === 'pareto';
   const isImr = tool.id === 'imr';
@@ -1077,7 +1119,7 @@ function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDatas
       : inputAnalysis.kind === 'continuous' && inputAnalysis.values.length < 2
         ? 'O I-MR precisa de pelo menos duas observações sequenciais no recorte selecionado.'
         : 'O I-MR é aplicável somente a indicadores contínuos. Selecione um indicador numérico compatível.';
-  return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}><section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-[560px] flex-col overflow-y-auto border-l border-border bg-background shadow-2xl"><div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur"><div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">{pipeline ? 'Gerado com IA' : tool.tag ?? 'Entregável gerado'}</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div><div className="border-b border-border px-5 pt-4"><div className="flex gap-5"><button data-testid="tab-preview" onClick={() => setTab('preview')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'preview' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Visualização</button><button data-testid="tab-data" onClick={() => setTab('data')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'data' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Dados & notas</button></div></div><div className="flex-1 p-5">{csvError && isAnalysisTool ? <div data-testid="status-tool-csv-error" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-destructive" /><div><p className="text-sm font-bold text-destructive">Não foi possível ler o arquivo</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{csvError}</p><Button testId="button-retry-upload" onClick={onRetry} variant="outline" className="mt-3"><RefreshCw size={13} /> Tentar com outro arquivo</Button></div></div></div> : isAnalysisTool && !hasCompatibleData ? <div data-testid="status-tool-no-data" className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold">Visualização indisponível</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{unavailableMessage}</p></div></div></div> : tab === 'preview' ? <>{isPareto && pareto ? <ParetoChart data={pareto} cumulative={cumulative} source={source} /> : isImr && imr ? <ImrChart data={imr} source={source} /> : <GenericPreview tool={tool} pipeline={pipeline} />}</> : <DataNotes tool={tool} pareto={pareto} imr={imr} source={source} />}</div><div className="border-t border-border bg-card px-5 py-4"><div className="flex items-center justify-between gap-3"><span className="mono-label text-muted-foreground">{pipeline ? 'Conteúdo gerado por Gemini' : hasInputDataset && isAnalysisTool ? hasCompatibleData ? 'Dados do CSV · local' : 'Sem dados compatíveis' : 'Conteúdo de exemplo · local'}</span><Button testId="button-export-tool" variant="outline"><FileText size={14} /> Exportar visão</Button></div></div></section></div>;
+  return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}><section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-[560px] flex-col overflow-y-auto border-l border-border bg-background shadow-2xl"><div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur"><div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">{pipeline ? 'Gerado com IA' : tool.tag ?? 'Entregável gerado'}</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div><div className="border-b border-border px-5 pt-4"><div className="flex gap-5"><button data-testid="tab-preview" onClick={() => setTab('preview')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'preview' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Visualização</button><button data-testid="tab-data" onClick={() => setTab('data')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'data' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Dados & notas</button></div></div><div className="flex-1 p-5">{csvError && isAnalysisTool ? <div data-testid="status-tool-csv-error" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-destructive" /><div><p className="text-sm font-bold text-destructive">Não foi possível ler o arquivo</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{csvError}</p><Button testId="button-retry-upload" onClick={onRetry} variant="outline" className="mt-3"><RefreshCw size={13} /> Tentar com outro arquivo</Button></div></div></div> : isAnalysisTool && !hasCompatibleData ? <div data-testid="status-tool-no-data" className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold">Visualização indisponível</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{unavailableMessage}</p></div></div></div> : tab === 'preview' ? <>{isPareto && pareto ? <ParetoChart data={pareto} cumulative={cumulative} source={source} /> : isImr && imr ? <ImrChart data={imr} source={source} /> : tool.id === 'voc' ? <VocCqtMap rows={pipeline?.vocCtq ?? []} hasPipeline={Boolean(pipeline)} hasDiagnosis={hasDiagnosis} /> : <GenericPreview tool={tool} pipeline={pipeline} />}</> : <DataNotes tool={tool} pareto={pareto} imr={imr} source={source} />}</div><div className="border-t border-border bg-card px-5 py-4"><div className="flex items-center justify-between gap-3"><span className="mono-label text-muted-foreground">{pipeline ? 'Conteúdo gerado por Gemini' : hasInputDataset && isAnalysisTool ? hasCompatibleData ? 'Dados do CSV · local' : 'Sem dados compatíveis' : 'Conteúdo de exemplo · local'}</span><Button testId="button-export-tool" variant="outline"><FileText size={14} /> Exportar visão</Button></div></div></section></div>;
 }
 
 function ParetoChart({ data, cumulative, source }: { data: { name: string; value: number }[]; cumulative: { name: string; value: number; pct: number }[]; source: 'example' | 'upload' }) {
@@ -1101,6 +1143,125 @@ function ImrChart({ data, source }: { data: number[]; source: 'example' | 'uploa
   const points = data.map((value, index) => `${(index / (data.length - 1)) * width},${yFor(value)}`).join(' ');
   const signals = data.filter((value) => value > upperControl || value < lowerControl).length;
   return <div><div className="mb-5 flex items-start justify-between"><div><p className="mono-label text-chart-3">{source === 'upload' ? 'Dados do CSV' : 'Exemplo gerado'}</p><h3 className="mt-2 font-serif text-lg font-bold">A variação está respirando?</h3><p className="mt-1 text-xs text-muted-foreground">I-MR · sequência de {data.length} medições</p></div><Activity size={20} className="text-chart-3" /></div><div className="rounded-xl border border-border bg-card p-3"><svg viewBox={`0 0 ${width} ${height + 25}`} className="h-auto w-full overflow-visible"><line x1="0" x2={width} y1={yFor(mean)} y2={yFor(mean)} stroke="hsl(var(--primary) / .35)" strokeDasharray="4 4" /><line x1="0" x2={width} y1={yFor(upperControl)} y2={yFor(upperControl)} stroke="hsl(var(--chart-3) / .45)" strokeDasharray="4 4" /><line x1="0" x2={width} y1={yFor(lowerControl)} y2={yFor(lowerControl)} stroke="hsl(var(--destructive) / .45)" strokeDasharray="4 4" /><polyline fill="none" stroke="hsl(var(--chart-3))" strokeWidth="2.5" points={points} />{data.map((value, index) => <circle key={index} cx={(index / (data.length - 1)) * width} cy={yFor(value)} r="3.5" fill="hsl(var(--chart-3))" />)}</svg><div data-testid="text-imr-limits" className="mt-2 flex justify-between mono-label text-muted-foreground"><span>LSC · {formatMetric(upperControl)}</span><span>média · {formatMetric(mean)}</span><span>LIC · {formatMetric(lowerControl)}</span></div></div><div className="mt-4 grid grid-cols-3 gap-2"><div className="rounded-lg bg-muted p-3"><p className="mono-label text-muted-foreground">Média</p><p className="mt-1 font-mono text-sm font-bold">{formatMetric(mean)}</p></div><div className="rounded-lg bg-primary/8 p-3"><p className="mono-label text-primary">Sinais</p><p className="mt-1 font-mono text-sm font-bold text-primary">{signals}</p></div><div className="rounded-lg bg-accent/12 p-3"><p className="mono-label text-accent-foreground">MR médio</p><p className="mt-1 font-mono text-sm font-bold">{formatMetric(meanMovingRange)}</p></div></div></div>;
+}
+
+const exampleVocRows: DmaicVocCqt[] = [
+  {
+    vocNeed: 'Receber uma resposta previsível e sem retrabalho.',
+    clientType: 'internal',
+    client: 'Agência solicitante',
+    sourceType: 'reactive',
+    source: 'Chamados e registros de retrabalho',
+    directioner: 'Fluxo claro, com retorno dentro do prazo combinado.',
+    ctq: 'Previsibilidade do atendimento',
+    ctp: 'Triagem e aprovação sem reentrada',
+    measure: 'Percentual de solicitações concluídas no prazo definido.',
+    issue: 'Variação do prazo gera cobranças e retrabalho.',
+    ctqMetric: '% concluído no prazo',
+  },
+  {
+    vocNeed: 'Saber quando a solicitação será concluída.',
+    clientType: 'external',
+    client: 'Cliente que aguarda o crédito',
+    sourceType: 'active',
+    source: 'Entrevista ou pesquisa a planejar',
+    directioner: 'Comunicação simples sobre prazo e status.',
+    ctq: 'Clareza do compromisso',
+    ctp: 'Atualização de status ao longo do fluxo',
+    measure: 'Percentual de clientes que reconhecem o status e o prazo.',
+    issue: 'Necessidade inferida do problema; validar com consumidores.',
+    ctqMetric: '% de entendimento do status',
+  },
+];
+
+function VocCqtMap({ rows, hasPipeline, hasDiagnosis }: { rows: DmaicVocCqt[]; hasPipeline: boolean; hasDiagnosis: boolean }) {
+  const hasGeneratedMap = hasPipeline && rows.length > 0;
+  const displayRows = hasGeneratedMap ? rows : exampleVocRows;
+  return <div data-testid="map-voc-ctq" className="space-y-6">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="mono-label text-primary">{hasGeneratedMap ? 'Mapa gerado pelo pipeline' : 'Exemplo orientativo'}</p>
+        <h3 className="mt-2 font-serif text-lg font-bold">Da voz às medidas que orientam o projeto</h3>
+        <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">Cada linha conecta uma necessidade a um cliente, uma fonte, um direcionador e critérios mensuráveis de qualidade e processo.</p>
+      </div>
+      <Network size={20} className="shrink-0 text-primary" />
+    </div>
+
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold">Fluxo do método VOC</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">A voz precisa ser planejada e validada antes de virar requisito.</p>
+        </div>
+        <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${hasGeneratedMap ? 'bg-primary/10 text-primary' : 'bg-accent/20 text-accent-foreground'}`}>{hasGeneratedMap ? `${displayRows.length} linhas` : 'Aguardando geração'}</span>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-5">
+        {[
+          ['01', 'Identificar clientes'],
+          ['02', 'Planejar fontes'],
+          ['03', 'Analisar necessidades'],
+          ['04', 'Traduzir em CTQs/CTPs'],
+          ['05', 'Estabelecer medidas'],
+        ].map(([number, label]) => <div key={number} className="relative rounded-lg bg-muted/65 p-3 sm:min-h-[82px]">
+          <span className="font-mono text-[10px] font-bold text-primary">{number}</span>
+          <p className="mt-2 text-[11px] font-bold leading-snug">{label}</p>
+          {number !== '05' && <ArrowRight size={13} className="absolute -right-2 top-1/2 z-10 hidden -translate-y-1/2 bg-background text-muted-foreground sm:block" />}
+        </div>)}
+      </div>
+    </div>
+
+    <div className="grid gap-3 sm:grid-cols-2">
+      <div data-testid="guide-voc-clients" className="rounded-xl border border-border p-4">
+        <div className="flex items-center gap-2"><Layers3 size={15} className="text-primary" /><p className="text-xs font-bold">Quem é o cliente?</p></div>
+        <div className="mt-3 space-y-2 text-[11px] leading-relaxed">
+          <p><strong>Interno · Voz do Negócio:</strong> áreas, equipes e parceiros internos que recebem ou entregam o processo.</p>
+          <p><strong>Externo · Voz do Consumidor:</strong> quem usa, recebe ou é impactado pelo produto ou serviço.</p>
+        </div>
+      </div>
+      <div data-testid="guide-voc-sources" className="rounded-xl border border-border p-4">
+        <div className="flex items-center gap-2"><ClipboardList size={15} className="text-chart-3" /><p className="text-xs font-bold">De onde vem a voz?</p></div>
+        <div className="mt-3 space-y-2 text-[11px] leading-relaxed">
+          <p><strong>Reativa:</strong> reclamações, chamados, devoluções, relatórios e outros registros já existentes.</p>
+          <p><strong>Ativa:</strong> pesquisa, entrevista, grupo focal ou observação planejada para investigar a necessidade.</p>
+        </div>
+      </div>
+    </div>
+
+    {!hasGeneratedMap && <div data-testid="status-voc-no-pipeline" className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><p className="leading-relaxed"><strong>O mapa ainda é um exemplo.</strong> Preencha o Problem Statement e o Project Charter, salve o projeto e gere o pipeline para criar linhas específicas ao contexto.</p></div>}
+    {hasGeneratedMap && !hasDiagnosis && <div data-testid="status-voc-no-diagnosis" className="flex items-start gap-3 rounded-xl border border-chart-3/25 bg-chart-3/5 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-chart-3" /><p className="leading-relaxed"><strong>Diagnóstico detalhado não anexado.</strong> As necessidades foram contextualizadas com o Charter e o problema informado; recomendações e inferências ainda precisam ser validadas com clientes.</p></div>}
+
+    <div className="overflow-x-auto rounded-xl border border-border" data-testid="table-voc-ctq-scroll">
+      <div className="min-w-[980px]">
+        <div className="grid grid-cols-[1.05fr_1.12fr_1.05fr_1.22fr] border-b border-border bg-sidebar px-4 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground">
+          <div>Necessidade</div>
+          <div>Clientes</div>
+          <div>Direcionadores</div>
+          <div>CTQs / CTPs</div>
+        </div>
+        {displayRows.map((row, index) => <div key={`${row.vocNeed}-${index}`} data-testid={`row-voc-ctq-${index}`} className="grid grid-cols-[1.05fr_1.12fr_1.05fr_1.22fr] border-b border-border last:border-0">
+          <div data-testid={`text-voc-need-${index}`} className="border-r border-border bg-primary/[0.035] p-4 text-xs leading-relaxed">{row.vocNeed}</div>
+          <div className="border-r border-border p-4">
+            <span data-testid={`badge-voc-client-type-${index}`} className="inline-flex rounded-full bg-primary/10 px-2 py-1 text-[10px] font-bold text-primary">{row.clientType === 'external' ? 'Externo · Voz do Consumidor' : 'Interno · Voz do Negócio'}</span>
+            <p data-testid={`text-voc-client-${index}`} className="mt-2 text-xs font-bold leading-relaxed">{row.client}</p>
+            <p className="mt-3 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{row.sourceType === 'active' ? 'Fonte ativa' : 'Fonte reativa'}</p>
+            <p data-testid={`text-voc-source-${index}`} className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{row.source}</p>
+          </div>
+          <div data-testid={`text-voc-directioner-${index}`} className="border-r border-border p-4 text-xs leading-relaxed">
+            <p>{row.directioner}</p>
+            <div className="mt-3 border-t border-border pt-3"><p className="mono-label text-muted-foreground">Dor / hipótese</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{row.issue}</p></div>
+          </div>
+          <div className="p-4">
+            <p className="mono-label text-primary">CTQ</p>
+            <p data-testid={`text-voc-ctq-${index}`} className="mt-1 text-xs font-bold leading-relaxed">{row.ctq}</p>
+            <p className="mt-3 mono-label text-chart-3">CTP</p>
+            <p data-testid={`text-voc-ctp-${index}`} className="mt-1 text-[11px] leading-relaxed">{row.ctp}</p>
+            <div className="mt-3 rounded-lg bg-muted/70 p-2.5"><p className="mono-label text-muted-foreground">Medida / aceitação</p><p data-testid={`text-voc-measure-${index}`} className="mt-1 text-[11px] font-semibold leading-relaxed">{row.measure}</p><p className="mt-2 mono-label text-muted-foreground">Métrica de referência</p><p data-testid={`text-voc-ctq-metric-${index}`} className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{row.ctqMetric}</p></div>
+          </div>
+        </div>)}
+      </div>
+    </div>
+    <p className="text-[10px] leading-relaxed text-muted-foreground">As fontes, necessidades inferidas e recomendações devem ser confirmadas por entrevistas, pesquisas, registros ou observação do processo. O mapa não substitui a coleta real de VOC.</p>
+  </div>;
 }
 
 function GenericPreview({ tool, pipeline }: { tool: Tool; pipeline: DmaicPipeline | null }) {
@@ -1633,7 +1794,7 @@ function Workspace() {
         </div>
       </main>
     </div>
-     {selectedTool && <DetailDrawer tool={selectedTool} onClose={() => setSelectedTool(null)} pareto={pareto} imr={imr} inputAnalysis={inputAnalysis} hasInputDataset={Boolean(inputDataset)} csvError={csvError} onRetry={retryUpload} pipeline={pipelineData} />}
+     {selectedTool && <DetailDrawer tool={selectedTool} onClose={() => setSelectedTool(null)} pareto={pareto} imr={imr} inputAnalysis={inputAnalysis} hasInputDataset={Boolean(inputDataset)} csvError={csvError} onRetry={retryUpload} pipeline={pipelineData} hasDiagnosis={Boolean(pipelineAnalysisContext?.diagnosis)} />}
   </div>;
 }
 /*

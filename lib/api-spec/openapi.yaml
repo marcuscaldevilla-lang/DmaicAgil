@@ -567,9 +567,17 @@ components:
         beltSquadMembers: { type: string }
     DmaicVocCqt:
       type: object
-      required: [vocNeed, issue, ctqMetric]
+      required: [vocNeed, clientType, client, sourceType, source, directioner, ctq, ctp, measure, issue, ctqMetric]
       properties:
         vocNeed: { type: string }
+        clientType: { type: string, enum: [internal, external] }
+        client: { type: string }
+        sourceType: { type: string, enum: [reactive, active] }
+        source: { type: string }
+        directioner: { type: string }
+        ctq: { type: string }
+        ctp: { type: string }
+        measure: { type: string }
         issue: { type: string }
         ctqMetric: { type: string }
     DmaicIndicator:

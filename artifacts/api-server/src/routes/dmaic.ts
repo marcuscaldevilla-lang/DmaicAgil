@@ -46,7 +46,7 @@ Responda SOMENTE com JSON válido, sem markdown, seguindo exatamente esta estrut
   "generatedCharter":{"objective":"","history":"","goalDefinition":"","kpis":"","includedScope":"","excludedScope":"","assumptionsAndConstraints":"","customerRequirements":"","businessContributions":"","businessContributionsQuantitative":"","businessContributionsQualitative":"","financialGainValue":""},
   "projectCharter":{"projectTitle":"","problemStatement":"","businessCase":"","expectedSavings":""},
   "teamSetup":{"productOwner":"","scrumMaster":"","beltSquadMembers":""},
-  "vocCtq":[{"vocNeed":"","issue":"","ctqMetric":""}],
+  "vocCtq":[{"vocNeed":"","clientType":"internal","client":"","sourceType":"reactive","source":"","directioner":"","ctq":"","ctp":"","measure":"","issue":"","ctqMetric":""}],
   "indicatorsY":{"primaryMetricY":"","operationalDefinition":"","targetGoal":"","baseline":""},
   "sipoc":{"suppliers":[""],"inputs":[""],"process":[""],"outputs":[""],"customers":[""]},
   "inOutMatrix":{"inScope":[""],"outOfScope":[""]},
@@ -60,7 +60,7 @@ Responda SOMENTE com JSON válido, sem markdown, seguindo exatamente esta estrut
   "controlPlan":[{"parameter":"","specification":"","measurementFreq":"","responsible":"","reactionPlan":""}],
   "standardizationSop":[{"procedureName":"","pokaYokeFeature":"","ocapTrigger":""}]
 }
-Use 1 ou 2 itens concisos por lista. Todos os valores devem ser strings. Em "generatedCharter", preencha todos os doze campos com sugestões diretamente derivadas do problema informado e do contexto do Charter. Reescreva "goalDefinition" como uma meta SMART coerente com objetivo, KPIs, baseline, escopo, contribuições quantitativas e informações financeiras coletadas; não repita automaticamente uma meta antiga se os dados coletados apontarem outra. Quando houver resumo estatístico, use a mediana/média, a dispersão, quartis, IQR, normalidade e categorias como evidências explícitas para o baseline, a meta proposta e as contribuições. Diferencie o que foi observado nos dados do que é uma recomendação: estatísticas não confirmam uma meta, uma causa ou um ganho. Não invente causalidade, tendência, distribuição ou números ausentes; se não houver análise, declare que a linha de base estatística ainda precisa ser medida. Quando as informações financeiras trouxerem uma meta ideal e um prazo, esses valores definem a meta principal do projeto: escreva explicitamente a evolução do baseline até a meta ideal no prazo informado, em vez de manter a meta antiga como objetivo principal e citar a meta ideal apenas como visão futura. Para "financialGainValue", calcule uma estimativa somente a partir dos números, moeda, período, volume, custo unitário, percentual e premissas explicitamente presentes em "businessContributionsQuantitative" e "financialInformation". Mostre a fórmula ou a lógica usada e deixe claro o período, a moeda e as premissas. Quando uma fórmula informar um ganho por ponto percentual acima de um limiar e o contexto informar uma meta acima desse limiar, calcule os pontos elegíveis como (meta - limiar), multiplique pelo ganho por ponto e pelo volume informado, e prorrogue proporcionalmente ao período informado; não descarte a conta apenas porque o baseline está abaixo do limiar. Por exemplo, uma fórmula de ganho acima de 75%, com meta de 90%, volume anual de 192.000 clientes e prazo de 6 meses, usa 15 pontos percentuais, 192 lotes de 1.000 clientes e metade do valor anual. Se os campos realmente não trouxerem dados suficientes para uma conta defensável, diga que não foi possível calcular e liste o dado faltante. Nunca invente valor, custo, volume, receita, economia, ROI ou payback, nem apresente estimativa como valor confirmado. O campo de informações financeiras coletadas é factual e pertence ao time, não à IA. As contribuições quantitativas, qualitativas e o ganho financeiro devem permanecer como propostas para validação; valores calculados devem ser validados com Financeiro. Seja específico ao problema e realista, sem afirmar como medidos dados que não foram informados. Quando houver contexto de Project Charter fornecido pela equipe, trate-o como fonte prioritária e reaproveite seus termos, metas, responsáveis, limites e informações financeiras coletadas.`;
+Use 1 ou 2 itens concisos por lista. Todos os valores devem ser strings. Em "generatedCharter", preencha todos os doze campos com sugestões diretamente derivadas do problema informado e do contexto do Charter. Reescreva "goalDefinition" como uma meta SMART coerente com objetivo, KPIs, baseline, escopo, contribuições quantitativas e informações financeiras coletadas; não repita automaticamente uma meta antiga se os dados coletados apontarem outra. Quando houver resumo estatístico, use a mediana/média, a dispersão, quartis, IQR, normalidade e categorias como evidências explícitas para o baseline, a meta proposta e as contribuições. Diferencie o que foi observado nos dados do que é uma recomendação: estatísticas não confirmam uma meta, uma causa ou um ganho. Não invente causalidade, tendência, distribuição ou números ausentes; se não houver análise, declare que a linha de base estatística ainda precisa ser medida. Quando as informações financeiras trouxerem uma meta ideal e um prazo, esses valores definem a meta principal do projeto: escreva explicitamente a evolução do baseline até a meta ideal no prazo informado, em vez de manter a meta antiga como objetivo principal e citar a meta ideal apenas como visão futura. Para "financialGainValue", calcule uma estimativa somente a partir dos números, moeda, período, volume, custo unitário, percentual e premissas explicitamente presentes em "businessContributionsQuantitative" e "financialInformation". Mostre a fórmula ou a lógica usada e deixe claro o período, a moeda e as premissas. Quando uma fórmula informar um ganho por ponto percentual acima de um limiar e o contexto informar uma meta acima desse limiar, calcule os pontos elegíveis como (meta - limiar), multiplique pelo ganho por ponto e pelo volume informado, e prorrogue proporcionalmente ao período informado; não descarte a conta apenas porque o baseline está abaixo do limiar. Por exemplo, uma fórmula de ganho acima de 75%, com meta de 90%, volume anual de 192.000 clientes e prazo de 6 meses, usa 15 pontos percentuais, 192 lotes de 1.000 clientes e metade do valor anual. Se os campos realmente não trouxerem dados suficientes para uma conta defensável, diga que não foi possível calcular e liste o dado faltante. Nunca invente valor, custo, volume, receita, economia, ROI ou payback, nem apresente estimativa como valor confirmado. O campo de informações financeiras coletadas é factual e pertence ao time, não à IA. As contribuições quantitativas, qualitativas e o ganho financeiro devem permanecer como propostas para validação; valores calculados devem ser validados com Financeiro. Seja específico ao problema e realista, sem afirmar como medidos dados que não foram informados. Quando houver contexto de Project Charter fornecido pela equipe, trate-o como fonte prioritária e reaproveite seus termos, metas, responsáveis, limites e informações financeiras coletadas. Para "vocCtq", gere 2 a 5 linhas específicas ao problema usando o Project Charter e o diagnóstico detalhado quando disponíveis. Cada linha deve separar: "clientType" como "internal" (cliente interno / Voz do Negócio) ou "external" (cliente externo / Voz do Consumidor); "client"; "sourceType" como "reactive" (reclamações, suporte, devoluções, relatórios ou registros existentes) ou "active" (pesquisa, entrevista, grupo focal ou observação planejada); "source"; "vocNeed" em linguagem da necessidade; "directioner" como requisito orientador; "ctq" como Critical to Quality; "ctp" como Critical to Process; e "measure" como medida operacional ou critério de aceitação. Use "issue" para resumir a dor observada e "ctqMetric" como cópia concisa da medida principal. Não invente falas de clientes, fontes coletadas, metas ou evidências: quando algo for inferido a partir do Charter ou diagnóstico, indique que é hipótese para validação da equipe.`;
 
 const EXPLORATORY_SYSTEM_PROMPT = `Você é um Master Black Belt em Lean Six Sigma, com experiência em análise estatística aplicada.
 Elabore um diagnóstico detalhado em português do Brasil sobre a série temporal e as estatísticas fornecidas.
@@ -291,6 +291,55 @@ function normalizeBusinessContributionSuggestion(
   return `${suggestion} Proposta da IA para validação com o time.`;
 }
 
+function textValue(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function normalizeVocCqt(value: unknown) {
+  const source = isPlainRecord(value) ? value : {};
+  const vocNeed = textValue(source.vocNeed ?? source.need, "Necessidade do cliente a validar com a equipe.");
+  const issue = textValue(source.issue ?? source.observedIssue, "Dor do cliente a confirmar por fonte de voz.");
+  const ctqMetric = textValue(source.ctqMetric ?? source.measure, "Medida principal a definir com o cliente.");
+  const clientType = source.clientType === "external" ? "external" : "internal";
+  const sourceType = source.sourceType === "active" ? "active" : "reactive";
+  return {
+    vocNeed,
+    clientType,
+    client: textValue(source.client ?? source.customer, "Cliente a identificar com o time."),
+    sourceType,
+    source: textValue(source.source, sourceType === "active" ? "Pesquisa, entrevista ou observação a planejar." : "Registro, reclamação ou suporte a confirmar."),
+    directioner: textValue(source.directioner ?? source.requirement, "Requisito orientador a validar com o cliente."),
+    ctq: textValue(source.ctq ?? source.criticalToQuality, ctqMetric),
+    ctp: textValue(source.ctp ?? source.criticalToProcess, "Etapa do processo a definir e validar."),
+    measure: textValue(source.measure ?? source.ctqMetric, ctqMetric),
+    issue,
+    ctqMetric,
+  };
+}
+
+function isLegacyVocCqt(value: unknown): boolean {
+  if (!isPlainRecord(value)) return false;
+  const legacyFields = ["vocNeed", "issue", "ctqMetric"];
+  return Object.keys(value).length === legacyFields.length
+    && legacyFields.every((field) => typeof value[field] === "string");
+}
+
+function normalizePersistedPipeline(value: unknown) {
+  if (!isPlainRecord(value) || !Array.isArray(value.vocCtq) || value.vocCtq.length === 0 || !value.vocCtq.every(isLegacyVocCqt)) return value;
+  return {
+    ...value,
+    vocCtq: value.vocCtq.map(normalizeVocCqt),
+  };
+}
+
+function normalizeAnalysisArtifacts(value: unknown) {
+  if (!isPlainRecord(value)) return emptyAnalysisArtifacts();
+  return {
+    ...value,
+    pipeline: value.pipeline ? normalizePersistedPipeline(value.pipeline) : null,
+  };
+}
+
 function parseProjectKey(value: unknown): number | null {
   if (typeof value !== "string" || !/^[1-9]\d*$/.test(value)) return null;
   const projectKey = Number(value);
@@ -340,7 +389,7 @@ function serializeWorkspace(row?: DmaicWorkspaceRow) {
       projectCharterContext.financialInformation,
       projectCharterContext.businessContributionsQuantitative,
     ),
-    analysisArtifacts: row.analysisArtifacts ?? emptyAnalysisArtifacts(),
+       analysisArtifacts: normalizeAnalysisArtifacts(row.analysisArtifacts),
     revision: row.revision,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -665,6 +714,11 @@ router.post("/dmaic/pipeline", async (req, res): Promise<void> => {
         "Gemini returned an invalid DMAIC pipeline structure",
       );
       res.status(502).json({ error: "A geração ficou incompleta. Tente novamente." });
+      return;
+    }
+    if (pipeline.data.vocCtq.length < 2 || pipeline.data.vocCtq.length > 5) {
+      req.log.error({ count: pipeline.data.vocCtq.length }, "Gemini returned an invalid number of VOC/CTQ rows");
+      res.status(502).json({ error: "O mapa VOC/CTQ retornou uma quantidade inválida de linhas. Tente novamente." });
       return;
     }
 
