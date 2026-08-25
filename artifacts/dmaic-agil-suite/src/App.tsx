@@ -1072,6 +1072,7 @@ function Workspace() {
   const workspaceSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const workspaceSessionRef = useRef(0);
   const workspaceProjectKeyRef = useRef<number | null>(initialLocalDraft?.projectKey ?? null);
+  const analysisDirtyRef = useRef(false);
   const workspaceRevisionRef = useRef(initialLocalDraft?.baseRevision ?? 0);
   const workspaceLocalDraftRef = useRef<WorkspaceLocalDraft | null>(initialLocalDraft);
   const draftWriteEnabledRef = useRef(Boolean(initialLocalDraft));
@@ -1116,6 +1117,7 @@ function Workspace() {
   };
   const applyWorkspaceSnapshot = (workspace: DmaicWorkspace) => {
     const draft = workspaceToLocalDraft(workspace);
+    analysisDirtyRef.current = false;
     setProjectKey(draft.projectKey);
     workspaceProjectKeyRef.current = draft.projectKey;
     setStatement(draft.statement);
@@ -1237,6 +1239,7 @@ function Workspace() {
       attempt,
       {
         onSuccess: (savedWorkspace) => {
+          if (source === 'statement') analysisDirtyRef.current = false;
           draftWriteEnabledRef.current = true;
           const current = workspaceStateRef.current;
           const updatedDraft: WorkspaceLocalDraft = {
@@ -1272,8 +1275,13 @@ function Workspace() {
   const handleDiagnosisChange = (diagnosis: string | null, diagnosisInput: DmaicExploratoryDiagnosisInput) => {
     setExploratoryDiagnosis(diagnosis);
     setExploratoryDiagnosisInput(diagnosisInput);
+    analysisDirtyRef.current = true;
     if (diagnosis && projectKey) saveWorkspace('statement', undefined, { ...createAnalysisArtifacts(), diagnosis, diagnosisInput });
   };
+  useEffect(() => {
+    if (!workspaceHydrated || !projectKey || !inputDataset || !analysisDirtyRef.current) return;
+    saveWorkspace('statement');
+  }, [analysisMonths, inputDataset, projectKey, selectedIndicator, workspaceHydrated]);
   const applyLatestWorkspace = (latestWorkspace: DmaicWorkspace) => {
     applyWorkspaceSnapshot(latestWorkspace);
     setWorkspaceConflict(null);
@@ -1338,9 +1346,11 @@ function Workspace() {
     setCharter((current) => ({ ...current, team: { ...current.team, [role]: { ...current.team[role], [field]: value } } }));
   };
   const updateAnalysisMonths = (months: number) => {
+    analysisDirtyRef.current = true;
     setAnalysisMonths(months);
   };
   const updateSelectedIndicator = (indicator: string) => {
+    analysisDirtyRef.current = true;
     setSelectedIndicator(indicator);
   };
   const loadSelectedProject = async () => {
@@ -1380,6 +1390,7 @@ function Workspace() {
     const freshCharter = createProjectCharterDraft();
     setProjectKey(null);
     workspaceProjectKeyRef.current = null;
+    analysisDirtyRef.current = false;
     setSelectedProjectKey('');
     setStatement('');
     setCharter(freshCharter);
@@ -1481,6 +1492,7 @@ function Workspace() {
       try {
         const dataset = parseInputCsv(String(reader.result ?? ''), file.name);
         if (uploadVersion !== uploadVersionRef.current) return;
+        analysisDirtyRef.current = true;
         setInputDataset(dataset);
         setSelectedIndicator(dataset.indicatorColumns[0]);
       } catch (error) {
