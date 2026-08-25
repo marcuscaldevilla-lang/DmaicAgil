@@ -395,6 +395,8 @@ export interface DmaicAnalysisArtifacts {
   pareto: DmaicParetoItem[];
   imr: number[];
   pipeline: DmaicPipeline | null;
+  /** Indicadores VOC/CTQ adicionados e revisados manualmente pela equipe. */
+  manualVocCtq?: DmaicVocCqt[];
 }
 
 export interface DmaicWorkspaceInput {

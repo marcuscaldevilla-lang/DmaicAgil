@@ -542,7 +542,20 @@ export const GetDmaicWorkspaceResponse = zod.object({
   "actionPlan": zod.array(zod.record(zod.string(), zod.string())),
   "controlPlan": zod.array(zod.record(zod.string(), zod.string())),
   "standardizationSop": zod.array(zod.record(zod.string(), zod.string()))
-}),zod.null()])
+}),zod.null()]),
+  "manualVocCtq": zod.array(zod.object({
+  "vocNeed": zod.string(),
+  "clientType": zod.enum(['internal', 'external']),
+  "client": zod.string(),
+  "sourceType": zod.enum(['reactive', 'active']),
+  "source": zod.string(),
+  "directioner": zod.string(),
+  "ctq": zod.string(),
+  "ctp": zod.string(),
+  "measure": zod.string(),
+  "issue": zod.string(),
+  "ctqMetric": zod.string()
+})).optional().describe('Indicadores VOC\/CTQ adicionados e revisados manualmente pela equipe.')
 }).describe('Current derived data and generated artifacts associated with a DMAIC project.'),
   "revision": zod.number().min(getDmaicWorkspaceResponseRevisionMin),
   "createdAt": zod.coerce.date(),
@@ -886,7 +899,20 @@ export const SaveDmaicWorkspaceBody = zod.object({
   "actionPlan": zod.array(zod.record(zod.string(), zod.string())),
   "controlPlan": zod.array(zod.record(zod.string(), zod.string())),
   "standardizationSop": zod.array(zod.record(zod.string(), zod.string()))
-}),zod.null()])
+}),zod.null()]),
+  "manualVocCtq": zod.array(zod.object({
+  "vocNeed": zod.string(),
+  "clientType": zod.enum(['internal', 'external']),
+  "client": zod.string(),
+  "sourceType": zod.enum(['reactive', 'active']),
+  "source": zod.string(),
+  "directioner": zod.string(),
+  "ctq": zod.string(),
+  "ctp": zod.string(),
+  "measure": zod.string(),
+  "issue": zod.string(),
+  "ctqMetric": zod.string()
+})).optional().describe('Indicadores VOC\/CTQ adicionados e revisados manualmente pela equipe.')
 }).optional().describe('Current CSV-derived analysis data and generated artifacts. Omit for backwards-compatible saves without analysis data.'),
   "expectedRevision": zod.number().min(saveDmaicWorkspaceBodyExpectedRevisionMin).describe('Monotonic version returned by the last workspace read or save. Send 0 when creating the workspace for the first time.')
 })
@@ -1221,7 +1247,20 @@ export const SaveDmaicWorkspaceResponse = zod.object({
   "actionPlan": zod.array(zod.record(zod.string(), zod.string())),
   "controlPlan": zod.array(zod.record(zod.string(), zod.string())),
   "standardizationSop": zod.array(zod.record(zod.string(), zod.string()))
-}),zod.null()])
+}),zod.null()]),
+  "manualVocCtq": zod.array(zod.object({
+  "vocNeed": zod.string(),
+  "clientType": zod.enum(['internal', 'external']),
+  "client": zod.string(),
+  "sourceType": zod.enum(['reactive', 'active']),
+  "source": zod.string(),
+  "directioner": zod.string(),
+  "ctq": zod.string(),
+  "ctp": zod.string(),
+  "measure": zod.string(),
+  "issue": zod.string(),
+  "ctqMetric": zod.string()
+})).optional().describe('Indicadores VOC\/CTQ adicionados e revisados manualmente pela equipe.')
 }).describe('Current derived data and generated artifacts associated with a DMAIC project.'),
   "revision": zod.number().min(saveDmaicWorkspaceResponseRevisionMin),
   "createdAt": zod.coerce.date(),

@@ -558,6 +558,11 @@ components:
           anyOf:
             - $ref: "#/components/schemas/DmaicPipeline"
             - type: "null"
+        manualVocCtq:
+          description: Indicadores VOC/CTQ adicionados e revisados manualmente pela equipe.
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicVocCqt"
     DmaicTeam:
       type: object
       required: [productOwner, scrumMaster, beltSquadMembers]

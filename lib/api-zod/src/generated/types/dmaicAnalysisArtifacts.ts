@@ -12,6 +12,7 @@ import type { DmaicIndicatorAnalysis } from './dmaicIndicatorAnalysis';
 import type { DmaicParetoItem } from './dmaicParetoItem';
 import type { DmaicPipeline } from './dmaicPipeline';
 import type { DmaicPipelineAnalysisContext } from './dmaicPipelineAnalysisContext';
+import type { DmaicVocCqt } from './dmaicVocCqt';
 
 /**
  * Current derived data and generated artifacts associated with a DMAIC project.
@@ -35,4 +36,6 @@ export interface DmaicAnalysisArtifacts {
   pareto: DmaicParetoItem[];
   imr: number[];
   pipeline: DmaicPipeline | null;
+  /** Indicadores VOC/CTQ adicionados e revisados manualmente pela equipe. */
+  manualVocCtq?: DmaicVocCqt[];
 }
