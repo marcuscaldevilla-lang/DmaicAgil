@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicExploratoryDiagnosisInput, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicVocCqt, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
+import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicCharter, type DmaicExploratoryDiagnosisInput, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicVocCqt, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -114,6 +114,39 @@ const charterTextFields = ['projectName', 'client', 'area', 'leader', 'sponsor',
 const legacyCharterTextFields = ['projectName', 'client', 'area', 'leader', 'sponsor', 'date', 'objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions'] as const;
 const generatedCharterFields = ['objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions', 'businessContributionsQuantitative', 'businessContributionsQualitative', 'financialGainValue'] as const satisfies readonly (keyof GeneratedCharterFields)[];
 const legacyGeneratedCharterFields = ['objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions'] as const;
+const CHARTER_FIELD_LABELS: Record<CharterTextField, string> = {
+  projectName: 'Projeto',
+  client: 'Cliente',
+  area: 'Área',
+  leader: 'Líder',
+  sponsor: 'Patrocinador',
+  date: 'Data',
+  objective: 'Objetivo do projeto',
+  history: 'Justificativa / histórico',
+  goalDefinition: 'Definição da meta',
+  kpis: 'KPIs',
+  includedScope: 'Limites do projeto — inclui',
+  excludedScope: 'Limites do projeto — exclui',
+  assumptionsAndConstraints: 'Premissas e restrições do projeto',
+  customerRequirements: 'Requisitos do cliente',
+  businessContributions: 'Contribuições para o negócio — resumo',
+  businessContributionsQuantitative: 'Contribuições quantitativas',
+  businessContributionsQualitative: 'Contribuições qualitativas',
+  financialGainValue: 'Valor do ganho financeiro esperado',
+  financialInformation: 'Informações financeiras coletadas',
+};
+const CHARTER_TEAM_ROLE_LABELS: Record<CharterTeamRole, string> = {
+  leader: 'Líder',
+  sponsor: 'Patrocinador',
+  teamMembers: 'Membros da equipe',
+  technicalSupport: 'Especialistas para suporte técnico',
+};
+const AI_PROJECT_CHARTER_PREVIEW_LABELS: Record<keyof DmaicCharter, string> = {
+  projectTitle: 'Título',
+  problemStatement: 'Definição do Problema',
+  businessCase: 'Business Case',
+  expectedSavings: 'Ganhos Esperados',
+};
 
 const createEmptyAnalysisArtifacts = (): DmaicAnalysisArtifacts => ({
   version: 1,
@@ -1158,7 +1191,7 @@ function InputDataPanel({ dataset, analysis, error, months, onMonthsChange, sele
   </section>;
 }
 
-function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDataset, csvError, onRetry, pipeline, hasDiagnosis = false, manualRows, hasManualChanges, manualSaveConfirmed, onManualRowsChange, onSaveManualRows }: { tool: Tool; onClose: () => void; pareto: { name: string; value: number }[] | null; imr: number[] | null; inputAnalysis?: IndicatorAnalysis | null; hasInputDataset: boolean; csvError: string | null; onRetry: () => void; pipeline: DmaicPipeline | null; hasDiagnosis?: boolean; manualRows: DmaicVocCqt[]; hasManualChanges: boolean; manualSaveConfirmed: boolean; onManualRowsChange: (rows: DmaicVocCqt[]) => void; onSaveManualRows: () => void }) {
+function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDataset, csvError, onRetry, pipeline, hasDiagnosis = false, manualRows, hasManualChanges, manualSaveConfirmed, onManualRowsChange, onSaveManualRows, charter, activeProjectName }: { tool: Tool; onClose: () => void; pareto: { name: string; value: number }[] | null; imr: number[] | null; inputAnalysis?: IndicatorAnalysis | null; hasInputDataset: boolean; csvError: string | null; onRetry: () => void; pipeline: DmaicPipeline | null; hasDiagnosis?: boolean; manualRows: DmaicVocCqt[]; hasManualChanges: boolean; manualSaveConfirmed: boolean; onManualRowsChange: (rows: DmaicVocCqt[]) => void; onSaveManualRows: () => void; charter?: ProjectCharterDraft; activeProjectName?: string }) {
   const [tab, setTab] = useState<'preview' | 'data'>('preview');
   const isPareto = tool.id === 'pareto';
   const isImr = tool.id === 'imr';
@@ -1174,7 +1207,7 @@ function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDatas
       : inputAnalysis.kind === 'continuous' && inputAnalysis.values.length < 2
         ? 'O I-MR precisa de pelo menos duas observações sequenciais no recorte selecionado.'
         : 'O I-MR é aplicável somente a indicadores contínuos. Selecione um indicador numérico compatível.';
-  return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}><section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-[560px] flex-col overflow-y-auto border-l border-border bg-background shadow-2xl"><div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur"><div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">{pipeline ? 'Gerado com IA' : manualRows.length > 0 ? 'Editado pela equipe' : tool.tag ?? 'Entregável gerado'}</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div><div className="border-b border-border px-5 pt-4"><div className="flex gap-5"><button data-testid="tab-preview" onClick={() => setTab('preview')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'preview' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Visualização</button><button data-testid="tab-data" onClick={() => setTab('data')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'data' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Dados & notas</button></div></div><div className="flex-1 p-5">{csvError && isAnalysisTool ? <div data-testid="status-tool-csv-error" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-destructive" /><div><p className="text-sm font-bold text-destructive">Não foi possível ler o arquivo</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{csvError}</p><Button testId="button-retry-upload" onClick={onRetry} variant="outline" className="mt-3"><RefreshCw size={13} /> Tentar com outro arquivo</Button></div></div></div> : isAnalysisTool && !hasCompatibleData ? <div data-testid="status-tool-no-data" className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold">Visualização indisponível</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{unavailableMessage}</p></div></div></div> : tab === 'preview' ? <>{isPareto && pareto ? <ParetoChart data={pareto} cumulative={cumulative} source={source} /> : isImr && imr ? <ImrChart data={imr} source={source} /> : tool.id === 'voc' ? <VocCqtMap rows={pipeline?.vocCtq ?? []} hasPipeline={Boolean(pipeline)} hasDiagnosis={hasDiagnosis} manualRows={manualRows} hasManualChanges={hasManualChanges} hasManualSaveConfirmation={manualSaveConfirmed} onManualRowsChange={onManualRowsChange} onSaveManualRows={onSaveManualRows} /> : <GenericPreview tool={tool} pipeline={pipeline} />}</> : <DataNotes tool={tool} pareto={pareto} imr={imr} source={source} />}</div><div className="border-t border-border bg-card px-5 py-4"><div className="flex items-center justify-between gap-3"><span className="mono-label text-muted-foreground">{pipeline ? 'Conteúdo gerado por Gemini' : manualRows.length > 0 ? 'Indicadores manuais · equipe' : hasInputDataset && isAnalysisTool ? hasCompatibleData ? 'Dados do CSV · local' : 'Sem dados compatíveis' : 'Conteúdo de exemplo · local'}</span><Button testId="button-export-tool" variant="outline"><FileText size={14} /> Exportar visão</Button></div></div></section></div>;
+  return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}><section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-[560px] flex-col overflow-y-auto border-l border-border bg-background shadow-2xl"><div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur"><div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">{pipeline ? 'Gerado com IA' : manualRows.length > 0 ? 'Editado pela equipe' : tool.tag ?? 'Entregável gerado'}</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div><div className="border-b border-border px-5 pt-4"><div className="flex gap-5"><button data-testid="tab-preview" onClick={() => setTab('preview')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'preview' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Visualização</button><button data-testid="tab-data" onClick={() => setTab('data')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'data' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Dados & notas</button></div></div><div className="flex-1 p-5">{csvError && isAnalysisTool ? <div data-testid="status-tool-csv-error" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-destructive" /><div><p className="text-sm font-bold text-destructive">Não foi possível ler o arquivo</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{csvError}</p><Button testId="button-retry-upload" onClick={onRetry} variant="outline" className="mt-3"><RefreshCw size={13} /> Tentar com outro arquivo</Button></div></div></div> : isAnalysisTool && !hasCompatibleData ? <div data-testid="status-tool-no-data" className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold">Visualização indisponível</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{unavailableMessage}</p></div></div></div> : tab === 'preview' ? <>{isPareto && pareto ? <ParetoChart data={pareto} cumulative={cumulative} source={source} /> : isImr && imr ? <ImrChart data={imr} source={source} /> : tool.id === 'voc' ? <VocCqtMap rows={pipeline?.vocCtq ?? []} hasPipeline={Boolean(pipeline)} hasDiagnosis={hasDiagnosis} manualRows={manualRows} hasManualChanges={hasManualChanges} hasManualSaveConfirmation={manualSaveConfirmed} onManualRowsChange={onManualRowsChange} onSaveManualRows={onSaveManualRows} /> : <GenericPreview tool={tool} pipeline={pipeline} />}</> : <DataNotes tool={tool} pareto={pareto} imr={imr} source={source} />}</div><div className="border-t border-border bg-card px-5 py-4"><div className="flex items-center justify-between gap-3"><span className="mono-label text-muted-foreground">{pipeline ? 'Conteúdo gerado por Gemini' : manualRows.length > 0 ? 'Indicadores manuais · equipe' : hasInputDataset && isAnalysisTool ? hasCompatibleData ? 'Dados do CSV · local' : 'Sem dados compatíveis' : 'Conteúdo de exemplo · local'}</span><Button testId="button-export-tool" variant="outline" onClick={tool.id === 'charter' && charter ? () => exportProjectCharterPdf(charter, activeProjectName?.trim() || 'Novo projeto') : undefined}><FileText size={14} /> Exportar visão</Button></div></div></section></div>;
 }
 
 function ParetoChart({ data, cumulative, source }: { data: { name: string; value: number }[]; cumulative: { name: string; value: number; pct: number }[]; source: 'example' | 'upload' }) {
@@ -1364,9 +1397,81 @@ function VocCqtMap({ rows, hasPipeline, hasDiagnosis, manualRows, hasManualChang
   </div>;
 }
 
+function escapeCharterHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function buildProjectCharterPrintDocument(charter: ProjectCharterDraft, projectName: string): string {
+  const field = (key: CharterTextField) => {
+    const value = charter[key].trim();
+    return `<div class="field"><h3>${escapeCharterHtml(CHARTER_FIELD_LABELS[key])}</h3><p>${value ? escapeCharterHtml(value).replace(/\n/g, '<br />') : '<span class="empty">Não preenchido</span>'}</p></div>`;
+  };
+  const teamRows = (Object.keys(CHARTER_TEAM_ROLE_LABELS) as CharterTeamRole[]).map((role) => {
+    const member = charter.team[role];
+    return `<tr><td>${escapeCharterHtml(CHARTER_TEAM_ROLE_LABELS[role])}</td><td>${escapeCharterHtml(member.name.trim()) || '—'}</td><td>${escapeCharterHtml(member.position.trim()) || '—'}</td><td>${escapeCharterHtml(member.areaCompany.trim()) || '—'}</td></tr>`;
+  }).join('');
+  return `<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8" /><title>Project Charter - ${escapeCharterHtml(projectName)}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Georgia, 'Times New Roman', serif; color: #1c1917; margin: 0; padding: 36px 44px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #78716c; margin: 28px 0 12px; border-bottom: 1px solid #e7e5e4; padding-bottom: 6px; }
+  h3 { font-size: 10.5px; font-weight: 700; color: #57534e; margin: 0 0 4px; }
+  p { font-size: 12.5px; line-height: 1.5; margin: 0; }
+  .subtitle { font-size: 12px; color: #78716c; margin: 0 0 8px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 20px; }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 20px; }
+  .stack { display: grid; gap: 14px; }
+  .field { break-inside: avoid; }
+  .empty { color: #a8a29e; font-style: italic; }
+  table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-top: 4px; }
+  th, td { border: 1px solid #e7e5e4; padding: 6px 8px; text-align: left; }
+  th { background: #f5f5f4; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #78716c; }
+  .print-bar { position: sticky; top: 0; display: flex; justify-content: flex-end; margin: -36px -44px 24px; padding: 12px 44px; background: #fafaf9; border-bottom: 1px solid #e7e5e4; }
+  .print-bar button { font-family: inherit; font-size: 12px; font-weight: 700; padding: 8px 16px; border-radius: 8px; border: 1px solid #1c1917; background: #1c1917; color: #fff; cursor: pointer; }
+  @page { margin: 16mm; }
+  @media print { .print-bar { display: none; } body { padding: 0 8mm; } }
+</style></head>
+<body>
+  <div class="print-bar"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div>
+  <h1>Project Charter</h1>
+  <p class="subtitle">${escapeCharterHtml(projectName)} &middot; gerado em ${new Date().toLocaleDateString('pt-BR')}</p>
+
+  <h2>Identificação</h2>
+  <div class="grid-3">${(['projectName', 'client', 'area', 'leader', 'sponsor', 'date'] as CharterTextField[]).map(field).join('')}</div>
+
+  <h2>Objetivo e histórico</h2>
+  <div class="stack">${(['objective', 'history'] as CharterTextField[]).map(field).join('')}</div>
+
+  <h2>Meta e indicadores</h2>
+  <div class="stack">${(['goalDefinition', 'kpis'] as CharterTextField[]).map(field).join('')}</div>
+
+  <h2>Escopo e premissas</h2>
+  <div class="grid-2">${(['includedScope', 'excludedScope'] as CharterTextField[]).map(field).join('')}</div>
+  <div class="stack" style="margin-top:14px">${field('assumptionsAndConstraints')}</div>
+
+  <h2>Equipe de trabalho</h2>
+  <table><thead><tr><th>Papel</th><th>Nome</th><th>Cargo</th><th>Área / Empresa</th></tr></thead><tbody>${teamRows}</tbody></table>
+
+  <h2>Requisitos e valor para o negócio</h2>
+  <div class="stack">${(['customerRequirements', 'businessContributions'] as CharterTextField[]).map(field).join('')}</div>
+  <div class="grid-2" style="margin-top:14px">${(['businessContributionsQuantitative', 'businessContributionsQualitative', 'financialGainValue', 'financialInformation'] as CharterTextField[]).map(field).join('')}</div>
+</body></html>`;
+}
+
+function exportProjectCharterPdf(charter: ProjectCharterDraft, projectName: string) {
+  const printWindow = window.open('', '_blank', 'width=960,height=1080');
+  if (!printWindow) return;
+  printWindow.document.open();
+  printWindow.document.write(buildProjectCharterPrintDocument(charter, projectName));
+  printWindow.document.close();
+  printWindow.focus();
+}
+
 function GenericPreview({ tool, pipeline }: { tool: Tool; pipeline: DmaicPipeline | null }) {
   const first = (items: Record<string, string>[]) => Object.entries(items[0] ?? {}).map(([label, value]) => [label, value] as [string, string]);
-  const generatedRows = pipeline ? tool.id === 'charter' ? Object.entries(pipeline.projectCharter) : tool.id === 'voc' ? Object.entries(pipeline.vocCtq[0] ?? {}) : tool.id === 'msa' ? first(pipeline.msaValidation) : tool.id === 'vitalx' ? first(pipeline.vitalXs) : tool.id === 'gut' ? first(pipeline.gutPrioritization) : tool.id === 'solutions' ? first(pipeline.actionPlan) : tool.id === 'control-plan' ? first(pipeline.controlPlan) : Object.entries(pipeline.indicatorsY) : null;
+  const generatedRows = pipeline ? tool.id === 'charter' ? Object.entries(pipeline.projectCharter).map(([field, value]) => [AI_PROJECT_CHARTER_PREVIEW_LABELS[field as keyof DmaicCharter] ?? field, value] as [string, string]) : tool.id === 'voc' ? Object.entries(pipeline.vocCtq[0] ?? {}) : tool.id === 'msa' ? first(pipeline.msaValidation) : tool.id === 'vitalx' ? first(pipeline.vitalXs) : tool.id === 'gut' ? first(pipeline.gutPrioritization) : tool.id === 'solutions' ? first(pipeline.actionPlan) : tool.id === 'control-plan' ? first(pipeline.controlPlan) : Object.entries(pipeline.indicatorsY) : null;
   const rows = generatedRows?.length ? generatedRows : tool.id === 'charter' ? [['Objetivo', 'Reduzir o lead time total'], ['Meta', 'De 18,4 para 11,0 min'], ['Dono do processo', 'Operações de crédito'], ['Prazo', '30 jun 2024']] : tool.id === 'voc' ? [['Cliente', 'Solicitante interno'], ['Necessidade', 'Resposta previsível'], ['CTQ', 'Tempo de aprovação'], ['Limite', '≤ 11 min']] : tool.id === 'msa' ? [['Método', 'Gage R&R simplificado'], ['Repetibilidade', '2,1%'], ['Reprodutibilidade', '3,4%'], ['Veredito', 'Sistema aceitável']] : [['Critério', 'Definição inicial'], ['Responsável', 'Time do projeto'], ['Evidência', 'Registro operacional'], ['Próxima revisão', '06 jun 2024']];
    return <div><div className="mb-5 flex items-start justify-between"><div><p className="mono-label text-primary">{pipeline ? 'Saída do pipeline' : 'Snapshot de trabalho'}</p><h3 className="mt-2 font-serif text-lg font-bold">{tool.title} / leitura rápida</h3><p className="mt-1 text-xs text-muted-foreground">{pipeline ? 'Artefato estruturado a partir do problema informado.' : 'Exemplo preenchido para orientar o time.'}</p></div><Check size={20} className="text-primary" /></div><div className="overflow-hidden rounded-xl border border-border">{rows.map(([label, value]) => <div key={label} className="grid grid-cols-[42%_58%] border-b border-border last:border-0"><div className="break-words bg-muted/55 p-3 text-[11px] font-bold text-muted-foreground">{label}</div><div className="break-words p-3 text-xs font-semibold">{value}</div></div>)}</div><div className="mt-5 rounded-xl bg-primary/7 p-4"><div className="flex gap-3"><Sparkles size={16} className="shrink-0 text-primary" /><p className="text-xs leading-relaxed"><strong>Leitura do facilitador:</strong> {pipeline ? 'revise e valide os artefatos com o time antes de tratar as hipóteses como evidência.' : 'a estrutura está suficientemente clara para a próxima conversa do time.'}</p></div></div></div>;
 }
@@ -1923,7 +2028,7 @@ function Workspace() {
         </div>
       </main>
     </div>
-     {selectedTool && <DetailDrawer tool={selectedTool} onClose={() => setSelectedTool(null)} pareto={pareto} imr={imr} inputAnalysis={inputAnalysis} hasInputDataset={Boolean(inputDataset)} csvError={csvError} onRetry={retryUpload} pipeline={pipelineData} hasDiagnosis={Boolean(pipelineAnalysisContext?.diagnosis)} manualRows={manualVocCtq} hasManualChanges={manualVocCtqDirty} manualSaveConfirmed={manualVocSaved} onManualRowsChange={updateManualVocCtq} onSaveManualRows={saveManualVocCtq} />}
+     {selectedTool && <DetailDrawer tool={selectedTool} onClose={() => setSelectedTool(null)} pareto={pareto} imr={imr} inputAnalysis={inputAnalysis} hasInputDataset={Boolean(inputDataset)} csvError={csvError} onRetry={retryUpload} pipeline={pipelineData} hasDiagnosis={Boolean(pipelineAnalysisContext?.diagnosis)} manualRows={manualVocCtq} hasManualChanges={manualVocCtqDirty} manualSaveConfirmed={manualVocSaved} onManualRowsChange={updateManualVocCtq} onSaveManualRows={saveManualVocCtq} charter={charter} activeProjectName={activeProjectName} />}
   </div>;
 }
 /*
