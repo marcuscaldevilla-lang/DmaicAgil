@@ -1173,7 +1173,7 @@ function InputDataPanel({ dataset, analysis, error, months, onMonthsChange, sele
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="flex items-start gap-3"><IconBadge icon={CloudUpload} tone="accent" /><div><p className="mono-label text-accent-foreground">Entrada da Sprint 1</p><h3 className="mt-1.5 text-sm font-bold">Dados para análise</h3><p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">{dataset ? `${dataset.fileName} · ${dataset.rows.length} linhas · ${dataset.headers.length} colunas` : 'Carregue um CSV para selecionar o indicador e medir o comportamento do processo.'}</p></div></div>
       <div className="flex flex-wrap items-center gap-2">
-        {dataset && <Button testId="button-export-input-data" variant="outline" onClick={() => exportInputDataPdf(dataset, analysis, months, activeProjectName)}><FileText size={14} /> Exportar visão</Button>}
+        {dataset && <Button testId="button-export-input-data" variant="outline" onClick={() => exportInputDataPdf(dataset, analysis, months, diagnosis, activeProjectName)}><FileText size={14} /> Exportar visão</Button>}
         <label data-testid="button-upload-csv" className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-bold transition-colors hover:border-primary/45 hover:bg-primary/5"><Upload size={14} /> {dataset ? 'Trocar CSV' : 'Carregar CSV'}<input ref={inputRef} data-testid="input-upload-csv" type="file" accept=".csv,text/csv" onChange={onUpload} className="sr-only" /></label>
       </div>
     </div>
@@ -1749,7 +1749,7 @@ function buildExploratoryBoxPlotSvg(summary: ExploratorySummary, indicator: stri
   </svg></div>`;
 }
 
-function buildInputDataPrintDocument(dataset: InputDataset, analysis: IndicatorAnalysis | null, months: number, projectName: string): string {
+function buildInputDataPrintDocument(dataset: InputDataset, analysis: IndicatorAnalysis | null, months: number, diagnosis: string | null, projectName: string): string {
   const stat = (label: string, value: string) => `<div class="stat"><p class="label">${escapeCharterHtml(label)}</p><p class="value">${escapeCharterHtml(value)}</p></div>`;
   const overviewStats = [
     stat('Arquivo', dataset.fileName),
@@ -1768,7 +1768,7 @@ function buildInputDataPrintDocument(dataset: InputDataset, analysis: IndicatorA
           stat('Máximo', formatMetric(analysis.maximum)),
           stat('Desvio-padrão', formatMetric(analysis.standardDeviation)),
           stat('Normalidade', analysis.normality),
-        ].join('')}</div><p class="note">${escapeCharterHtml(analysis.normalityDetail)}</p>${exploratorySummary ? `<div style="margin-top:14px">${buildExploratoryLineChartSvg(exploratorySummary, analysis.indicator)}</div>` : ''}`
+        ].join('')}</div><p class="note">${escapeCharterHtml(analysis.normalityDetail)}</p>${exploratorySummary ? `<div class="chart-grid" style="margin-top:14px">${buildExploratoryLineChartSvg(exploratorySummary, analysis.indicator)}${buildExploratoryBoxPlotSvg(exploratorySummary, analysis.indicator)}</div>` : ''}`
       : `<div class="stat-grid">${[
           stat('Categoria dominante', analysis.topCategory),
           stat('Ocorrências', String(analysis.topCategoryCount)),
@@ -1789,14 +1789,17 @@ function buildInputDataPrintDocument(dataset: InputDataset, analysis: IndicatorA
   <h2>Resumo do indicador${analysis ? ` &middot; ${escapeCharterHtml(analysis.indicator)}` : ''}</h2>
   <p class="note">${analysis ? `${analysis.rows} observações &middot; ${dataset.dateColumn ? `últimos ${months} meses` : 'sem coluna de período'} &middot; indicador ${analysis.kind === 'continuous' ? 'contínuo' : 'discreto'}` : ''}</p>
   <div style="margin-top:10px">${analysisSection}</div>
+  ${exploratorySummary ? `<h2>Diagnóstico detalhado com IA</h2>${diagnosis
+      ? diagnosis.split(/\n{2,}/).map((paragraph) => `<p class="note">${escapeCharterHtml(paragraph.trim())}</p>`).join('')
+      : '<p class="empty">Nenhum diagnóstico detalhado foi gerado com IA para esta leitura.</p>'}` : ''}
 </body></html>`;
 }
 
-function exportInputDataPdf(dataset: InputDataset, analysis: IndicatorAnalysis | null, months: number, projectName: string) {
+function exportInputDataPdf(dataset: InputDataset, analysis: IndicatorAnalysis | null, months: number, diagnosis: string | null, projectName: string) {
   const printWindow = window.open('', '_blank', 'width=1000,height=900');
   if (!printWindow) return;
   printWindow.document.open();
-  printWindow.document.write(buildInputDataPrintDocument(dataset, analysis, months, projectName));
+  printWindow.document.write(buildInputDataPrintDocument(dataset, analysis, months, diagnosis, projectName));
   printWindow.document.close();
   printWindow.focus();
 }
