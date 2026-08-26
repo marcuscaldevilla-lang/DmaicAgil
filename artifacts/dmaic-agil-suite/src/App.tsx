@@ -1028,14 +1028,14 @@ function ToolCard({ tool, onOpen }: { tool: Tool; onOpen: (tool: Tool) => void }
   return <button data-testid={`card-tool-${tool.id}`} onClick={() => onOpen(tool)} className="group panel flex min-h-[154px] flex-col rounded-xl p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/45"><div className="flex items-start justify-between"><span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: `hsl(${tool.accent} / .12)`, color: `hsl(${tool.accent})` }}><Icon size={17} strokeWidth={1.8} /></span><span className="opacity-0 transition-opacity group-hover:opacity-100"><ArrowRight size={16} className="text-primary" /></span></div><div className="mt-auto pt-5"><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-bold">{tool.title}</h3>{tool.tag && <span className="rounded bg-muted px-1.5 py-0.5 mono-label text-muted-foreground">{tool.tag}</span>}</div><p className="mt-1 text-[11px] text-muted-foreground">{tool.subtitle}</p><p className="mt-3 mono-label text-primary">{tool.status}</p></div></button>;
 }
 
-function SprintView({ area, onOpenTool, onChangeVital, vitalId, inputDataset, inputAnalysis, inputError, analysisMonths, onAnalysisMonthsChange, selectedIndicator, onSelectedIndicatorChange, diagnosis, onDiagnosisChange, onSaveAnalysis, onUpload, inputRef }: { area: 'definition' | 'measurement' | 'aic'; onOpenTool: (tool: Tool) => void; onChangeVital: (id: string) => void; vitalId: string; inputDataset: InputDataset | null; inputAnalysis: IndicatorAnalysis | null; inputError: string | null; analysisMonths: number; onAnalysisMonthsChange: (months: number) => void; selectedIndicator: string; onSelectedIndicatorChange: (indicator: string) => void; diagnosis: string | null; onDiagnosisChange: (diagnosis: string | null, input: DmaicExploratoryDiagnosisInput) => void; onSaveAnalysis: () => void; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; inputRef: { current: HTMLInputElement | null } }) {
+function SprintView({ area, onOpenTool, onChangeVital, vitalId, inputDataset, inputAnalysis, inputError, analysisMonths, onAnalysisMonthsChange, selectedIndicator, onSelectedIndicatorChange, diagnosis, onDiagnosisChange, onSaveAnalysis, onUpload, inputRef, activeProjectName }: { area: 'definition' | 'measurement' | 'aic'; onOpenTool: (tool: Tool) => void; onChangeVital: (id: string) => void; vitalId: string; inputDataset: InputDataset | null; inputAnalysis: IndicatorAnalysis | null; inputError: string | null; analysisMonths: number; onAnalysisMonthsChange: (months: number) => void; selectedIndicator: string; onSelectedIndicatorChange: (indicator: string) => void; diagnosis: string | null; onDiagnosisChange: (diagnosis: string | null, input: DmaicExploratoryDiagnosisInput) => void; onSaveAnalysis: () => void; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; inputRef: { current: HTMLInputElement | null }; activeProjectName: string }) {
   const meta = areaMeta[area];
   const selectedVital = vitalXs.find((vital) => vital.id === vitalId) ?? vitalXs[0];
   return <div className="space-y-7">
     <div className="reveal flex flex-wrap items-end justify-between gap-4"><div><p className="mono-label mb-2" style={{ color: meta.color }}>{meta.kicker}</p><h2 className="font-serif text-3xl font-bold tracking-tight sm:text-4xl">{meta.label}</h2><p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">{meta.description}</p></div><div className="flex items-center gap-2"><StatusPill tone="green">Em andamento</StatusPill><button data-testid="button-sprint-options" onClick={() => onOpenTool(tools[area][0])} className="rounded-lg border border-border bg-card p-2 text-muted-foreground hover:text-foreground"><MoreHorizontal size={17} /></button></div></div>
     {area === 'measurement' && <div className="reveal-2 panel flex flex-wrap items-center justify-between gap-4 rounded-xl border-l-4 border-l-chart-3 p-4"><div className="flex items-center gap-3"><IconBadge icon={Gauge} tone="chart-3" /><div><p className="text-sm font-bold">Indicador Y em foco</p><p className="mt-0.5 text-xs text-muted-foreground">Tempo total até aprovação · <span className="font-bold text-foreground">12,8 min</span> mediana</p></div></div><div className="flex items-center gap-2"><label htmlFor="vital-select" className="mono-label text-muted-foreground">Vital X</label><select id="vital-select" data-testid="select-vital-x" value={vitalId} onChange={(event) => onChangeVital(event.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold outline-none focus:border-primary/50">{vitalXs.map((vital) => <option key={vital.id} value={vital.id}>{vital.label}</option>)}</select></div></div>}
     {area === 'measurement' && <div className="reveal-3 panel rounded-xl p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="mono-label text-chart-3">Vital X selecionado</p><h3 className="mt-2 font-serif text-xl font-bold">{selectedVital.label}</h3><p className="mt-1 text-xs text-muted-foreground">{selectedVital.note} · janela de 30 dias</p></div><div className="text-right"><p className="font-serif text-2xl font-bold">{selectedVital.value}</p><p className="mt-1 text-[11px] font-bold text-primary">{selectedVital.delta} vs. baseline</p></div></div><div className="mt-5 grid h-14 grid-cols-12 items-end gap-1.5 border-b border-border pb-0 sm:grid-cols-24">{[30,36,34,42,38,45,40,49,46,54,51,48,58,53,56,62,59,64,57,68,61,65,72,66].map((height, index) => <div key={index} className="rounded-t-sm bg-chart-3/60 transition-all hover:bg-chart-3" style={{ height: `${height}%` }} />)}</div><div className="mt-2 flex justify-between mono-label text-muted-foreground"><span>01 mai</span><span>30 mai</span></div></div>}
-     {(area === 'definition' || area === 'measurement') && <InputDataPanel dataset={inputDataset} analysis={inputAnalysis} error={inputError} months={analysisMonths} onMonthsChange={onAnalysisMonthsChange} selectedIndicator={selectedIndicator} onIndicatorChange={onSelectedIndicatorChange} diagnosis={diagnosis} onDiagnosisChange={onDiagnosisChange} onSaveAnalysis={onSaveAnalysis} onUpload={onUpload} inputRef={inputRef} />}
+     {(area === 'definition' || area === 'measurement') && <InputDataPanel dataset={inputDataset} analysis={inputAnalysis} error={inputError} months={analysisMonths} onMonthsChange={onAnalysisMonthsChange} selectedIndicator={selectedIndicator} onIndicatorChange={onSelectedIndicatorChange} diagnosis={diagnosis} onDiagnosisChange={onDiagnosisChange} onSaveAnalysis={onSaveAnalysis} onUpload={onUpload} inputRef={inputRef} activeProjectName={activeProjectName} />}
     <div className="reveal-2 flex items-center justify-between"><div><SectionHeading eyebrow={area === 'definition' ? 'Entregáveis de enquadramento' : area === 'measurement' ? 'Entregáveis de evidência' : 'Entregáveis de mudança'} title={area === 'definition' ? 'Dê nome ao problema certo' : area === 'measurement' ? 'Meça sem adivinhar' : 'Faça a solução pegar'} /></div><Button testId={`button-add-${area}`} onClick={() => onOpenTool(tools[area][0])} variant="outline"><Plus size={14} /> Adicionar item</Button></div>
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{tools[area].map((tool) => <ToolCard key={tool.id} tool={tool} onOpen={onOpenTool} />)}</div>
     {area === 'aic' && <div className="reveal-4 grid gap-4 lg:grid-cols-[1.1fr_.9fr]"><div className="panel rounded-xl p-5"><div className="flex items-center justify-between"><div><p className="mono-label text-chart-4">Hipóteses em teste</p><h3 className="mt-2 font-serif text-lg font-bold">Do provável ao comprovado</h3></div><TestTube2 size={18} className="text-chart-4" /></div><div className="mt-5 space-y-4">{[{ name: 'H1 · Padronização da triagem', status: 'Em teste', pct: 68 }, { name: 'H2 · Regra de aprovação automática', status: 'Próximo', pct: 32 }, { name: 'H3 · Balanceamento da célula', status: 'Backlog', pct: 12 }].map((item) => <div key={item.name}><div className="flex justify-between gap-3 text-xs"><span className="font-semibold">{item.name}</span><span className="mono-label text-muted-foreground">{item.status}</span></div><div className="mt-2 h-1.5 rounded-full bg-muted"><div className="h-full rounded-full bg-chart-4" style={{ width: `${item.pct}%` }} /></div></div>)}</div></div><div className="panel rounded-xl bg-accent/10 p-5"><p className="mono-label text-accent-foreground">Próximo checkpoint</p><h3 className="mt-2 font-serif text-lg font-bold">Review de controle</h3><p className="mt-2 text-xs leading-relaxed text-muted-foreground">Quinta, 06 jun · 14:30<br />Validar plano de reação e dono do SOP.</p><Button testId="button-schedule-review" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} variant="dark" className="mt-5">Abrir agenda <ArrowRight size={14} /></Button></div></div>}
@@ -1099,7 +1099,7 @@ function ExploratoryBoxPlot({ summary, indicator }: { summary: ExploratorySummar
   </div>;
 }
 
-function ExploratoryAnalysisPanel({ dataset, analysis, months, diagnosis, onDiagnosisChange }: { dataset: InputDataset; analysis: IndicatorAnalysis; months: number; diagnosis: string | null; onDiagnosisChange: (diagnosis: string | null, input: DmaicExploratoryDiagnosisInput) => void }) {
+function ExploratoryAnalysisPanel({ dataset, analysis, months, diagnosis, onDiagnosisChange, activeProjectName }: { dataset: InputDataset; analysis: IndicatorAnalysis; months: number; diagnosis: string | null; onDiagnosisChange: (diagnosis: string | null, input: DmaicExploratoryDiagnosisInput) => void; activeProjectName: string }) {
   const summary = buildExploratorySummary(dataset, analysis, months);
   const diagnosisMutation = useRunDmaicExploratoryDiagnosis();
   const diagnosisPoints = summary ? samplePointsForDiagnosis(summary.points) : [];
@@ -1140,7 +1140,7 @@ function ExploratoryAnalysisPanel({ dataset, analysis, months, diagnosis, onDiag
   return <section data-testid="panel-exploratory-analysis" className="mt-5 rounded-xl border border-primary/15 bg-primary/5 p-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><p className="mono-label text-primary">Análise exploratória</p><h3 className="mt-1 font-serif text-xl font-bold">Análise Exploratória & Estatística Descritiva</h3><p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-muted-foreground">Leitura da série atual, calculada localmente a partir de {summary.points.length} observações de <strong>{analysis.indicator}</strong>.</p></div>
-      <StatusPill tone="green">Dados do CSV · local</StatusPill>
+      <div className="flex items-center gap-2"><StatusPill tone="green">Dados do CSV · local</StatusPill><Button testId="button-export-exploratory-analysis" variant="outline" onClick={() => exportExploratoryPdf(summary, analysis.indicator, diagnosisMutation.data?.diagnosis ?? diagnosis, activeProjectName)}><FileText size={14} /> Exportar visão</Button></div>
     </div>
     <div className="mt-5 grid gap-3 xl:grid-cols-[1.35fr_.85fr]"><ExploratoryLineChart summary={summary} indicator={analysis.indicator} /><ExploratoryBoxPlot summary={summary} indicator={analysis.indicator} /></div>
     <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
@@ -1168,11 +1168,14 @@ function ExploratoryAnalysisPanel({ dataset, analysis, months, diagnosis, onDiag
   </section>;
 }
 
-function InputDataPanel({ dataset, analysis, error, months, onMonthsChange, selectedIndicator, onIndicatorChange, diagnosis, onDiagnosisChange, onSaveAnalysis, onUpload, inputRef }: { dataset: InputDataset | null; analysis: IndicatorAnalysis | null; error: string | null; months: number; onMonthsChange: (months: number) => void; selectedIndicator: string; onIndicatorChange: (indicator: string) => void; diagnosis: string | null; onDiagnosisChange: (diagnosis: string | null, input: DmaicExploratoryDiagnosisInput) => void; onSaveAnalysis: () => void; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; inputRef: { current: HTMLInputElement | null } }) {
+function InputDataPanel({ dataset, analysis, error, months, onMonthsChange, selectedIndicator, onIndicatorChange, diagnosis, onDiagnosisChange, onSaveAnalysis, onUpload, inputRef, activeProjectName }: { dataset: InputDataset | null; analysis: IndicatorAnalysis | null; error: string | null; months: number; onMonthsChange: (months: number) => void; selectedIndicator: string; onIndicatorChange: (indicator: string) => void; diagnosis: string | null; onDiagnosisChange: (diagnosis: string | null, input: DmaicExploratoryDiagnosisInput) => void; onSaveAnalysis: () => void; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; inputRef: { current: HTMLInputElement | null }; activeProjectName: string }) {
   return <section data-testid="panel-input-data" className="reveal-4 panel rounded-xl border-dashed p-5">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="flex items-start gap-3"><IconBadge icon={CloudUpload} tone="accent" /><div><p className="mono-label text-accent-foreground">Entrada da Sprint 1</p><h3 className="mt-1.5 text-sm font-bold">Dados para análise</h3><p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">{dataset ? `${dataset.fileName} · ${dataset.rows.length} linhas · ${dataset.headers.length} colunas` : 'Carregue um CSV para selecionar o indicador e medir o comportamento do processo.'}</p></div></div>
-      <label data-testid="button-upload-csv" className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-bold transition-colors hover:border-primary/45 hover:bg-primary/5"><Upload size={14} /> {dataset ? 'Trocar CSV' : 'Carregar CSV'}<input ref={inputRef} data-testid="input-upload-csv" type="file" accept=".csv,text/csv" onChange={onUpload} className="sr-only" /></label>
+      <div className="flex flex-wrap items-center gap-2">
+        {dataset && <Button testId="button-export-input-data" variant="outline" onClick={() => exportInputDataPdf(dataset, analysis, months, activeProjectName)}><FileText size={14} /> Exportar visão</Button>}
+        <label data-testid="button-upload-csv" className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-bold transition-colors hover:border-primary/45 hover:bg-primary/5"><Upload size={14} /> {dataset ? 'Trocar CSV' : 'Carregar CSV'}<input ref={inputRef} data-testid="input-upload-csv" type="file" accept=".csv,text/csv" onChange={onUpload} className="sr-only" /></label>
+      </div>
     </div>
     {dataset && <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/15 bg-primary/5 px-3.5 py-3"><p className="text-[11px] leading-relaxed text-muted-foreground"><Check size={13} className="mr-1.5 inline-block align-[-2px] text-primary" /> Esta análise é salva automaticamente no Neon após o upload e as alterações dos parâmetros.</p><Button testId="button-save-analysis" onClick={onSaveAnalysis} variant="outline"><Save size={14} /> Salvar análise agora</Button></div>}
     {error && <div data-testid="status-input-data-error" className="mt-4 flex gap-3 rounded-xl border border-destructive/25 bg-destructive/5 p-4 text-xs text-destructive"><Info size={16} className="mt-0.5 shrink-0" /><p>{error}</p></div>}
@@ -1184,7 +1187,7 @@ function InputDataPanel({ dataset, analysis, error, months, onMonthsChange, sele
       <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="mono-label text-primary">Resumo do indicador</p><h4 className="mt-1 text-sm font-bold">{analysis.indicator}</h4></div><div className="flex items-center gap-2"><StatusPill tone="green">{analysis.kind === 'continuous' ? 'Contínuo' : 'Discreto'}</StatusPill><span data-testid="text-analysis-rows" className="mono-label text-muted-foreground">{analysis.rows} observações · {dataset.dateColumn ? `últimos ${months} meses` : 'sem coluna de período'}</span></div></div>
       {analysis.kind === 'continuous' ? <><div className="mt-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">{[['Média', analysis.mean, 'stat-analysis-mean'], ['Mediana', analysis.median, 'stat-analysis-median'], ['Mínimo', analysis.minimum, 'stat-analysis-min'], ['Máximo', analysis.maximum, 'stat-analysis-max'], ['Desvio-padrão', analysis.standardDeviation, 'stat-analysis-standard-deviation']].map(([label, value, testId]) => <div key={String(label)} data-testid={String(testId)} className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">{label}</p><p className="mt-1 font-mono text-sm font-bold">{formatMetric(Number(value))}</p></div>)}<div data-testid="stat-analysis-normality" className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Normalidade</p><p className={`mt-1 text-xs font-bold ${analysis.normality === 'Não normal' ? 'text-destructive' : 'text-primary'}`}>{analysis.normality}</p></div></div><p data-testid="text-analysis-normality-detail" className="mt-3 text-[11px] text-muted-foreground">{analysis.normalityDetail}</p></> : <><div className="mt-4 grid gap-2 sm:grid-cols-3"><div data-testid="stat-analysis-top-category" className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Categoria dominante</p><p className="mt-1 truncate text-sm font-bold">{analysis.topCategory}</p></div><div className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Ocorrências</p><p className="mt-1 font-mono text-sm font-bold">{analysis.topCategoryCount}</p></div><div className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Categorias</p><p className="mt-1 font-mono text-sm font-bold">{analysis.categoryCount}</p></div></div><div className="mt-4 space-y-2">{analysis.distribution.map((item) => <div key={item.label} className="grid grid-cols-[minmax(0,1fr)_48px] items-center gap-3 text-[11px]"><div><div className="mb-1 flex justify-between gap-2"><span className="truncate font-semibold">{item.label}</span><span className="mono-label text-muted-foreground">{item.percentage.toFixed(1)}%</span></div><div className="h-2 overflow-hidden rounded-r bg-muted"><div className="h-full rounded-r bg-accent" style={{ width: `${item.percentage}%` }} /></div></div><span className="text-right font-mono font-bold">{item.count}</span></div>)}</div><p className="mt-3 text-[11px] text-muted-foreground">Média, mediana, mínimo, máximo, desvio-padrão e normalidade não se aplicam a este indicador categórico.</p></>}
     </div>}
-     {dataset && analysis && <ExploratoryAnalysisPanel dataset={dataset} analysis={analysis} months={months} diagnosis={diagnosis} onDiagnosisChange={onDiagnosisChange} />}
+     {dataset && analysis && <ExploratoryAnalysisPanel dataset={dataset} analysis={analysis} months={months} diagnosis={diagnosis} onDiagnosisChange={onDiagnosisChange} activeProjectName={activeProjectName} />}
     <p className="mt-4 text-[11px] text-muted-foreground"><Info size={13} className="mr-1 inline-block align-[-2px]" /> O arquivo é processado localmente no navegador. A coluna de data, quando identificada, define o recorte dos últimos N meses.</p>
   </section>;
 }
@@ -1662,6 +1665,124 @@ function exportVocPdf(rows: DmaicVocCqt[], projectName: string) {
   if (!printWindow) return;
   printWindow.document.open();
   printWindow.document.write(buildVocPrintDocument(rows, projectName));
+  printWindow.document.close();
+  printWindow.focus();
+}
+
+const PRINT_DOCUMENT_STYLES = `
+  * { box-sizing: border-box; }
+  body { font-family: Georgia, 'Times New Roman', serif; color: #1c1917; margin: 0; padding: 36px 44px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #78716c; margin: 28px 0 12px; border-bottom: 1px solid #e7e5e4; padding-bottom: 6px; }
+  p { font-size: 12.5px; line-height: 1.5; margin: 0; }
+  .subtitle { font-size: 12px; color: #78716c; margin: 0 0 16px; }
+  .empty { color: #a8a29e; font-style: italic; }
+  table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-top: 4px; }
+  th, td { border: 1px solid #e7e5e4; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f5f5f4; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #78716c; }
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 4px; }
+  .stat { border: 1px solid #e7e5e4; border-radius: 8px; padding: 10px 12px; break-inside: avoid; }
+  .stat .label { font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; color: #78716c; }
+  .stat .value { font-size: 15px; font-weight: 700; margin-top: 3px; font-family: 'Courier New', monospace; }
+  .note { margin-top: 10px; }
+  .print-bar { position: sticky; top: 0; display: flex; justify-content: flex-end; margin: -36px -44px 24px; padding: 12px 44px; background: #fafaf9; border-bottom: 1px solid #e7e5e4; }
+  .print-bar button { font-family: inherit; font-size: 12px; font-weight: 700; padding: 8px 16px; border-radius: 8px; border: 1px solid #1c1917; background: #1c1917; color: #fff; cursor: pointer; }
+  @page { margin: 16mm; }
+  @media print { .print-bar { display: none; } body { padding: 0 8mm; } }
+`;
+
+function buildInputDataPrintDocument(dataset: InputDataset, analysis: IndicatorAnalysis | null, months: number, projectName: string): string {
+  const stat = (label: string, value: string) => `<div class="stat"><p class="label">${escapeCharterHtml(label)}</p><p class="value">${escapeCharterHtml(value)}</p></div>`;
+  const overviewStats = [
+    stat('Arquivo', dataset.fileName),
+    stat('Linhas', String(dataset.rows.length)),
+    stat('Colunas', String(dataset.headers.length)),
+    stat('Coluna de data', dataset.dateColumn ?? 'Não identificada'),
+  ].join('');
+  const analysisSection = !analysis
+    ? '<p class="empty">Nenhum indicador selecionado.</p>'
+    : analysis.kind === 'continuous'
+      ? `<div class="stat-grid">${[
+          stat('Média', formatMetric(analysis.mean)),
+          stat('Mediana', formatMetric(analysis.median)),
+          stat('Mínimo', formatMetric(analysis.minimum)),
+          stat('Máximo', formatMetric(analysis.maximum)),
+          stat('Desvio-padrão', formatMetric(analysis.standardDeviation)),
+          stat('Normalidade', analysis.normality),
+        ].join('')}</div><p class="note">${escapeCharterHtml(analysis.normalityDetail)}</p>`
+      : `<div class="stat-grid">${[
+          stat('Categoria dominante', analysis.topCategory),
+          stat('Ocorrências', String(analysis.topCategoryCount)),
+          stat('Categorias', String(analysis.categoryCount)),
+        ].join('')}</div><table><thead><tr><th>Categoria</th><th>Ocorrências</th><th>%</th></tr></thead><tbody>${analysis.distribution.map((item) => `<tr><td>${escapeCharterHtml(item.label)}</td><td>${item.count}</td><td>${item.percentage.toFixed(1)}%</td></tr>`).join('')}</tbody></table>`;
+  return `<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8" /><title>Dados para análise - ${escapeCharterHtml(projectName)}</title>
+<style>${PRINT_DOCUMENT_STYLES}</style></head>
+<body>
+  <div class="print-bar"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div>
+  <h1>Dados para análise</h1>
+  <p class="subtitle">${escapeCharterHtml(projectName)} &middot; gerado em ${new Date().toLocaleDateString('pt-BR')}</p>
+
+  <h2>Conjunto de dados carregado</h2>
+  <div class="stat-grid">${overviewStats}</div>
+  <p class="note"><strong>Indicadores disponíveis:</strong> ${dataset.indicatorColumns.map(escapeCharterHtml).join(', ') || '—'}</p>
+
+  <h2>Resumo do indicador${analysis ? ` &middot; ${escapeCharterHtml(analysis.indicator)}` : ''}</h2>
+  <p class="note">${analysis ? `${analysis.rows} observações &middot; ${dataset.dateColumn ? `últimos ${months} meses` : 'sem coluna de período'} &middot; indicador ${analysis.kind === 'continuous' ? 'contínuo' : 'discreto'}` : ''}</p>
+  <div style="margin-top:10px">${analysisSection}</div>
+</body></html>`;
+}
+
+function exportInputDataPdf(dataset: InputDataset, analysis: IndicatorAnalysis | null, months: number, projectName: string) {
+  const printWindow = window.open('', '_blank', 'width=1000,height=900');
+  if (!printWindow) return;
+  printWindow.document.open();
+  printWindow.document.write(buildInputDataPrintDocument(dataset, analysis, months, projectName));
+  printWindow.document.close();
+  printWindow.focus();
+}
+
+function buildExploratoryPrintDocument(summary: ExploratorySummary, indicator: string, diagnosis: string | null, projectName: string): string {
+  const stat = (label: string, value: string) => `<div class="stat"><p class="label">${escapeCharterHtml(label)}</p><p class="value">${escapeCharterHtml(value)}</p></div>`;
+  const statGrid = [
+    stat('Mínimo', formatMetric(summary.minimum)),
+    stat('Q1 · 25%', formatMetric(summary.q1)),
+    stat('Mediana', formatMetric(summary.median)),
+    stat('Q3 · 75%', formatMetric(summary.q3)),
+    stat('Máximo', formatMetric(summary.maximum)),
+    stat('IQR', formatMetric(summary.iqr)),
+    stat('Desvio-padrão', formatMetric(summary.standardDeviation)),
+    stat('p Shapiro–Wilk', summary.shapiroPValue === null ? 'Indisponível' : formatMetric(summary.shapiroPValue)),
+  ].join('');
+  const diagnosisHtml = diagnosis
+    ? diagnosis.split(/\n{2,}/).map((paragraph) => `<p class="note">${escapeCharterHtml(paragraph.trim())}</p>`).join('')
+    : '<p class="empty">Nenhum diagnóstico detalhado foi gerado com IA para esta leitura.</p>';
+  return `<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8" /><title>Análise Exploratória & Estatística Descritiva - ${escapeCharterHtml(projectName)}</title>
+<style>${PRINT_DOCUMENT_STYLES}</style></head>
+<body>
+  <div class="print-bar"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div>
+  <h1>Análise Exploratória & Estatística Descritiva</h1>
+  <p class="subtitle">${escapeCharterHtml(projectName)} &middot; ${escapeCharterHtml(indicator)} &middot; ${summary.points.length} observações &middot; gerado em ${new Date().toLocaleDateString('pt-BR')}</p>
+
+  <h2>Estatística descritiva</h2>
+  <div class="stat-grid">${statGrid}</div>
+
+  <h2>Leitura da distribuição</h2>
+  <p class="note"><strong>25% inferiores:</strong> a região entre ${formatMetric(summary.minimum)} e ${formatMetric(summary.q1)} representa aproximadamente o quarto inferior das observações.</p>
+  <p class="note"><strong>25% superiores:</strong> a região entre ${formatMetric(summary.q3)} e ${formatMetric(summary.maximum)} representa aproximadamente o quarto superior das observações.</p>
+  <p class="note"><strong>Teste de normalidade:</strong> ${escapeCharterHtml(summary.shapiroDetail)}${summary.shapiroPValue !== null ? ` &middot; ${summary.shapiroPValue >= 0.05 ? 'Não há evidência suficiente para rejeitar normalidade.' : 'Há evidência de desvio da normalidade.'}` : ''}</p>
+
+  <h2>Diagnóstico detalhado com IA</h2>
+  ${diagnosisHtml}
+</body></html>`;
+}
+
+function exportExploratoryPdf(summary: ExploratorySummary, indicator: string, diagnosis: string | null, projectName: string) {
+  const printWindow = window.open('', '_blank', 'width=1000,height=900');
+  if (!printWindow) return;
+  printWindow.document.open();
+  printWindow.document.write(buildExploratoryPrintDocument(summary, indicator, diagnosis, projectName));
   printWindow.document.close();
   printWindow.focus();
 }
@@ -2240,7 +2361,7 @@ function Workspace() {
             {localDraftRecovered && !localDraftConflict && <div data-testid="status-local-draft-recovered" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Rascunho recuperado deste navegador.</strong> Suas edições continuam protegidas localmente; use os botões de salvar para confirmá-las também no Neon.</span></div>}
            {saved && <div data-testid="status-statement-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Mudança salva no Neon.</strong> O enunciado estará disponível ao reabrir este workspace.</span></div>}
            {charterSaved && <div data-testid="status-charter-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Project charter salvo no Neon.</strong> Essas informações serão carregadas ao reabrir este workspace e usadas como contexto na geração do pipeline.</span></div>}
-             {area === 'overview' ? <Overview statement={statement} setStatement={updateStatement} onSave={saveStatement} charter={charter} onCharterChange={updateCharter} onTeamChange={updateCharterTeam} onSaveCharter={saveCharter} pipelineDone={pipelineDone} hasAiSuggestions={Boolean(aiCharterSuggestions)} onOpenArea={setArea} /> : <SprintView area={area} onOpenTool={openTool} onChangeVital={setVitalId} vitalId={vitalId} inputDataset={inputDataset} inputAnalysis={inputAnalysis} inputError={csvError} analysisMonths={analysisMonths} onAnalysisMonthsChange={updateAnalysisMonths} selectedIndicator={selectedIndicator} onSelectedIndicatorChange={updateSelectedIndicator} diagnosis={exploratoryDiagnosis} onDiagnosisChange={handleDiagnosisChange} onSaveAnalysis={saveStatement} onUpload={handleUpload} inputRef={fileRef} />}
+             {area === 'overview' ? <Overview statement={statement} setStatement={updateStatement} onSave={saveStatement} charter={charter} onCharterChange={updateCharter} onTeamChange={updateCharterTeam} onSaveCharter={saveCharter} pipelineDone={pipelineDone} hasAiSuggestions={Boolean(aiCharterSuggestions)} onOpenArea={setArea} /> : <SprintView area={area} onOpenTool={openTool} onChangeVital={setVitalId} vitalId={vitalId} inputDataset={inputDataset} inputAnalysis={inputAnalysis} inputError={csvError} analysisMonths={analysisMonths} onAnalysisMonthsChange={updateAnalysisMonths} selectedIndicator={selectedIndicator} onSelectedIndicatorChange={updateSelectedIndicator} diagnosis={exploratoryDiagnosis} onDiagnosisChange={handleDiagnosisChange} onSaveAnalysis={saveStatement} onUpload={handleUpload} inputRef={fileRef} activeProjectName={activeProjectName} />}
              <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-[10px] text-muted-foreground"><span className="mono-label">DMAIC Ágil Suite · workspace no Neon {projectKey ? `· projeto #${projectKey}` : '· novo projeto'}</span><span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> {pipelineData ? 'artefatos gerados por IA · revise com o time' : 'dados de exemplo sinalizados · sem envio externo'}</span></footer>
         </div>
       </main>
