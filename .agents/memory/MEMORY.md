@@ -6,3 +6,5 @@
 - [AI financial estimates](ai-financial-suggestions.md) — Gemini may calculate a labeled estimate only from team-entered quantitative and financial inputs.
 - [Versioned workspace saves](versioned-workspace-saves.md) — Resolve revisions only at serialized execution, while isolating queued writes across project switches.
 - [Workspace concurrency test isolation](workspace-concurrency-test-isolation.md) — Exercise conflict saves through an injected in-memory repository, never a live active workspace.
+- [window.open print/export popups](window-open-print-export.md) — Never pass 'noopener'/'noreferrer' when you need the returned handle to write into the new tab.
+- [DMAIC deliverable editing pattern](dmaic-deliverable-editing-pattern.md) — Edit single-object AI deliverables in place in pipelineData; reserve VOC's separate manual-array pattern for pre-pipeline-editable row lists.

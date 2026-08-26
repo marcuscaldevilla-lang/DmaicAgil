@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicCharter, type DmaicExploratoryDiagnosisInput, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicVocCqt, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
+import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicCharter, type DmaicExploratoryDiagnosisInput, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicSipoc, type DmaicVocCqt, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -81,7 +81,7 @@ type ProjectCharterDraft = {
 type CharterTextField = Exclude<keyof ProjectCharterDraft, 'team'>;
 type ProjectCharterContext = Omit<ProjectCharterDraft, 'team'> & { team: Array<CharterTeamMember & { role: string }> };
 type GeneratedCharterFields = Pick<ProjectCharterDraft, 'objective' | 'history' | 'goalDefinition' | 'kpis' | 'includedScope' | 'excludedScope' | 'assumptionsAndConstraints' | 'customerRequirements' | 'businessContributions' | 'businessContributionsQuantitative' | 'businessContributionsQualitative' | 'financialGainValue'>;
-type WorkspaceSaveSource = 'statement' | 'charter' | 'suggestions' | 'voc';
+type WorkspaceSaveSource = 'statement' | 'charter' | 'suggestions' | 'voc' | 'sipoc';
 type WorkspaceSaveData = { projectKey?: number; problemStatement: string; projectCharterContext: ProjectCharterContext; aiCharterSuggestions: GeneratedCharterFields | null; analysisArtifacts: DmaicAnalysisArtifacts };
 type WorkspaceSaveAttempt = { source: WorkspaceSaveSource; data: WorkspaceSaveData; charterToPersist?: ProjectCharterDraft; expectedRevision?: number };
 type WorkspaceLocalDraft = {
@@ -1191,7 +1191,7 @@ function InputDataPanel({ dataset, analysis, error, months, onMonthsChange, sele
   </section>;
 }
 
-function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDataset, csvError, onRetry, pipeline, hasDiagnosis = false, manualRows, hasManualChanges, manualSaveConfirmed, onManualRowsChange, onSaveManualRows, charter, activeProjectName }: { tool: Tool; onClose: () => void; pareto: { name: string; value: number }[] | null; imr: number[] | null; inputAnalysis?: IndicatorAnalysis | null; hasInputDataset: boolean; csvError: string | null; onRetry: () => void; pipeline: DmaicPipeline | null; hasDiagnosis?: boolean; manualRows: DmaicVocCqt[]; hasManualChanges: boolean; manualSaveConfirmed: boolean; onManualRowsChange: (rows: DmaicVocCqt[]) => void; onSaveManualRows: () => void; charter?: ProjectCharterDraft; activeProjectName?: string }) {
+function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDataset, csvError, onRetry, pipeline, hasDiagnosis = false, manualRows, hasManualChanges, manualSaveConfirmed, onManualRowsChange, onSaveManualRows, charter, activeProjectName, sipocDirty = false, sipocSaved = false, onSipocChange, onSaveSipoc }: { tool: Tool; onClose: () => void; pareto: { name: string; value: number }[] | null; imr: number[] | null; inputAnalysis?: IndicatorAnalysis | null; hasInputDataset: boolean; csvError: string | null; onRetry: () => void; pipeline: DmaicPipeline | null; hasDiagnosis?: boolean; manualRows: DmaicVocCqt[]; hasManualChanges: boolean; manualSaveConfirmed: boolean; onManualRowsChange: (rows: DmaicVocCqt[]) => void; onSaveManualRows: () => void; charter?: ProjectCharterDraft; activeProjectName?: string; sipocDirty?: boolean; sipocSaved?: boolean; onSipocChange?: (next: DmaicSipoc) => void; onSaveSipoc?: () => void }) {
   const [tab, setTab] = useState<'preview' | 'data'>('preview');
   const isPareto = tool.id === 'pareto';
   const isImr = tool.id === 'imr';
@@ -1207,7 +1207,7 @@ function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDatas
       : inputAnalysis.kind === 'continuous' && inputAnalysis.values.length < 2
         ? 'O I-MR precisa de pelo menos duas observações sequenciais no recorte selecionado.'
         : 'O I-MR é aplicável somente a indicadores contínuos. Selecione um indicador numérico compatível.';
-  return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}><section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-[560px] flex-col overflow-y-auto border-l border-border bg-background shadow-2xl"><div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur"><div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">{pipeline ? 'Gerado com IA' : manualRows.length > 0 ? 'Editado pela equipe' : tool.tag ?? 'Entregável gerado'}</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div><div className="border-b border-border px-5 pt-4"><div className="flex gap-5"><button data-testid="tab-preview" onClick={() => setTab('preview')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'preview' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Visualização</button><button data-testid="tab-data" onClick={() => setTab('data')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'data' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Dados & notas</button></div></div><div className="flex-1 p-5">{csvError && isAnalysisTool ? <div data-testid="status-tool-csv-error" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-destructive" /><div><p className="text-sm font-bold text-destructive">Não foi possível ler o arquivo</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{csvError}</p><Button testId="button-retry-upload" onClick={onRetry} variant="outline" className="mt-3"><RefreshCw size={13} /> Tentar com outro arquivo</Button></div></div></div> : isAnalysisTool && !hasCompatibleData ? <div data-testid="status-tool-no-data" className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold">Visualização indisponível</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{unavailableMessage}</p></div></div></div> : tab === 'preview' ? <>{isPareto && pareto ? <ParetoChart data={pareto} cumulative={cumulative} source={source} /> : isImr && imr ? <ImrChart data={imr} source={source} /> : tool.id === 'voc' ? <VocCqtMap rows={pipeline?.vocCtq ?? []} hasPipeline={Boolean(pipeline)} hasDiagnosis={hasDiagnosis} manualRows={manualRows} hasManualChanges={hasManualChanges} hasManualSaveConfirmation={manualSaveConfirmed} onManualRowsChange={onManualRowsChange} onSaveManualRows={onSaveManualRows} /> : <GenericPreview tool={tool} pipeline={pipeline} />}</> : <DataNotes tool={tool} pareto={pareto} imr={imr} source={source} />}</div><div className="border-t border-border bg-card px-5 py-4"><div className="flex items-center justify-between gap-3"><span className="mono-label text-muted-foreground">{pipeline ? 'Conteúdo gerado por Gemini' : manualRows.length > 0 ? 'Indicadores manuais · equipe' : hasInputDataset && isAnalysisTool ? hasCompatibleData ? 'Dados do CSV · local' : 'Sem dados compatíveis' : 'Conteúdo de exemplo · local'}</span><Button testId="button-export-tool" variant="outline" onClick={tool.id === 'charter' && charter ? () => exportProjectCharterPdf(charter, activeProjectName?.trim() || 'Novo projeto') : undefined}><FileText size={14} /> Exportar visão</Button></div></div></section></div>;
+  return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}><section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-[560px] flex-col overflow-y-auto border-l border-border bg-background shadow-2xl"><div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur"><div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">{pipeline ? 'Gerado com IA' : manualRows.length > 0 ? 'Editado pela equipe' : tool.tag ?? 'Entregável gerado'}</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div><div className="border-b border-border px-5 pt-4"><div className="flex gap-5"><button data-testid="tab-preview" onClick={() => setTab('preview')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'preview' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Visualização</button><button data-testid="tab-data" onClick={() => setTab('data')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'data' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Dados & notas</button></div></div><div className="flex-1 p-5">{csvError && isAnalysisTool ? <div data-testid="status-tool-csv-error" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-destructive" /><div><p className="text-sm font-bold text-destructive">Não foi possível ler o arquivo</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{csvError}</p><Button testId="button-retry-upload" onClick={onRetry} variant="outline" className="mt-3"><RefreshCw size={13} /> Tentar com outro arquivo</Button></div></div></div> : isAnalysisTool && !hasCompatibleData ? <div data-testid="status-tool-no-data" className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold">Visualização indisponível</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{unavailableMessage}</p></div></div></div> : tab === 'preview' ? <>{isPareto && pareto ? <ParetoChart data={pareto} cumulative={cumulative} source={source} /> : isImr && imr ? <ImrChart data={imr} source={source} /> : tool.id === 'voc' ? <VocCqtMap rows={pipeline?.vocCtq ?? []} hasPipeline={Boolean(pipeline)} hasDiagnosis={hasDiagnosis} manualRows={manualRows} hasManualChanges={hasManualChanges} hasManualSaveConfirmation={manualSaveConfirmed} onManualRowsChange={onManualRowsChange} onSaveManualRows={onSaveManualRows} /> : tool.id === 'sipoc' ? <SipocMap sipoc={pipeline?.sipoc ?? null} hasPipeline={Boolean(pipeline)} dirty={sipocDirty} saved={sipocSaved} onChange={(next) => onSipocChange?.(next)} onSave={() => onSaveSipoc?.()} /> : <GenericPreview tool={tool} pipeline={pipeline} />}</> : <DataNotes tool={tool} pareto={pareto} imr={imr} source={source} />}</div><div className="border-t border-border bg-card px-5 py-4"><div className="flex items-center justify-between gap-3"><span className="mono-label text-muted-foreground">{pipeline ? 'Conteúdo gerado por Gemini' : manualRows.length > 0 ? 'Indicadores manuais · equipe' : hasInputDataset && isAnalysisTool ? hasCompatibleData ? 'Dados do CSV · local' : 'Sem dados compatíveis' : 'Conteúdo de exemplo · local'}</span><Button testId="button-export-tool" variant="outline" onClick={tool.id === 'charter' && charter ? () => exportProjectCharterPdf(charter, activeProjectName?.trim() || 'Novo projeto') : undefined}><FileText size={14} /> Exportar visão</Button></div></div></section></div>;
 }
 
 function ParetoChart({ data, cumulative, source }: { data: { name: string; value: number }[]; cumulative: { name: string; value: number; pct: number }[]; source: 'example' | 'upload' }) {
@@ -1397,6 +1397,95 @@ function VocCqtMap({ rows, hasPipeline, hasDiagnosis, manualRows, hasManualChang
   </div>;
 }
 
+const exampleSipoc: DmaicSipoc = {
+  suppliers: ['Área comercial (abertura da proposta)', 'Bureau de crédito externo'],
+  inputs: ['Proposta preenchida', 'Documentação do cliente', 'Consulta de score'],
+  process: ['Receber solicitação', 'Validar documentos', 'Analisar risco', 'Aprovar ou recusar', 'Comunicar decisão'],
+  outputs: ['Parecer de crédito', 'Contrato liberado ou recusa formal'],
+  customers: ['Cliente solicitante', 'Área comercial'],
+};
+
+const SIPOC_COLUMNS: { key: keyof DmaicSipoc; label: string; hint: string; headerClass: string }[] = [
+  { key: 'suppliers', label: 'Fornecedores', hint: 'Quem entrega o que o processo precisa', headerClass: 'bg-chart-4/12 text-chart-4' },
+  { key: 'inputs', label: 'Entradas', hint: 'O que alimenta o processo', headerClass: 'bg-chart-3/12 text-chart-3' },
+  { key: 'process', label: 'Processo', hint: '4 a 6 macroetapas, em ordem', headerClass: 'bg-primary/12 text-primary' },
+  { key: 'outputs', label: 'Saídas', hint: 'O que o processo entrega', headerClass: 'bg-accent/18 text-accent-foreground' },
+  { key: 'customers', label: 'Clientes', hint: 'Quem recebe as saídas', headerClass: 'bg-chart-5/14 text-chart-5' },
+];
+
+function SipocColumnEditor({ columnKey, label, hint, headerClass, items, readOnly, onChange }: { columnKey: string; label: string; hint: string; headerClass: string; items: string[]; readOnly: boolean; onChange: (items: string[]) => void }) {
+  const addItem = () => onChange([...items, '']);
+  const updateItem = (index: number, value: string) => onChange(items.map((item, itemIndex) => itemIndex === index ? value : item));
+  const removeItem = (index: number) => onChange(items.filter((_, itemIndex) => itemIndex !== index));
+  return <div data-testid={`column-sipoc-${columnKey}`} className="flex min-w-[190px] flex-1 flex-col rounded-xl border border-border bg-card">
+    <div className={`rounded-t-xl border-b border-border px-3 py-2.5 ${headerClass}`}>
+      <p className="text-[11px] font-bold uppercase tracking-wide">{label}</p>
+      <p className="mt-0.5 text-[10px] font-medium opacity-80">{hint}</p>
+    </div>
+    <div className="flex-1 space-y-2 p-2.5">
+      {items.length === 0 && <p className="px-1 py-2 text-[11px] text-muted-foreground">Nenhum item ainda.</p>}
+      {items.map((item, index) => readOnly
+        ? <p key={index} data-testid={`text-sipoc-${columnKey}-${index}`} className="rounded-lg bg-muted/60 px-2.5 py-2 text-[11px] leading-relaxed">{item || '—'}</p>
+        : <div key={index} className="flex items-start gap-1.5">
+          <textarea data-testid={`input-sipoc-${columnKey}-${index}`} value={item} onChange={(event) => updateItem(index, event.target.value)} rows={2} className="min-h-[52px] w-full resize-y rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] leading-relaxed outline-none transition-colors focus:border-primary/60" placeholder="Descreva o item..." />
+          <button type="button" data-testid={`button-remove-sipoc-${columnKey}-${index}`} onClick={() => removeItem(index)} aria-label="Remover item" className="mt-1 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-destructive"><X size={13} /></button>
+        </div>)}
+    </div>
+    {!readOnly && <button type="button" data-testid={`button-add-sipoc-${columnKey}`} onClick={addItem} className="flex items-center justify-center gap-1.5 rounded-b-xl border-t border-border py-2 text-[11px] font-bold text-primary hover:bg-primary/5"><Plus size={13} /> Adicionar</button>}
+  </div>;
+}
+
+function SipocFlowDiagram({ sipoc }: { sipoc: DmaicSipoc }) {
+  return <div data-testid="diagram-sipoc-flow" className="overflow-x-auto rounded-xl border border-border bg-muted/30 p-4">
+    <div className="flex min-w-[780px] items-stretch gap-1">
+      {SIPOC_COLUMNS.map((stage, index) => <div key={stage.key} className="flex flex-1 items-stretch">
+        <div className="flex flex-1 flex-col rounded-lg border border-border bg-background">
+          <div className={`rounded-t-lg px-2.5 py-2 text-center text-[10px] font-bold uppercase tracking-wide ${stage.headerClass}`}>{stage.label}</div>
+          <ul className="flex-1 space-y-1.5 p-2.5 text-[10.5px] leading-snug">
+            {sipoc[stage.key].filter((item) => item.trim()).length > 0
+              ? sipoc[stage.key].filter((item) => item.trim()).map((item, itemIndex) => <li key={itemIndex} className="flex gap-1.5"><span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />{item}</li>)
+              : <li className="text-muted-foreground/70">—</li>}
+          </ul>
+        </div>
+        {index < SIPOC_COLUMNS.length - 1 && <div className="flex w-6 shrink-0 items-center justify-center"><ArrowRight size={14} className="text-muted-foreground" /></div>}
+      </div>)}
+    </div>
+  </div>;
+}
+
+function SipocMap({ sipoc, hasPipeline, dirty, saved, onChange, onSave }: { sipoc: DmaicSipoc | null; hasPipeline: boolean; dirty: boolean; saved: boolean; onChange: (next: DmaicSipoc) => void; onSave: () => void }) {
+  const displaySipoc = sipoc ?? exampleSipoc;
+  const readOnly = !hasPipeline;
+  const updateColumn = (key: keyof DmaicSipoc, items: string[]) => onChange({ ...displaySipoc, [key]: items });
+  return <div data-testid="map-sipoc" className="space-y-6">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="mono-label text-primary">{hasPipeline ? 'Gerado pelo pipeline · editável' : 'Exemplo orientativo'}</p>
+        <h3 className="mt-2 font-serif text-lg font-bold">O sistema antes do detalhe</h3>
+        <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">Fornecedores, entradas, macroetapas do processo, saídas e clientes — a visão de alto nível antes de mergulhar em causas.</p>
+      </div>
+      <Layers3 size={20} className="shrink-0 text-primary" />
+    </div>
+
+    {readOnly && <div data-testid="status-sipoc-no-pipeline" className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><p className="leading-relaxed"><strong>O SIPOC ainda é um exemplo.</strong> Preencha o Problem Statement e o Project Charter, salve o projeto e gere o pipeline para que o Gemini proponha a primeira versão — depois é só ajustar cada coluna com o time.</p></div>}
+
+    {hasPipeline && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+      <div><p className="text-xs font-bold">Ajuste a matriz com o conhecimento do time</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Adicione, edite ou remova itens em cada coluna antes de tratá-los como fluxo validado.</p></div>
+      {(dirty || saved) && <Button testId="button-save-sipoc" onClick={onSave} variant="outline" disabled={!dirty}><Save size={14} /> Salvar SIPOC</Button>}
+    </div>}
+    {saved && !dirty && <div data-testid="status-sipoc-saved" className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>SIPOC salvo no Neon.</strong> As alterações continuarão disponíveis ao reabrir este workspace.</span></div>}
+
+    <div className="flex flex-col gap-3 sm:flex-row">
+      {SIPOC_COLUMNS.map((column) => <SipocColumnEditor key={column.key} columnKey={column.key} label={column.label} hint={column.hint} headerClass={column.headerClass} items={displaySipoc[column.key]} readOnly={readOnly} onChange={(items) => updateColumn(column.key, items)} />)}
+    </div>
+
+    <div>
+      <p className="mb-3 text-xs font-bold">Visualização em fluxo</p>
+      <SipocFlowDiagram sipoc={displaySipoc} />
+    </div>
+  </div>;
+}
+
 function escapeCharterHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -1511,6 +1600,8 @@ function Workspace() {
   const [pipelineData, setPipelineData] = useState<DmaicPipeline | null>(() => initialLocalDraft?.analysisArtifacts.pipeline ?? null);
   const [manualVocCtq, setManualVocCtq] = useState<DmaicVocCqt[]>(() => initialLocalDraft?.analysisArtifacts.manualVocCtq ?? []);
   const [manualVocCtqDirty, setManualVocCtqDirty] = useState(false);
+  const [sipocDirty, setSipocDirty] = useState(false);
+  const [sipocSaved, setSipocSaved] = useState(false);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [vitalId, setVitalId] = useState('x1');
@@ -1591,6 +1682,8 @@ function Workspace() {
     setManualVocCtq(draft.analysisArtifacts.manualVocCtq ?? []);
     setManualVocCtqDirty(false);
     setManualVocSaved(false);
+    setSipocDirty(false);
+    setSipocSaved(false);
     setPipelineDone(Boolean(draft.analysisArtifacts.pipeline));
     setCsvError(null);
     workspaceRevisionRef.current = workspace.revision;
@@ -1727,6 +1820,9 @@ function Workspace() {
           } else if (source === 'voc') {
             setManualVocCtqDirty(false);
             setManualVocSaved(true);
+          } else if (source === 'sipoc') {
+            setSipocDirty(false);
+            setSipocSaved(true);
           }
         },
         onConflict: (latestWorkspace) => setWorkspaceConflict({ latest: latestWorkspace, source }),
@@ -1792,6 +1888,8 @@ function Workspace() {
     setManualVocCtq(recoveredDraft.analysisArtifacts.manualVocCtq ?? []);
     setManualVocCtqDirty(false);
     setManualVocSaved(false);
+    setSipocDirty(false);
+    setSipocSaved(false);
     setPipelineDone(Boolean(recoveredDraft.analysisArtifacts.pipeline));
     workspaceRevisionRef.current = recoveredDraft.baseRevision;
     draftWriteEnabledRef.current = true;
@@ -1833,6 +1931,15 @@ function Workspace() {
       return;
     }
     saveWorkspace('voc');
+  };
+  const updateSipoc = (next: DmaicSipoc) => {
+    setPipelineData((prev) => prev ? { ...prev, sipoc: next } : prev);
+    setSipocDirty(true);
+    setSipocSaved(false);
+  };
+  const saveSipoc = () => {
+    if (!pipelineData) return;
+    saveWorkspace('sipoc');
   };
   const loadSelectedProject = async () => {
     const nextProjectKey = Number(selectedProjectKey);
@@ -1881,6 +1988,8 @@ function Workspace() {
     setManualVocCtq([]);
     setManualVocCtqDirty(false);
     setManualVocSaved(false);
+    setSipocDirty(false);
+    setSipocSaved(false);
     setPipelineDone(false);
     setInputDataset(null);
     setAnalysisMonths(12);
@@ -2028,7 +2137,7 @@ function Workspace() {
         </div>
       </main>
     </div>
-     {selectedTool && <DetailDrawer tool={selectedTool} onClose={() => setSelectedTool(null)} pareto={pareto} imr={imr} inputAnalysis={inputAnalysis} hasInputDataset={Boolean(inputDataset)} csvError={csvError} onRetry={retryUpload} pipeline={pipelineData} hasDiagnosis={Boolean(pipelineAnalysisContext?.diagnosis)} manualRows={manualVocCtq} hasManualChanges={manualVocCtqDirty} manualSaveConfirmed={manualVocSaved} onManualRowsChange={updateManualVocCtq} onSaveManualRows={saveManualVocCtq} charter={charter} activeProjectName={activeProjectName} />}
+     {selectedTool && <DetailDrawer tool={selectedTool} onClose={() => setSelectedTool(null)} pareto={pareto} imr={imr} inputAnalysis={inputAnalysis} hasInputDataset={Boolean(inputDataset)} csvError={csvError} onRetry={retryUpload} pipeline={pipelineData} hasDiagnosis={Boolean(pipelineAnalysisContext?.diagnosis)} manualRows={manualVocCtq} hasManualChanges={manualVocCtqDirty} manualSaveConfirmed={manualVocSaved} onManualRowsChange={updateManualVocCtq} onSaveManualRows={saveManualVocCtq} charter={charter} activeProjectName={activeProjectName} sipocDirty={sipocDirty} sipocSaved={sipocSaved} onSipocChange={updateSipoc} onSaveSipoc={saveSipoc} />}
   </div>;
 }
 /*

@@ -1,0 +1,88 @@
+import streamlit as st
+import pandas as pd
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import JsonOutputParser
+import os
+
+# ==========================================
+# 1. GERAÇÃO COGNITIVA COM GEMINI
+# ==========================================
+def generate_sipoc_data(problem_description: str) -> dict:
+    """Gera o SIPOC estruturado e o código Mermaid correspondente."""
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-1.5-pro",
+        temperature=0.2,
+        google_api_key=os.getenv("GOOGLE_API_KEY")
+    )
+    
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """Você é um Master Black Belt especialista em Lean Six Sigma.
+Com base no problema informado, gere a matriz SIPOC completa em formato JSON:
+- "suppliers": Lista de fornecedores (internos/externos)
+- "inputs": Lista de entradas necessárias
+- "process": Lista ordenada de 4 a 6 macroetapas do processo
+- "outputs": Lista de saídas/entregáveis
+- "customers": Lista de clientes que recebem as saídas
+- "mermaid_diagram": Código de fluxograma horizontal Mermaid (graph LR) conectando S -> I -> P -> O -> C.
+
+Responda APENAS em JSON válido."""),
+        ("user", "Problema / Processo: {problem}")
+    ])
+    
+    chain = prompt | llm | JsonOutputParser()
+    return chain.invoke({"problem": problem_description})
+
+# ==========================================
+# 2. INTERFACE E RENDERIZAÇÃO
+# ==========================================
+def render_sipoc_module():
+    st.subheader("🔄 Módulo SIPOC Interativo")
+    
+    if "sipoc_table_data" not in st.session_state:
+        st.session_state["sipoc_table_data"] = None
+        st.session_state["sipoc_mermaid"] = ""
+
+    problem_text = st.text_area(
+        "Contexto do Processo para o SIPOC:",
+        value="Processo de recebimento, validação fiscal e pagamento de Notas Fiscais a fornecedores."
+    )
+
+    if st.button("Gerar SIPOC com IA", type="primary"):
+        with st.spinner("Mapeando Fornecedores, Entradas, Processo, Saídas e Clientes..."):
+            res = generate_sipoc_data(problem_text)
+            
+            # Ajusta listas para o mesmo comprimento para montar DataFrame limpo
+            max_len = max(len(res.get(k, [])) for k in ["suppliers", "inputs", "process", "outputs", "customers"])
+            formatted_data = {
+                "Suppliers (Fornecedores)": res.get("suppliers", []) + [""] * (max_len - len(res.get("suppliers", []))),
+                "Inputs (Entradas)": res.get("inputs", []) + [""] * (max_len - len(res.get("inputs", []))),
+                "Process (Macroetapas)": res.get("process", []) + [""] * (max_len - len(res.get("process", []))),
+                "Outputs (Saídas)": res.get("outputs", []) + [""] * (max_len - len(res.get("outputs", []))),
+                "Customers (Clientes)": res.get("customers", []) + [""] * (max_len - len(res.get("customers", [])))
+            }
+            st.session_state["sipoc_table_data"] = pd.DataFrame(formatted_data)
+            st.session_state["sipoc_mermaid"] = res.get("mermaid_diagram", "")
+
+    # Exibição e Edição
+    if st.session_state["sipoc_table_data"] is not None:
+        st.markdown("### 📝 Matriz SIPOC (Editável)")
+        st.caption("Você pode clicar nas células para ajustar ou adicionar novos itens antes de prosseguir.")
+        
+        # Grid Interativo com persistência das alterações
+        edited_df = st.data_editor(
+            st.session_state["sipoc_table_data"],
+            num_rows="dynamic",
+            use_container_width=True
+        )
+        st.session_state["sipoc_table_data"] = edited_df
+
+        st.markdown("---")
+        st.markdown("### 🗺️ Visualização em Fluxo (Mermaid)")
+        
+        mermaid_code = st.session_state["sipoc_mermaid"].replace("```mermaid", "").replace("```", "").strip()
+        try:
+            import streamlit_mermaid as st_mermaid
+            st_mermaid.st_mermaid(mermaid_code)
+        except ImportError:
+            st.code(mermaid_code, language="mermaid")
