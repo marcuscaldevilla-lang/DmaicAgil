@@ -1685,11 +1685,69 @@ const PRINT_DOCUMENT_STYLES = `
   .stat .label { font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; color: #78716c; }
   .stat .value { font-size: 15px; font-weight: 700; margin-top: 3px; font-family: 'Courier New', monospace; }
   .note { margin-top: 10px; }
+  .chart-grid { display: grid; grid-template-columns: 1.35fr .85fr; gap: 14px; margin-top: 4px; }
+  .chart-card { border: 1px solid #e7e5e4; border-radius: 10px; padding: 12px; break-inside: avoid; }
+  .chart-card h4 { font-size: 12px; font-weight: 700; margin: 0 0 8px; }
+  .chart-card svg { width: 100%; height: auto; display: block; }
+  .bar-row { display: grid; grid-template-columns: minmax(0,1fr) 52px; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 11px; }
+  .bar-track { grid-column: 1 / 2; height: 9px; border-radius: 5px; background: #f0ece4; overflow: hidden; margin-top: 3px; }
+  .bar-fill { height: 100%; border-radius: 5px; background: #f5a029; }
+  .bar-count { text-align: right; font-weight: 700; font-family: 'Courier New', monospace; }
+  @media print { .chart-grid { grid-template-columns: 1.35fr .85fr; } }
   .print-bar { position: sticky; top: 0; display: flex; justify-content: flex-end; margin: -36px -44px 24px; padding: 12px 44px; background: #fafaf9; border-bottom: 1px solid #e7e5e4; }
   .print-bar button { font-family: inherit; font-size: 12px; font-weight: 700; padding: 8px 16px; border-radius: 8px; border: 1px solid #1c1917; background: #1c1917; color: #fff; cursor: pointer; }
   @page { margin: 16mm; }
   @media print { .print-bar { display: none; } body { padding: 0 8mm; } }
 `;
+
+function buildExploratoryLineChartSvg(summary: ExploratorySummary, indicator: string): string {
+  const width = 700;
+  const height = 230;
+  const padding = { top: 18, right: 18, bottom: 40, left: 64 };
+  const values = summary.points.map((point) => point.value);
+  const minimum = Math.min(...values, summary.mean);
+  const maximum = Math.max(...values, summary.mean);
+  const range = Math.max(maximum - minimum, 1);
+  const xFor = (index: number) => padding.left + (index / Math.max(values.length - 1, 1)) * (width - padding.left - padding.right);
+  const yFor = (value: number) => padding.top + (1 - (value - minimum) / range) * (height - padding.top - padding.bottom);
+  const points = values.map((value, index) => `${xFor(index)},${yFor(value)}`).join(' ');
+  const labels = [0, Math.floor((values.length - 1) / 2), values.length - 1].filter((value, index, list) => list.indexOf(value) === index);
+  const yTickCount = 4;
+  const yTicks = Array.from({ length: yTickCount + 1 }, (_, tickIndex) => minimum + (range * tickIndex) / yTickCount);
+  const baselineY = height - padding.bottom;
+  const yTicksSvg = yTicks.map((tick) => `<line x1="${padding.left}" x2="${width - padding.right}" y1="${yFor(tick)}" y2="${yFor(tick)}" stroke="#e7e5e4" stroke-width="1" /><text x="${padding.left - 8}" y="${yFor(tick) + 3}" text-anchor="end" font-size="10" fill="#78716c">${escapeCharterHtml(formatMetric(tick))}</text>`).join('');
+  const pointsSvg = summary.points.map((point, index) => `<circle cx="${xFor(index)}" cy="${yFor(point.value)}" r="3.8" fill="#3e99a8"><title>${escapeCharterHtml(`${point.period}: ${formatMetric(point.value)}`)}</title></circle>`).join('');
+  const labelsSvg = labels.map((index) => `<line x1="${xFor(index)}" x2="${xFor(index)}" y1="${baselineY}" y2="${baselineY + 4}" stroke="#e7e5e4" stroke-width="1" /><text x="${xFor(index)}" y="${height - 10}" text-anchor="${index === 0 ? 'start' : index === values.length - 1 ? 'end' : 'middle'}" font-size="10" fill="#78716c">${escapeCharterHtml(summary.points[index].period)}</text>`).join('');
+  return `<div class="chart-card"><h4>${escapeCharterHtml(indicator)} ao longo do período &middot; ${summary.points.length} pontos</h4><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeCharterHtml(`Série temporal de ${indicator}`)}">
+    ${yTicksSvg}
+    <line x1="${padding.left}" x2="${padding.left}" y1="${padding.top}" y2="${baselineY}" stroke="#e7e5e4" stroke-width="1" />
+    <line x1="${padding.left}" x2="${width - padding.right}" y1="${baselineY}" y2="${baselineY}" stroke="#e7e5e4" stroke-width="1" />
+    <line x1="${padding.left}" x2="${width - padding.right}" y1="${yFor(summary.mean)}" y2="${yFor(summary.mean)}" stroke="#f5a029" stroke-dasharray="5 5" />
+    <polyline fill="none" stroke="#3e99a8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" points="${points}" />
+    ${pointsSvg}
+    <text x="${width - padding.right}" y="${yFor(summary.mean) - 7}" text-anchor="end" font-size="10" fill="#b3781f">média ${escapeCharterHtml(formatMetric(summary.mean))}</text>
+    ${labelsSvg}
+  </svg></div>`;
+}
+
+function buildExploratoryBoxPlotSvg(summary: ExploratorySummary, indicator: string): string {
+  const width = 420;
+  const height = 250;
+  const plotTop = 22;
+  const plotBottom = 220;
+  const range = Math.max(summary.maximum - summary.minimum, 1);
+  const yFor = (value: number) => plotBottom - ((value - summary.minimum) / range) * (plotBottom - plotTop);
+  const x = 150;
+  const labelsSvg = ([['Máximo', summary.maximum], ['Q3', summary.q3], ['Mediana', summary.median], ['Q1', summary.q1], ['Mínimo', summary.minimum]] as [string, number][]).map(([label, value]) => `<text x="${x + 58}" y="${yFor(value) + 4}" font-size="10" fill="#78716c">${escapeCharterHtml(label)} &middot; ${escapeCharterHtml(formatMetric(value))}</text>`).join('');
+  return `<div class="chart-card"><h4>Boxplot de ${escapeCharterHtml(indicator)}</h4><svg viewBox="0 0 ${width} ${height + 26}" role="img" aria-label="${escapeCharterHtml(`Boxplot de ${indicator}`)}">
+    <line x1="${x}" x2="${x}" y1="${yFor(summary.minimum)}" y2="${yFor(summary.maximum)}" stroke="#329a77" stroke-width="2" />
+    <line x1="${x - 25}" x2="${x + 25}" y1="${yFor(summary.minimum)}" y2="${yFor(summary.minimum)}" stroke="#329a77" stroke-width="2" />
+    <line x1="${x - 25}" x2="${x + 25}" y1="${yFor(summary.maximum)}" y2="${yFor(summary.maximum)}" stroke="#329a77" stroke-width="2" />
+    <rect x="${x - 42}" y="${yFor(summary.q3)}" width="84" height="${Math.max(yFor(summary.q1) - yFor(summary.q3), 3)}" rx="6" fill="#329a7730" stroke="#329a77" stroke-width="2" />
+    <line x1="${x - 42}" x2="${x + 42}" y1="${yFor(summary.median)}" y2="${yFor(summary.median)}" stroke="#f5a029" stroke-width="3" />
+    ${labelsSvg}
+  </svg></div>`;
+}
 
 function buildInputDataPrintDocument(dataset: InputDataset, analysis: IndicatorAnalysis | null, months: number, projectName: string): string {
   const stat = (label: string, value: string) => `<div class="stat"><p class="label">${escapeCharterHtml(label)}</p><p class="value">${escapeCharterHtml(value)}</p></div>`;
@@ -1714,7 +1772,7 @@ function buildInputDataPrintDocument(dataset: InputDataset, analysis: IndicatorA
           stat('Categoria dominante', analysis.topCategory),
           stat('Ocorrências', String(analysis.topCategoryCount)),
           stat('Categorias', String(analysis.categoryCount)),
-        ].join('')}</div><table><thead><tr><th>Categoria</th><th>Ocorrências</th><th>%</th></tr></thead><tbody>${analysis.distribution.map((item) => `<tr><td>${escapeCharterHtml(item.label)}</td><td>${item.count}</td><td>${item.percentage.toFixed(1)}%</td></tr>`).join('')}</tbody></table>`;
+        ].join('')}</div><div class="chart-card" style="margin-top:10px"><h4>Distribuição por categoria</h4>${analysis.distribution.map((item) => `<div class="bar-row"><div><div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:2px"><strong>${escapeCharterHtml(item.label)}</strong><span>${item.percentage.toFixed(1)}%</span></div><div class="bar-track"><div class="bar-fill" style="width:${item.percentage}%"></div></div></div><span class="bar-count">${item.count}</span></div>`).join('')}</div>`;
   return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8" /><title>Dados para análise - ${escapeCharterHtml(projectName)}</title>
 <style>${PRINT_DOCUMENT_STYLES}</style></head>
@@ -1764,6 +1822,9 @@ function buildExploratoryPrintDocument(summary: ExploratorySummary, indicator: s
   <div class="print-bar"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div>
   <h1>Análise Exploratória & Estatística Descritiva</h1>
   <p class="subtitle">${escapeCharterHtml(projectName)} &middot; ${escapeCharterHtml(indicator)} &middot; ${summary.points.length} observações &middot; gerado em ${new Date().toLocaleDateString('pt-BR')}</p>
+
+  <h2>Gráficos</h2>
+  <div class="chart-grid">${buildExploratoryLineChartSvg(summary, indicator)}${buildExploratoryBoxPlotSvg(summary, indicator)}</div>
 
   <h2>Estatística descritiva</h2>
   <div class="stat-grid">${statGrid}</div>
