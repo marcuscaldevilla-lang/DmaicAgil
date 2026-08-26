@@ -1014,7 +1014,7 @@ function SprintView({ area, onOpenTool, onChangeVital, vitalId, inputDataset, in
 function ExploratoryLineChart({ summary, indicator }: { summary: ExploratorySummary; indicator: string }) {
   const width = 700;
   const height = 230;
-  const padding = { top: 18, right: 18, bottom: 34, left: 48 };
+  const padding = { top: 18, right: 18, bottom: 40, left: 64 };
   const values = summary.points.map((point) => point.value);
   const minimum = Math.min(...values, summary.mean);
   const maximum = Math.max(...values, summary.mean);
@@ -1023,14 +1023,26 @@ function ExploratoryLineChart({ summary, indicator }: { summary: ExploratorySumm
   const yFor = (value: number) => padding.top + (1 - (value - minimum) / range) * (height - padding.top - padding.bottom);
   const points = values.map((value, index) => `${xFor(index)},${yFor(value)}`).join(' ');
   const labels = [0, Math.floor((values.length - 1) / 2), values.length - 1].filter((value, index, list) => list.indexOf(value) === index);
+  const yTickCount = 4;
+  const yTicks = Array.from({ length: yTickCount + 1 }, (_, tickIndex) => minimum + (range * tickIndex) / yTickCount);
+  const baselineY = height - padding.bottom;
   return <div data-testid="chart-exploratory-time-series" className="rounded-xl border border-border bg-card p-3">
     <div className="mb-3 flex items-center justify-between gap-3"><div><p className="mono-label text-chart-3">Série temporal</p><h4 className="mt-1 text-sm font-bold">{indicator} ao longo do período</h4></div><span className="mono-label text-muted-foreground">{summary.points.length} pontos</span></div>
     <svg viewBox={`0 0 ${width} ${height}`} className="h-auto w-full overflow-visible" role="img" aria-label={`Série temporal de ${indicator}`}>
+      {yTicks.map((tick, tickIndex) => <g key={`y-tick-${tickIndex}`}>
+        <line x1={padding.left} x2={width - padding.right} y1={yFor(tick)} y2={yFor(tick)} stroke="hsl(var(--border))" strokeWidth="1" />
+        <text data-testid={`text-exploratory-y-tick-${tickIndex}`} x={padding.left - 8} y={yFor(tick)} dy="3" textAnchor="end" className="fill-muted-foreground text-[10px]">{formatMetric(tick)}</text>
+      </g>)}
+      <line x1={padding.left} x2={padding.left} y1={padding.top} y2={baselineY} stroke="hsl(var(--border))" strokeWidth="1" />
+      <line x1={padding.left} x2={width - padding.right} y1={baselineY} y2={baselineY} stroke="hsl(var(--border))" strokeWidth="1" />
       <line x1={padding.left} x2={width - padding.right} y1={yFor(summary.mean)} y2={yFor(summary.mean)} stroke="hsl(var(--accent))" strokeDasharray="5 5" />
       <polyline fill="none" stroke="hsl(var(--chart-3))" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" points={points} />
       {summary.points.map((point, index) => <circle key={`${point.period}-${index}`} cx={xFor(index)} cy={yFor(point.value)} r="3.8" fill="hsl(var(--chart-3))"><title>{`${point.period}: ${formatMetric(point.value)}`}</title></circle>)}
       <text x={width - padding.right} y={yFor(summary.mean) - 7} textAnchor="end" className="fill-accent-foreground text-[10px]">média {formatMetric(summary.mean)}</text>
-      {labels.map((index) => <text key={index} x={xFor(index)} y={height - 8} textAnchor={index === 0 ? 'start' : index === values.length - 1 ? 'end' : 'middle'} className="fill-muted-foreground text-[10px]">{summary.points[index].period}</text>)}
+      {labels.map((index) => <g key={index}>
+        <line x1={xFor(index)} x2={xFor(index)} y1={baselineY} y2={baselineY + 4} stroke="hsl(var(--border))" strokeWidth="1" />
+        <text data-testid={`text-exploratory-x-tick-${index}`} x={xFor(index)} y={height - 10} textAnchor={index === 0 ? 'start' : index === values.length - 1 ? 'end' : 'middle'} className="fill-muted-foreground text-[10px]">{summary.points[index].period}</text>
+      </g>)}
     </svg>
   </div>;
 }
