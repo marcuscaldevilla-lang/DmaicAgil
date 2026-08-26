@@ -1207,7 +1207,7 @@ function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDatas
       : inputAnalysis.kind === 'continuous' && inputAnalysis.values.length < 2
         ? 'O I-MR precisa de pelo menos duas observações sequenciais no recorte selecionado.'
         : 'O I-MR é aplicável somente a indicadores contínuos. Selecione um indicador numérico compatível.';
-  return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}><section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-[560px] flex-col overflow-y-auto border-l border-border bg-background shadow-2xl"><div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur"><div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">{pipeline ? 'Gerado com IA' : manualRows.length > 0 ? 'Editado pela equipe' : tool.tag ?? 'Entregável gerado'}</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div><div className="border-b border-border px-5 pt-4"><div className="flex gap-5"><button data-testid="tab-preview" onClick={() => setTab('preview')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'preview' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Visualização</button><button data-testid="tab-data" onClick={() => setTab('data')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'data' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Dados & notas</button></div></div><div className="flex-1 p-5">{csvError && isAnalysisTool ? <div data-testid="status-tool-csv-error" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-destructive" /><div><p className="text-sm font-bold text-destructive">Não foi possível ler o arquivo</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{csvError}</p><Button testId="button-retry-upload" onClick={onRetry} variant="outline" className="mt-3"><RefreshCw size={13} /> Tentar com outro arquivo</Button></div></div></div> : isAnalysisTool && !hasCompatibleData ? <div data-testid="status-tool-no-data" className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold">Visualização indisponível</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{unavailableMessage}</p></div></div></div> : tab === 'preview' ? <>{isPareto && pareto ? <ParetoChart data={pareto} cumulative={cumulative} source={source} /> : isImr && imr ? <ImrChart data={imr} source={source} /> : tool.id === 'voc' ? <VocCqtMap rows={pipeline?.vocCtq ?? []} hasPipeline={Boolean(pipeline)} hasDiagnosis={hasDiagnosis} manualRows={manualRows} hasManualChanges={hasManualChanges} hasManualSaveConfirmation={manualSaveConfirmed} onManualRowsChange={onManualRowsChange} onSaveManualRows={onSaveManualRows} /> : tool.id === 'sipoc' ? <SipocMap sipoc={pipeline?.sipoc ?? null} hasPipeline={Boolean(pipeline)} dirty={sipocDirty} saved={sipocSaved} onChange={(next) => onSipocChange?.(next)} onSave={() => onSaveSipoc?.()} /> : <GenericPreview tool={tool} pipeline={pipeline} />}</> : <DataNotes tool={tool} pareto={pareto} imr={imr} source={source} />}</div><div className="border-t border-border bg-card px-5 py-4"><div className="flex items-center justify-between gap-3"><span className="mono-label text-muted-foreground">{pipeline ? 'Conteúdo gerado por Gemini' : manualRows.length > 0 ? 'Indicadores manuais · equipe' : hasInputDataset && isAnalysisTool ? hasCompatibleData ? 'Dados do CSV · local' : 'Sem dados compatíveis' : 'Conteúdo de exemplo · local'}</span><Button testId="button-export-tool" variant="outline" onClick={tool.id === 'charter' && charter ? () => exportProjectCharterPdf(charter, activeProjectName?.trim() || 'Novo projeto') : undefined}><FileText size={14} /> Exportar visão</Button></div></div></section></div>;
+  return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}><section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-[560px] flex-col overflow-y-auto border-l border-border bg-background shadow-2xl"><div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur"><div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">{pipeline ? 'Gerado com IA' : manualRows.length > 0 ? 'Editado pela equipe' : tool.tag ?? 'Entregável gerado'}</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div><div className="border-b border-border px-5 pt-4"><div className="flex gap-5"><button data-testid="tab-preview" onClick={() => setTab('preview')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'preview' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Visualização</button><button data-testid="tab-data" onClick={() => setTab('data')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'data' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Dados & notas</button></div></div><div className="flex-1 p-5">{csvError && isAnalysisTool ? <div data-testid="status-tool-csv-error" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-destructive" /><div><p className="text-sm font-bold text-destructive">Não foi possível ler o arquivo</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{csvError}</p><Button testId="button-retry-upload" onClick={onRetry} variant="outline" className="mt-3"><RefreshCw size={13} /> Tentar com outro arquivo</Button></div></div></div> : isAnalysisTool && !hasCompatibleData ? <div data-testid="status-tool-no-data" className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold">Visualização indisponível</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{unavailableMessage}</p></div></div></div> : tab === 'preview' ? <>{isPareto && pareto ? <ParetoChart data={pareto} cumulative={cumulative} source={source} /> : isImr && imr ? <ImrChart data={imr} source={source} /> : tool.id === 'voc' ? <VocCqtMap rows={pipeline?.vocCtq ?? []} hasPipeline={Boolean(pipeline)} hasDiagnosis={hasDiagnosis} manualRows={manualRows} hasManualChanges={hasManualChanges} hasManualSaveConfirmation={manualSaveConfirmed} onManualRowsChange={onManualRowsChange} onSaveManualRows={onSaveManualRows} /> : tool.id === 'sipoc' ? <SipocMap sipoc={pipeline?.sipoc ?? null} hasPipeline={Boolean(pipeline)} dirty={sipocDirty} saved={sipocSaved} onChange={(next) => onSipocChange?.(next)} onSave={() => onSaveSipoc?.()} /> : <GenericPreview tool={tool} pipeline={pipeline} />}</> : <DataNotes tool={tool} pareto={pareto} imr={imr} source={source} />}</div><div className="border-t border-border bg-card px-5 py-4"><div className="flex items-center justify-between gap-3"><span className="mono-label text-muted-foreground">{pipeline ? 'Conteúdo gerado por Gemini' : manualRows.length > 0 ? 'Indicadores manuais · equipe' : hasInputDataset && isAnalysisTool ? hasCompatibleData ? 'Dados do CSV · local' : 'Sem dados compatíveis' : 'Conteúdo de exemplo · local'}</span><Button testId="button-export-tool" variant="outline" onClick={tool.id === 'charter' && charter ? () => exportProjectCharterPdf(charter, activeProjectName?.trim() || 'Novo projeto') : tool.id === 'sipoc' ? () => exportSipocPdf(pipeline?.sipoc ?? exampleSipoc, activeProjectName?.trim() || 'Novo projeto') : undefined}><FileText size={14} /> Exportar visão</Button></div></div></section></div>;
 }
 
 function ParetoChart({ data, cumulative, source }: { data: { name: string; value: number }[]; cumulative: { name: string; value: number; pct: number }[]; source: 'example' | 'upload' }) {
@@ -1554,6 +1554,65 @@ function exportProjectCharterPdf(charter: ProjectCharterDraft, projectName: stri
   if (!printWindow) return;
   printWindow.document.open();
   printWindow.document.write(buildProjectCharterPrintDocument(charter, projectName));
+  printWindow.document.close();
+  printWindow.focus();
+}
+
+function buildSipocPrintDocument(sipoc: DmaicSipoc, projectName: string): string {
+  const column = (label: string, items: string[]) => {
+    const filled = items.map((item) => item.trim()).filter(Boolean);
+    const list = filled.length > 0 ? `<ul>${filled.map((item) => `<li>${escapeCharterHtml(item)}</li>`).join('')}</ul>` : '<p class="empty">Não preenchido</p>';
+    return `<div class="col"><h3>${escapeCharterHtml(label)}</h3>${list}</div>`;
+  };
+  return `<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8" /><title>SIPOC - ${escapeCharterHtml(projectName)}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Georgia, 'Times New Roman', serif; color: #1c1917; margin: 0; padding: 36px 44px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #78716c; margin: 28px 0 12px; border-bottom: 1px solid #e7e5e4; padding-bottom: 6px; }
+  h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 8px; padding-bottom: 6px; border-bottom: 2px solid currentColor; }
+  p { font-size: 12.5px; line-height: 1.5; margin: 0; }
+  ul { margin: 0; padding-left: 16px; font-size: 11.5px; line-height: 1.55; }
+  li { margin-bottom: 5px; }
+  .subtitle { font-size: 12px; color: #78716c; margin: 0 0 8px; }
+  .empty { color: #a8a29e; font-style: italic; font-size: 11.5px; }
+  .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; align-items: stretch; }
+  .col { border: 1px solid #e7e5e4; border-radius: 8px; padding: 12px; break-inside: avoid; position: relative; }
+  .flow .col:not(:last-child) { margin-right: 18px; }
+  .flow .col:not(:last-child)::after { content: '→'; position: absolute; right: -17px; top: 50%; transform: translateY(-50%); font-size: 14px; color: #a8a29e; }
+  .col.suppliers { color: #b45309; }
+  .col.inputs { color: #0e7490; }
+  .col.process { color: #4f46e5; }
+  .col.outputs { color: #a16207; }
+  .col.customers { color: #be185d; }
+  .print-bar { position: sticky; top: 0; display: flex; justify-content: flex-end; margin: -36px -44px 24px; padding: 12px 44px; background: #fafaf9; border-bottom: 1px solid #e7e5e4; }
+  .print-bar button { font-family: inherit; font-size: 12px; font-weight: 700; padding: 8px 16px; border-radius: 8px; border: 1px solid #1c1917; background: #1c1917; color: #fff; cursor: pointer; }
+  @page { margin: 16mm; }
+  @media print { .print-bar { display: none; } body { padding: 0 8mm; } .flow { grid-template-columns: repeat(5, 1fr); } }
+  @media (max-width: 720px) { .flow { grid-template-columns: 1fr; } .flow .col:not(:last-child) { margin-right: 0; margin-bottom: 18px; } .flow .col:not(:last-child)::after { content: '↓'; right: 50%; top: auto; bottom: -17px; transform: translateX(50%); } }
+</style></head>
+<body>
+  <div class="print-bar"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div>
+  <h1>SIPOC</h1>
+  <p class="subtitle">${escapeCharterHtml(projectName)} &middot; gerado em ${new Date().toLocaleDateString('pt-BR')}</p>
+
+  <h2>Fornecedores &rarr; Entradas &rarr; Processo &rarr; Saídas &rarr; Clientes</h2>
+  <div class="flow">
+    ${column('Fornecedores', sipoc.suppliers).replace('class="col"', 'class="col suppliers"')}
+    ${column('Entradas', sipoc.inputs).replace('class="col"', 'class="col inputs"')}
+    ${column('Processo', sipoc.process).replace('class="col"', 'class="col process"')}
+    ${column('Saídas', sipoc.outputs).replace('class="col"', 'class="col outputs"')}
+    ${column('Clientes', sipoc.customers).replace('class="col"', 'class="col customers"')}
+  </div>
+</body></html>`;
+}
+
+function exportSipocPdf(sipoc: DmaicSipoc, projectName: string) {
+  const printWindow = window.open('', '_blank', 'width=1100,height=800');
+  if (!printWindow) return;
+  printWindow.document.open();
+  printWindow.document.write(buildSipocPrintDocument(sipoc, projectName));
   printWindow.document.close();
   printWindow.focus();
 }
