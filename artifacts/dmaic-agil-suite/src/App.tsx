@@ -1757,6 +1757,7 @@ function buildInputDataPrintDocument(dataset: InputDataset, analysis: IndicatorA
     stat('Colunas', String(dataset.headers.length)),
     stat('Coluna de data', dataset.dateColumn ?? 'Não identificada'),
   ].join('');
+  const exploratorySummary = analysis && analysis.kind === 'continuous' ? buildExploratorySummary(dataset, analysis, months) : null;
   const analysisSection = !analysis
     ? '<p class="empty">Nenhum indicador selecionado.</p>'
     : analysis.kind === 'continuous'
@@ -1767,7 +1768,7 @@ function buildInputDataPrintDocument(dataset: InputDataset, analysis: IndicatorA
           stat('Máximo', formatMetric(analysis.maximum)),
           stat('Desvio-padrão', formatMetric(analysis.standardDeviation)),
           stat('Normalidade', analysis.normality),
-        ].join('')}</div><p class="note">${escapeCharterHtml(analysis.normalityDetail)}</p>`
+        ].join('')}</div><p class="note">${escapeCharterHtml(analysis.normalityDetail)}</p>${exploratorySummary ? `<div style="margin-top:14px">${buildExploratoryLineChartSvg(exploratorySummary, analysis.indicator)}</div>` : ''}`
       : `<div class="stat-grid">${[
           stat('Categoria dominante', analysis.topCategory),
           stat('Ocorrências', String(analysis.topCategoryCount)),
