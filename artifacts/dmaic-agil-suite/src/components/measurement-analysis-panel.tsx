@@ -52,12 +52,21 @@ function Histogram({ variable }: { variable: MeasurementVariableSummary }) {
   const bottom = 42;
   const maxCount = Math.max(...variable.histogram.map((bin) => bin.count), 1);
   const barWidth = (width - left - right) / variable.histogram.length;
+  const frequencyPoint = (bin: { count: number }, index: number) => ({
+    x: left + index * barWidth + barWidth / 2,
+    y: height - bottom - (bin.count / maxCount) * (height - top - bottom),
+  });
   return <svg data-testid={`chart-histogram-${variable.name}`} viewBox={`0 0 ${width} ${height}`} className="h-auto w-full" role="img" aria-label={`Histograma de ${variable.name}`}>
     <line x1={left} x2={left} y1={top} y2={height - bottom} stroke="hsl(var(--border))" />
     <line x1={left} x2={width - right} y1={height - bottom} y2={height - bottom} stroke="hsl(var(--border))" />
     {variable.histogram.map((bin, index) => {
       const barHeight = (bin.count / maxCount) * (height - top - bottom);
       return <g key={`${bin.from}-${index}`}><rect x={left + index * barWidth + 1} y={height - bottom - barHeight} width={Math.max(1, barWidth - 2)} height={barHeight} fill="hsl(var(--accent))" opacity="0.82" />{(index === 0 || index === variable.histogram.length - 1) && <text x={left + index * barWidth + barWidth / 2} y={height - 15} textAnchor="middle" className="fill-muted-foreground text-[9px]">{formatMetric(index === 0 ? bin.from : bin.to)}</text>}</g>;
+    })}
+    <polyline data-testid={`chart-histogram-line-${variable.name}`} fill="none" stroke="hsl(var(--chart-3))" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" points={variable.histogram.map(frequencyPoint).map(({ x, y }) => `${x},${y}`).join(' ')} />
+    {variable.histogram.map((bin, index) => {
+      const point = frequencyPoint(bin, index);
+      return <circle key={`frequency-point-${index}`} cx={point.x} cy={point.y} r="3" fill="hsl(var(--background))" stroke="hsl(var(--chart-3))" strokeWidth="2" />;
     })}
     <text x={left - 8} y={top + 4} textAnchor="end" className="fill-muted-foreground text-[10px]">{maxCount}</text>
     <text x={left - 8} y={height - bottom + 4} textAnchor="end" className="fill-muted-foreground text-[10px]">0</text>
