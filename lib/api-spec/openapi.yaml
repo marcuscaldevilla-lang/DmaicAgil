@@ -593,25 +593,19 @@ components:
         operationalDefinition: { type: string }
         targetGoal: { type: string }
         baseline: { type: string }
-    DmaicSipoc:
+    DmaicSipocRow:
       type: object
       required: [suppliers, inputs, process, outputs, customers]
       properties:
-        suppliers:
-          type: array
-          items: { type: string }
-        inputs:
-          type: array
-          items: { type: string }
-        process:
-          type: array
-          items: { type: string }
-        outputs:
-          type: array
-          items: { type: string }
-        customers:
-          type: array
-          items: { type: string }
+        suppliers: { type: string }
+        inputs: { type: string }
+        process: { type: string }
+        outputs: { type: string }
+        customers: { type: string }
+    DmaicSipoc:
+      type: array
+      items:
+        $ref: "#/components/schemas/DmaicSipocRow"
     DmaicScope:
       type: object
       required: [inScope, outOfScope]

@@ -337,13 +337,15 @@ export interface DmaicIndicator {
   baseline: string;
 }
 
-export interface DmaicSipoc {
-  suppliers: string[];
-  inputs: string[];
-  process: string[];
-  outputs: string[];
-  customers: string[];
+export interface DmaicSipocRow {
+  suppliers: string;
+  inputs: string;
+  process: string;
+  outputs: string;
+  customers: string;
 }
+
+export type DmaicSipoc = DmaicSipocRow[];
 
 export interface DmaicScope {
   inScope: string[];

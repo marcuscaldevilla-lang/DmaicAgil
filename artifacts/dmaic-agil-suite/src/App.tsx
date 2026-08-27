@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicCharter, type DmaicExploratoryDiagnosisInput, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicSipoc, type DmaicVocCqt, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
+import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicCharter, type DmaicExploratoryDiagnosisInput, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicSipoc, type DmaicSipocRow, type DmaicVocCqt, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -255,13 +255,25 @@ function isLegacyVocSnapshot(value: unknown): boolean {
   return Object.keys(value).length === legacyFields.length && legacyFields.every((field) => typeof value[field] === 'string');
 }
 
+const SIPOC_ROW_KEYS = ['suppliers', 'inputs', 'process', 'outputs', 'customers'] as const;
+
+function isLegacySipocSnapshot(value: unknown): value is Record<typeof SIPOC_ROW_KEYS[number], unknown[]> {
+  return isObject(value) && !Array.isArray(value) && SIPOC_ROW_KEYS.every((key) => Array.isArray((value as Record<string, unknown>)[key]));
+}
+
+function normalizeSipocSnapshot(value: unknown): DmaicSipoc | null {
+  if (Array.isArray(value)) return value as DmaicSipoc;
+  if (!isLegacySipocSnapshot(value)) return null;
+  const rowCount = Math.max(...SIPOC_ROW_KEYS.map((key) => value[key].length));
+  if (!Number.isFinite(rowCount) || rowCount <= 0) return [];
+  return Array.from({ length: rowCount }, (_, index) => Object.fromEntries(SIPOC_ROW_KEYS.map((key) => [key, String(value[key][index] ?? '')])) as unknown as DmaicSipocRow);
+}
+
 function normalizePipelineSnapshot(value: unknown): DmaicPipeline | null {
   if (!isObject(value)) return null;
-  if (!Array.isArray(value.vocCtq) || value.vocCtq.length === 0 || !value.vocCtq.every(isLegacyVocSnapshot)) return value as unknown as DmaicPipeline;
-  return {
-    ...value,
-    vocCtq: value.vocCtq.map(normalizeVocSnapshot),
-  } as unknown as DmaicPipeline;
+  const vocCtq = Array.isArray(value.vocCtq) && value.vocCtq.length > 0 && value.vocCtq.every(isLegacyVocSnapshot) ? value.vocCtq.map(normalizeVocSnapshot) : value.vocCtq;
+  const sipoc = normalizeSipocSnapshot(value.sipoc);
+  return { ...value, vocCtq, ...(sipoc !== null ? { sipoc } : {}) } as unknown as DmaicPipeline;
 }
 
 const manualVocRequiredFields = ['vocNeed', 'client', 'source', 'directioner', 'ctq', 'ctp', 'measure', 'ctqMetric'] as const;
@@ -1208,7 +1220,7 @@ function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDatas
       : inputAnalysis.kind === 'continuous' && inputAnalysis.values.length < 2
         ? 'O I-MR precisa de pelo menos duas observações sequenciais no recorte selecionado.'
         : 'O I-MR é aplicável somente a indicadores contínuos. Selecione um indicador numérico compatível.';
-  return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}><section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-[560px] flex-col overflow-y-auto border-l border-border bg-background shadow-2xl"><div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur"><div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">{pipeline ? 'Gerado com IA' : manualRows.length > 0 ? 'Editado pela equipe' : tool.tag ?? 'Entregável gerado'}</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div><div className="border-b border-border px-5 pt-4"><div className="flex gap-5"><button data-testid="tab-preview" onClick={() => setTab('preview')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'preview' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Visualização</button><button data-testid="tab-data" onClick={() => setTab('data')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'data' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Dados & notas</button></div></div><div className="flex-1 p-5">{csvError && isAnalysisTool ? <div data-testid="status-tool-csv-error" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-destructive" /><div><p className="text-sm font-bold text-destructive">Não foi possível ler o arquivo</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{csvError}</p><Button testId="button-retry-upload" onClick={onRetry} variant="outline" className="mt-3"><RefreshCw size={13} /> Tentar com outro arquivo</Button></div></div></div> : isAnalysisTool && !hasCompatibleData ? <div data-testid="status-tool-no-data" className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold">Visualização indisponível</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{unavailableMessage}</p></div></div></div> : tab === 'preview' ? <>{isPareto && pareto ? <ParetoChart data={pareto} cumulative={cumulative} source={source} /> : isImr && imr ? <ImrChart data={imr} source={source} /> : tool.id === 'voc' ? <VocCqtMap rows={pipeline?.vocCtq ?? []} hasPipeline={Boolean(pipeline)} hasDiagnosis={hasDiagnosis} manualRows={manualRows} hasManualChanges={hasManualChanges} hasManualSaveConfirmation={manualSaveConfirmed} onManualRowsChange={onManualRowsChange} onSaveManualRows={onSaveManualRows} /> : tool.id === 'sipoc' ? <SipocMap sipoc={pipeline?.sipoc ?? null} hasPipeline={Boolean(pipeline)} dirty={sipocDirty} saved={sipocSaved} onChange={(next) => onSipocChange?.(next)} onSave={() => onSaveSipoc?.()} /> : <GenericPreview tool={tool} pipeline={pipeline} />}</> : <DataNotes tool={tool} pareto={pareto} imr={imr} source={source} />}</div><div className="border-t border-border bg-card px-5 py-4"><div className="flex items-center justify-between gap-3"><span className="mono-label text-muted-foreground">{pipeline ? 'Conteúdo gerado por Gemini' : manualRows.length > 0 ? 'Indicadores manuais · equipe' : hasInputDataset && isAnalysisTool ? hasCompatibleData ? 'Dados do CSV · local' : 'Sem dados compatíveis' : 'Conteúdo de exemplo · local'}</span><Button testId="button-export-tool" variant="outline" onClick={tool.id === 'charter' && charter ? () => exportProjectCharterPdf(charter, activeProjectName?.trim() || 'Novo projeto') : tool.id === 'sipoc' ? () => exportSipocPdf(pipeline?.sipoc ?? exampleSipoc, activeProjectName?.trim() || 'Novo projeto') : tool.id === 'voc' ? () => exportVocPdf((pipeline?.vocCtq?.length ? pipeline.vocCtq : manualRows.length ? manualRows : exampleVocRows), activeProjectName?.trim() || 'Novo projeto') : undefined}><FileText size={14} /> Exportar visão</Button></div></div></section></div>;
+  return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}><section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-[560px] flex-col overflow-y-auto border-l border-border bg-background shadow-2xl"><div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur"><div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">{pipeline ? 'Gerado com IA' : manualRows.length > 0 ? 'Editado pela equipe' : tool.tag ?? 'Entregável gerado'}</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div><div className="border-b border-border px-5 pt-4"><div className="flex gap-5"><button data-testid="tab-preview" onClick={() => setTab('preview')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'preview' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Visualização</button><button data-testid="tab-data" onClick={() => setTab('data')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'data' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Dados & notas</button></div></div><div className="flex-1 p-5">{csvError && isAnalysisTool ? <div data-testid="status-tool-csv-error" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-destructive" /><div><p className="text-sm font-bold text-destructive">Não foi possível ler o arquivo</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{csvError}</p><Button testId="button-retry-upload" onClick={onRetry} variant="outline" className="mt-3"><RefreshCw size={13} /> Tentar com outro arquivo</Button></div></div></div> : isAnalysisTool && !hasCompatibleData ? <div data-testid="status-tool-no-data" className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold">Visualização indisponível</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{unavailableMessage}</p></div></div></div> : tab === 'preview' ? <>{isPareto && pareto ? <ParetoChart data={pareto} cumulative={cumulative} source={source} /> : isImr && imr ? <ImrChart data={imr} source={source} /> : tool.id === 'voc' ? <VocCqtMap rows={pipeline?.vocCtq ?? []} hasPipeline={Boolean(pipeline)} hasDiagnosis={hasDiagnosis} manualRows={manualRows} hasManualChanges={hasManualChanges} hasManualSaveConfirmation={manualSaveConfirmed} onManualRowsChange={onManualRowsChange} onSaveManualRows={onSaveManualRows} /> : tool.id === 'sipoc' ? <SipocMap sipoc={pipeline?.sipoc ?? null} hasPipeline={Boolean(pipeline)} dirty={sipocDirty} saved={sipocSaved} onChange={(next) => onSipocChange?.(next)} onSave={() => onSaveSipoc?.()} /> : <GenericPreview tool={tool} pipeline={pipeline} />}</> : <DataNotes tool={tool} pareto={pareto} imr={imr} source={source} />}</div><div className="border-t border-border bg-card px-5 py-4"><div className="flex items-center justify-between gap-3"><span className="mono-label text-muted-foreground">{pipeline ? 'Conteúdo gerado por Gemini' : manualRows.length > 0 ? 'Indicadores manuais · equipe' : hasInputDataset && isAnalysisTool ? hasCompatibleData ? 'Dados do CSV · local' : 'Sem dados compatíveis' : 'Conteúdo de exemplo · local'}</span><Button testId="button-export-tool" variant="outline" onClick={tool.id === 'charter' && charter ? () => exportProjectCharterPdf(charter, activeProjectName?.trim() || 'Novo projeto') : tool.id === 'sipoc' ? () => exportSipocPdf(pipeline?.sipoc?.length ? pipeline.sipoc : exampleSipoc, activeProjectName?.trim() || 'Novo projeto') : tool.id === 'voc' ? () => exportVocPdf((pipeline?.vocCtq?.length ? pipeline.vocCtq : manualRows.length ? manualRows : exampleVocRows), activeProjectName?.trim() || 'Novo projeto') : undefined}><FileText size={14} /> Exportar visão</Button></div></div></section></div>;
 }
 
 function ParetoChart({ data, cumulative, source }: { data: { name: string; value: number }[]; cumulative: { name: string; value: number; pct: number }[]; source: 'example' | 'upload' }) {
@@ -1398,87 +1410,102 @@ function VocCqtMap({ rows, hasPipeline, hasDiagnosis, manualRows, hasManualChang
   </div>;
 }
 
-const exampleSipoc: DmaicSipoc = {
-  suppliers: ['Área comercial (abertura da proposta)', 'Bureau de crédito externo'],
-  inputs: ['Proposta preenchida', 'Documentação do cliente', 'Consulta de score'],
-  process: ['Receber solicitação', 'Validar documentos', 'Analisar risco', 'Aprovar ou recusar', 'Comunicar decisão'],
-  outputs: ['Parecer de crédito', 'Contrato liberado ou recusa formal'],
-  customers: ['Cliente solicitante', 'Área comercial'],
-};
+const exampleSipoc: DmaicSipoc = [
+  { suppliers: 'Área de TI\nCliente', inputs: 'Totem de senha\nSistema de gerenciamento de fila\nNecessidade do cliente', process: 'Retirar a senha de atendimento', outputs: 'Senha impressa', customers: 'Cliente' },
+  { suppliers: 'Área de Operação\nÁrea de TI\nCliente', inputs: 'Operador de atendimento\nGuichê de atendimento\nSistema de cadastro\nDocumentos', process: 'Cadastrar o cliente', outputs: 'Cadastro do cliente completo\nGuia de exames', customers: 'Área de Operação\nÁrea Comercial' },
+  { suppliers: 'Área de Operação\nPlano de Saúde\nCliente', inputs: 'Operador de atendimento\nSite do plano de saúde\nDados do cliente\nPedido médico', process: 'Verificar autorização dos exames', outputs: 'Exames autorizados', customers: 'Área de Operação\nÁrea Comercial\nFinanceiro' },
+  { suppliers: 'Área de Operação\nÁrea de TI', inputs: 'Operador de atendimento\nGuichê de atendimento\nSistema de cadastro', process: 'Imprimir guia para realização dos exames', outputs: 'Guia de exames impressa', customers: 'Ilha de exames\nCliente' },
+  { suppliers: 'Área de Operação', inputs: 'Informações sobre localização dos exames\nAssistente de atendimento', process: 'Encaminhar cliente para o exame', outputs: 'Cliente conduzido até o local do exame', customers: 'Ilha de exames' },
+];
 
-const SIPOC_COLUMNS: { key: keyof DmaicSipoc; label: string; hint: string; headerClass: string }[] = [
-  { key: 'suppliers', label: 'Fornecedores', hint: 'Quem entrega o que o processo precisa', headerClass: 'bg-chart-4/12 text-chart-4' },
-  { key: 'inputs', label: 'Entradas', hint: 'O que alimenta o processo', headerClass: 'bg-chart-3/12 text-chart-3' },
-  { key: 'process', label: 'Processo', hint: '4 a 6 macroetapas, em ordem', headerClass: 'bg-primary/12 text-primary' },
-  { key: 'outputs', label: 'Saídas', hint: 'O que o processo entrega', headerClass: 'bg-accent/18 text-accent-foreground' },
+const SIPOC_COLUMNS: { key: keyof DmaicSipocRow; label: string; hint: string; headerClass: string }[] = [
+  { key: 'suppliers', label: 'Fornecedores', hint: 'Quem entrega o que a etapa precisa', headerClass: 'bg-chart-4/12 text-chart-4' },
+  { key: 'inputs', label: 'Entradas', hint: 'O que alimenta a etapa', headerClass: 'bg-chart-3/12 text-chart-3' },
+  { key: 'process', label: 'Processo', hint: 'Uma macroetapa, em ordem', headerClass: 'bg-primary/12 text-primary' },
+  { key: 'outputs', label: 'Saídas', hint: 'O que a etapa entrega', headerClass: 'bg-accent/18 text-accent-foreground' },
   { key: 'customers', label: 'Clientes', hint: 'Quem recebe as saídas', headerClass: 'bg-chart-5/14 text-chart-5' },
 ];
 
-function SipocColumnEditor({ columnKey, label, hint, headerClass, items, readOnly, onChange }: { columnKey: string; label: string; hint: string; headerClass: string; items: string[]; readOnly: boolean; onChange: (items: string[]) => void }) {
-  const addItem = () => onChange([...items, '']);
-  const updateItem = (index: number, value: string) => onChange(items.map((item, itemIndex) => itemIndex === index ? value : item));
-  const removeItem = (index: number) => onChange(items.filter((_, itemIndex) => itemIndex !== index));
-  return <div data-testid={`column-sipoc-${columnKey}`} className="flex min-w-[190px] flex-1 flex-col rounded-xl border border-border bg-card">
-    <div className={`rounded-t-xl border-b border-border px-3 py-2.5 ${headerClass}`}>
-      <p className="text-[11px] font-bold uppercase tracking-wide">{label}</p>
-      <p className="mt-0.5 text-[10px] font-medium opacity-80">{hint}</p>
-    </div>
-    <div className="flex-1 space-y-2 p-2.5">
-      {items.length === 0 && <p className="px-1 py-2 text-[11px] text-muted-foreground">Nenhum item ainda.</p>}
-      {items.map((item, index) => readOnly
-        ? <p key={index} data-testid={`text-sipoc-${columnKey}-${index}`} className="rounded-lg bg-muted/60 px-2.5 py-2 text-[11px] leading-relaxed">{item || '—'}</p>
-        : <div key={index} className="flex items-start gap-1.5">
-          <textarea data-testid={`input-sipoc-${columnKey}-${index}`} value={item} onChange={(event) => updateItem(index, event.target.value)} rows={2} className="min-h-[52px] w-full resize-y rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] leading-relaxed outline-none transition-colors focus:border-primary/60" placeholder="Descreva o item..." />
-          <button type="button" data-testid={`button-remove-sipoc-${columnKey}-${index}`} onClick={() => removeItem(index)} aria-label="Remover item" className="mt-1 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-destructive"><X size={13} /></button>
-        </div>)}
-    </div>
-    {!readOnly && <button type="button" data-testid={`button-add-sipoc-${columnKey}`} onClick={addItem} className="flex items-center justify-center gap-1.5 rounded-b-xl border-t border-border py-2 text-[11px] font-bold text-primary hover:bg-primary/5"><Plus size={13} /> Adicionar</button>}
+function sipocCellLines(value: string): string[] {
+  return value.split('\n').map((item) => item.trim()).filter(Boolean);
+}
+
+function SipocGrid({ rows, readOnly, onUpdateCell, onAddRow, onRemoveRow }: { rows: DmaicSipoc; readOnly: boolean; onUpdateCell: (rowIndex: number, key: keyof DmaicSipocRow, value: string) => void; onAddRow: () => void; onRemoveRow: (rowIndex: number) => void }) {
+  return <div data-testid="grid-sipoc" className="overflow-x-auto rounded-xl border border-border">
+    <table className="w-full min-w-[860px] border-collapse text-xs">
+      <thead>
+        <tr>
+          {SIPOC_COLUMNS.map((column) => <th key={column.key} className={`border-b border-border px-3 py-2.5 text-left align-top ${column.headerClass}`}>
+            <p className="text-[11px] font-bold uppercase tracking-wide">{column.label}</p>
+            <p className="mt-0.5 text-[10px] font-medium opacity-80">{column.hint}</p>
+          </th>)}
+          {!readOnly && <th className="w-9 border-b border-border" aria-hidden="true" />}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.length === 0 && <tr><td colSpan={SIPOC_COLUMNS.length + (readOnly ? 0 : 1)} className="px-3 py-4 text-center text-[11px] text-muted-foreground">Nenhuma etapa ainda.</td></tr>}
+        {rows.map((row, rowIndex) => <tr key={rowIndex} className="border-b border-border last:border-b-0 even:bg-muted/20">
+          {SIPOC_COLUMNS.map((column) => <td key={column.key} data-testid={`cell-sipoc-${column.key}-${rowIndex}`} className="align-top px-2.5 py-2.5">
+            {readOnly
+              ? <ul className="space-y-1 text-[11px] leading-relaxed">
+                {sipocCellLines(row[column.key]).length > 0
+                  ? sipocCellLines(row[column.key]).map((item, itemIndex) => <li key={itemIndex} className="flex gap-1.5"><span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />{item}</li>)
+                  : <li className="text-muted-foreground/70">—</li>}
+              </ul>
+              : <textarea data-testid={`input-sipoc-${column.key}-${rowIndex}`} value={row[column.key]} onChange={(event) => onUpdateCell(rowIndex, column.key, event.target.value)} rows={3} className="min-h-[64px] w-full min-w-[150px] resize-y rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] leading-relaxed outline-none transition-colors focus:border-primary/60" placeholder="Um item por linha..." />}
+          </td>)}
+          {!readOnly && <td className="align-top px-1 py-2.5"><button type="button" data-testid={`button-remove-sipoc-row-${rowIndex}`} onClick={() => onRemoveRow(rowIndex)} aria-label="Remover etapa" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive"><X size={13} /></button></td>}
+        </tr>)}
+      </tbody>
+    </table>
+    {!readOnly && <button type="button" data-testid="button-add-sipoc-row" onClick={onAddRow} className="flex w-full items-center justify-center gap-1.5 border-t border-border py-2.5 text-[11px] font-bold text-primary hover:bg-primary/5"><Plus size={13} /> Adicionar etapa</button>}
   </div>;
 }
 
 function SipocFlowDiagram({ sipoc }: { sipoc: DmaicSipoc }) {
+  const columnItems = (key: keyof DmaicSipocRow) => sipoc.flatMap((row) => sipocCellLines(row[key]));
   return <div data-testid="diagram-sipoc-flow" className="overflow-x-auto rounded-xl border border-border bg-muted/30 p-4">
     <div className="flex min-w-[780px] items-stretch gap-1">
-      {SIPOC_COLUMNS.map((stage, index) => <div key={stage.key} className="flex flex-1 items-stretch">
+      {SIPOC_COLUMNS.map((stage, index) => { const items = columnItems(stage.key); return <div key={stage.key} className="flex flex-1 items-stretch">
         <div className="flex flex-1 flex-col rounded-lg border border-border bg-background">
           <div className={`rounded-t-lg px-2.5 py-2 text-center text-[10px] font-bold uppercase tracking-wide ${stage.headerClass}`}>{stage.label}</div>
           <ul className="flex-1 space-y-1.5 p-2.5 text-[10.5px] leading-snug">
-            {sipoc[stage.key].filter((item) => item.trim()).length > 0
-              ? sipoc[stage.key].filter((item) => item.trim()).map((item, itemIndex) => <li key={itemIndex} className="flex gap-1.5"><span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />{item}</li>)
+            {items.length > 0
+              ? items.map((item, itemIndex) => <li key={itemIndex} className="flex gap-1.5"><span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />{item}</li>)
               : <li className="text-muted-foreground/70">—</li>}
           </ul>
         </div>
         {index < SIPOC_COLUMNS.length - 1 && <div className="flex w-6 shrink-0 items-center justify-center"><ArrowRight size={14} className="text-muted-foreground" /></div>}
-      </div>)}
+      </div>; })}
     </div>
   </div>;
 }
 
 function SipocMap({ sipoc, hasPipeline, dirty, saved, onChange, onSave }: { sipoc: DmaicSipoc | null; hasPipeline: boolean; dirty: boolean; saved: boolean; onChange: (next: DmaicSipoc) => void; onSave: () => void }) {
-  const displaySipoc = sipoc ?? exampleSipoc;
+  const displaySipoc = sipoc && sipoc.length > 0 ? sipoc : exampleSipoc;
   const readOnly = !hasPipeline;
-  const updateColumn = (key: keyof DmaicSipoc, items: string[]) => onChange({ ...displaySipoc, [key]: items });
+  const updateCell = (rowIndex: number, key: keyof DmaicSipocRow, value: string) => onChange(displaySipoc.map((row, index) => index === rowIndex ? { ...row, [key]: value } : row));
+  const addRow = () => onChange([...displaySipoc, { suppliers: '', inputs: '', process: '', outputs: '', customers: '' }]);
+  const removeRow = (rowIndex: number) => onChange(displaySipoc.filter((_, index) => index !== rowIndex));
   return <div data-testid="map-sipoc" className="space-y-6">
     <div className="flex items-start justify-between gap-4">
       <div>
         <p className="mono-label text-primary">{hasPipeline ? 'Gerado pelo pipeline · editável' : 'Exemplo orientativo'}</p>
         <h3 className="mt-2 font-serif text-lg font-bold">O sistema antes do detalhe</h3>
-        <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">Fornecedores, entradas, macroetapas do processo, saídas e clientes — a visão de alto nível antes de mergulhar em causas.</p>
+        <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">Cada linha é uma macroetapa do processo, com fornecedores, entradas, saídas e clientes daquela etapa alinhados lado a lado.</p>
       </div>
       <Layers3 size={20} className="shrink-0 text-primary" />
     </div>
 
-    {readOnly && <div data-testid="status-sipoc-no-pipeline" className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><p className="leading-relaxed"><strong>O SIPOC ainda é um exemplo.</strong> Preencha o Problem Statement e o Project Charter, salve o projeto e gere o pipeline para que o Gemini proponha a primeira versão — depois é só ajustar cada coluna com o time.</p></div>}
+    {readOnly && <div data-testid="status-sipoc-no-pipeline" className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><p className="leading-relaxed"><strong>O SIPOC ainda é um exemplo.</strong> Preencha o Problem Statement e o Project Charter, salve o projeto e gere o pipeline para que o Gemini proponha a primeira versão — depois é só ajustar cada linha com o time.</p></div>}
 
     {hasPipeline && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
-      <div><p className="text-xs font-bold">Ajuste a matriz com o conhecimento do time</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Adicione, edite ou remova itens em cada coluna antes de tratá-los como fluxo validado.</p></div>
+      <div><p className="text-xs font-bold">Ajuste a grade com o conhecimento do time</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Adicione, edite ou remova etapas antes de tratá-las como fluxo validado. Use uma linha por item dentro de cada célula.</p></div>
       {(dirty || saved) && <Button testId="button-save-sipoc" onClick={onSave} variant="outline" disabled={!dirty}><Save size={14} /> Salvar SIPOC</Button>}
     </div>}
     {saved && !dirty && <div data-testid="status-sipoc-saved" className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>SIPOC salvo no Neon.</strong> As alterações continuarão disponíveis ao reabrir este workspace.</span></div>}
 
-    <div className="flex flex-col gap-3 sm:flex-row">
-      {SIPOC_COLUMNS.map((column) => <SipocColumnEditor key={column.key} columnKey={column.key} label={column.label} hint={column.hint} headerClass={column.headerClass} items={displaySipoc[column.key]} readOnly={readOnly} onChange={(items) => updateColumn(column.key, items)} />)}
-    </div>
+    <SipocGrid rows={displaySipoc} readOnly={readOnly} onUpdateCell={updateCell} onAddRow={addRow} onRemoveRow={removeRow} />
 
     <div>
       <p className="mb-3 text-xs font-bold">Visualização em fluxo</p>
@@ -1560,10 +1587,9 @@ function exportProjectCharterPdf(charter: ProjectCharterDraft, projectName: stri
 }
 
 function buildSipocPrintDocument(sipoc: DmaicSipoc, projectName: string): string {
-  const column = (label: string, items: string[]) => {
-    const filled = items.map((item) => item.trim()).filter(Boolean);
-    const list = filled.length > 0 ? `<ul>${filled.map((item) => `<li>${escapeCharterHtml(item)}</li>`).join('')}</ul>` : '<p class="empty">Não preenchido</p>';
-    return `<div class="col"><h3>${escapeCharterHtml(label)}</h3>${list}</div>`;
+  const cell = (value: string) => {
+    const lines = sipocCellLines(value);
+    return lines.length > 0 ? `<ul>${lines.map((item) => `<li>${escapeCharterHtml(item)}</li>`).join('')}</ul>` : '<p class="empty">Não preenchido</p>';
   };
   return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8" /><title>SIPOC - ${escapeCharterHtml(projectName)}</title>
@@ -1572,26 +1598,25 @@ function buildSipocPrintDocument(sipoc: DmaicSipoc, projectName: string): string
   body { font-family: Georgia, 'Times New Roman', serif; color: #1c1917; margin: 0; padding: 36px 44px; }
   h1 { font-size: 22px; margin: 0 0 4px; }
   h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #78716c; margin: 28px 0 12px; border-bottom: 1px solid #e7e5e4; padding-bottom: 6px; }
-  h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 8px; padding-bottom: 6px; border-bottom: 2px solid currentColor; }
   p { font-size: 12.5px; line-height: 1.5; margin: 0; }
-  ul { margin: 0; padding-left: 16px; font-size: 11.5px; line-height: 1.55; }
-  li { margin-bottom: 5px; }
+  ul { margin: 0; padding-left: 16px; font-size: 11px; line-height: 1.5; }
+  li { margin-bottom: 4px; }
   .subtitle { font-size: 12px; color: #78716c; margin: 0 0 8px; }
-  .empty { color: #a8a29e; font-style: italic; font-size: 11.5px; }
-  .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; align-items: stretch; }
-  .col { border: 1px solid #e7e5e4; border-radius: 8px; padding: 12px; break-inside: avoid; position: relative; }
-  .flow .col:not(:last-child) { margin-right: 18px; }
-  .flow .col:not(:last-child)::after { content: '→'; position: absolute; right: -17px; top: 50%; transform: translateY(-50%); font-size: 14px; color: #a8a29e; }
-  .col.suppliers { color: #b45309; }
-  .col.inputs { color: #0e7490; }
-  .col.process { color: #4f46e5; }
-  .col.outputs { color: #a16207; }
-  .col.customers { color: #be185d; }
+  .empty { color: #a8a29e; font-style: italic; font-size: 11px; margin: 0; }
+  table.sipoc-table { width: 100%; border-collapse: collapse; margin-top: 4px; table-layout: fixed; }
+  table.sipoc-table th, table.sipoc-table td { border: 1px solid #e7e5e4; padding: 10px 12px; text-align: left; vertical-align: top; }
+  table.sipoc-table th { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  table.sipoc-table th.suppliers { background: #fef3c7; color: #92400e; }
+  table.sipoc-table th.inputs { background: #cffafe; color: #155e75; }
+  table.sipoc-table th.process { background: #e0e7ff; color: #3730a3; }
+  table.sipoc-table th.outputs { background: #fef9c3; color: #854d0e; }
+  table.sipoc-table th.customers { background: #fce7f3; color: #9d174d; }
+  table.sipoc-table td.process-cell { font-weight: 700; font-size: 12px; }
+  table.sipoc-table tbody tr:nth-child(even) td { background: #fafaf9; }
   .print-bar { position: sticky; top: 0; display: flex; justify-content: flex-end; margin: -36px -44px 24px; padding: 12px 44px; background: #fafaf9; border-bottom: 1px solid #e7e5e4; }
   .print-bar button { font-family: inherit; font-size: 12px; font-weight: 700; padding: 8px 16px; border-radius: 8px; border: 1px solid #1c1917; background: #1c1917; color: #fff; cursor: pointer; }
   @page { margin: 16mm; }
-  @media print { .print-bar { display: none; } body { padding: 0 8mm; } .flow { grid-template-columns: repeat(5, 1fr); } }
-  @media (max-width: 720px) { .flow { grid-template-columns: 1fr; } .flow .col:not(:last-child) { margin-right: 0; margin-bottom: 18px; } .flow .col:not(:last-child)::after { content: '↓'; right: 50%; top: auto; bottom: -17px; transform: translateX(50%); } }
+  @media print { .print-bar { display: none; } body { padding: 0 8mm; } table.sipoc-table tr { break-inside: avoid; } }
 </style></head>
 <body>
   <div class="print-bar"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div>
@@ -1599,13 +1624,12 @@ function buildSipocPrintDocument(sipoc: DmaicSipoc, projectName: string): string
   <p class="subtitle">${escapeCharterHtml(projectName)} &middot; gerado em ${new Date().toLocaleDateString('pt-BR')}</p>
 
   <h2>Fornecedores &rarr; Entradas &rarr; Processo &rarr; Saídas &rarr; Clientes</h2>
-  <div class="flow">
-    ${column('Fornecedores', sipoc.suppliers).replace('class="col"', 'class="col suppliers"')}
-    ${column('Entradas', sipoc.inputs).replace('class="col"', 'class="col inputs"')}
-    ${column('Processo', sipoc.process).replace('class="col"', 'class="col process"')}
-    ${column('Saídas', sipoc.outputs).replace('class="col"', 'class="col outputs"')}
-    ${column('Clientes', sipoc.customers).replace('class="col"', 'class="col customers"')}
-  </div>
+  <table class="sipoc-table">
+    <thead><tr><th class="suppliers">Fornecedores</th><th class="inputs">Entradas</th><th class="process">Processo</th><th class="outputs">Saídas</th><th class="customers">Clientes</th></tr></thead>
+    <tbody>
+      ${sipoc.length > 0 ? sipoc.map((row) => `<tr><td>${cell(row.suppliers)}</td><td>${cell(row.inputs)}</td><td class="process-cell">${row.process.trim() ? escapeCharterHtml(row.process.trim()) : '<span class="empty">Não preenchido</span>'}</td><td>${cell(row.outputs)}</td><td>${cell(row.customers)}</td></tr>`).join('') : '<tr><td colspan="5" class="empty" style="text-align:center;padding:20px;">Nenhuma etapa preenchida ainda.</td></tr>'}
+    </tbody>
+  </table>
 </body></html>`;
 }
 

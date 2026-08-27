@@ -178,13 +178,13 @@ export const RunDmaicPipelineResponse = zod.object({
   "targetGoal": zod.string(),
   "baseline": zod.string()
 }),
-  "sipoc": zod.object({
-  "suppliers": zod.array(zod.string()),
-  "inputs": zod.array(zod.string()),
-  "process": zod.array(zod.string()),
-  "outputs": zod.array(zod.string()),
-  "customers": zod.array(zod.string())
-}),
+  "sipoc": zod.array(zod.object({
+  "suppliers": zod.string(),
+  "inputs": zod.string(),
+  "process": zod.string(),
+  "outputs": zod.string(),
+  "customers": zod.string()
+})),
   "inOutMatrix": zod.object({
   "inScope": zod.array(zod.string()),
   "outOfScope": zod.array(zod.string())
@@ -522,13 +522,13 @@ export const GetDmaicWorkspaceResponse = zod.object({
   "targetGoal": zod.string(),
   "baseline": zod.string()
 }),
-  "sipoc": zod.object({
-  "suppliers": zod.array(zod.string()),
-  "inputs": zod.array(zod.string()),
-  "process": zod.array(zod.string()),
-  "outputs": zod.array(zod.string()),
-  "customers": zod.array(zod.string())
-}),
+  "sipoc": zod.array(zod.object({
+  "suppliers": zod.string(),
+  "inputs": zod.string(),
+  "process": zod.string(),
+  "outputs": zod.string(),
+  "customers": zod.string()
+})),
   "inOutMatrix": zod.object({
   "inScope": zod.array(zod.string()),
   "outOfScope": zod.array(zod.string())
@@ -879,13 +879,13 @@ export const SaveDmaicWorkspaceBody = zod.object({
   "targetGoal": zod.string(),
   "baseline": zod.string()
 }),
-  "sipoc": zod.object({
-  "suppliers": zod.array(zod.string()),
-  "inputs": zod.array(zod.string()),
-  "process": zod.array(zod.string()),
-  "outputs": zod.array(zod.string()),
-  "customers": zod.array(zod.string())
-}),
+  "sipoc": zod.array(zod.object({
+  "suppliers": zod.string(),
+  "inputs": zod.string(),
+  "process": zod.string(),
+  "outputs": zod.string(),
+  "customers": zod.string()
+})),
   "inOutMatrix": zod.object({
   "inScope": zod.array(zod.string()),
   "outOfScope": zod.array(zod.string())
@@ -1227,13 +1227,13 @@ export const SaveDmaicWorkspaceResponse = zod.object({
   "targetGoal": zod.string(),
   "baseline": zod.string()
 }),
-  "sipoc": zod.object({
-  "suppliers": zod.array(zod.string()),
-  "inputs": zod.array(zod.string()),
-  "process": zod.array(zod.string()),
-  "outputs": zod.array(zod.string()),
-  "customers": zod.array(zod.string())
-}),
+  "sipoc": zod.array(zod.object({
+  "suppliers": zod.string(),
+  "inputs": zod.string(),
+  "process": zod.string(),
+  "outputs": zod.string(),
+  "customers": zod.string()
+})),
   "inOutMatrix": zod.object({
   "inScope": zod.array(zod.string()),
   "outOfScope": zod.array(zod.string())

@@ -5,11 +5,6 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { DmaicSipocRow } from './dmaicSipocRow';
 
-export interface DmaicSipoc {
-  suppliers: string[];
-  inputs: string[];
-  process: string[];
-  outputs: string[];
-  customers: string[];
-}
+export type DmaicSipoc = DmaicSipocRow[];

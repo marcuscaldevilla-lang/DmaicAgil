@@ -36,6 +36,7 @@ export * from './dmaicPipelineIshikawa';
 export * from './dmaicRow';
 export * from './dmaicScope';
 export * from './dmaicSipoc';
+export * from './dmaicSipocRow';
 export * from './dmaicTeam';
 export * from './dmaicVocCqt';
 export * from './dmaicVocCqtClientType';
