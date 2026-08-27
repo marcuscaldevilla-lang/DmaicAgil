@@ -21,6 +21,8 @@ export interface DmaicAnalysisArtifacts {
   /** @minimum 1 */
   version: number;
   dataset: DmaicCsvDataset | null;
+  /** CSV separado da fase de Medição; a primeira coluna é o eixo X e as demais são séries pareadas do indicador. */
+  measurementDataset?: DmaicCsvDataset | null;
   /**
      * @minimum 1
      * @maximum 120

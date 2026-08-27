@@ -524,6 +524,11 @@ components:
           anyOf:
             - $ref: "#/components/schemas/DmaicCsvDataset"
             - type: "null"
+        measurementDataset:
+          description: CSV separado da fase de Medição; a primeira coluna é o eixo X e as demais são séries pareadas do indicador.
+          anyOf:
+            - $ref: "#/components/schemas/DmaicCsvDataset"
+            - type: "null"
         analysisMonths: { type: number, minimum: 1, maximum: 120 }
         selectedIndicator: { type: string }
         indicatorAnalysis:

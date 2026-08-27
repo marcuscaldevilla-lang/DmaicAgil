@@ -228,6 +228,20 @@ export const getDmaicWorkspaceResponseAnalysisArtifactsDatasetOneIndicatorColumn
 
 export const getDmaicWorkspaceResponseAnalysisArtifactsDatasetOneIndicatorColumnsMax = 100;
 
+export const getDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneFileNameMax = 255;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneHeadersItemMax = 255;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneHeadersMax = 100;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneRowsItemMaxOne = 4000;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneRowsMax = 10000;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneIndicatorColumnsItemMax = 255;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneIndicatorColumnsMax = 100;
+
 export const getDmaicWorkspaceResponseAnalysisArtifactsAnalysisMonthsMax = 120;
 
 export const getDmaicWorkspaceResponseAnalysisArtifactsIndicatorAnalysisOneOneRowsMin = 0;
@@ -368,6 +382,13 @@ export const GetDmaicWorkspaceResponse = zod.object({
   "dateColumn": zod.union([zod.string(),zod.null()]),
   "indicatorColumns": zod.array(zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsDatasetOneIndicatorColumnsItemMax)).max(getDmaicWorkspaceResponseAnalysisArtifactsDatasetOneIndicatorColumnsMax)
 }).describe('Dataset interpretado localmente no navegador, sem os bytes do arquivo original.'),zod.null()]),
+  "measurementDataset": zod.union([zod.object({
+  "fileName": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneFileNameMax),
+  "headers": zod.array(zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneHeadersItemMax)).max(getDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneHeadersMax),
+  "rows": zod.array(zod.record(zod.string(), zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneRowsItemMaxOne))).max(getDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneRowsMax),
+  "dateColumn": zod.union([zod.string(),zod.null()]),
+  "indicatorColumns": zod.array(zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneIndicatorColumnsItemMax)).max(getDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneIndicatorColumnsMax)
+}).describe('Dataset interpretado localmente no navegador, sem os bytes do arquivo original.'),zod.null()]).optional().describe('CSV separado da fase de Medição; a primeira coluna é o eixo X e as demais são séries pareadas do indicador.'),
   "analysisMonths": zod.number().min(1).max(getDmaicWorkspaceResponseAnalysisArtifactsAnalysisMonthsMax),
   "selectedIndicator": zod.string(),
   "indicatorAnalysis": zod.union([zod.union([zod.object({
@@ -586,6 +607,20 @@ export const saveDmaicWorkspaceBodyAnalysisArtifactsDatasetOneIndicatorColumnsIt
 
 export const saveDmaicWorkspaceBodyAnalysisArtifactsDatasetOneIndicatorColumnsMax = 100;
 
+export const saveDmaicWorkspaceBodyAnalysisArtifactsMeasurementDatasetOneFileNameMax = 255;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsMeasurementDatasetOneHeadersItemMax = 255;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsMeasurementDatasetOneHeadersMax = 100;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsMeasurementDatasetOneRowsItemMaxOne = 4000;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsMeasurementDatasetOneRowsMax = 10000;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsMeasurementDatasetOneIndicatorColumnsItemMax = 255;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsMeasurementDatasetOneIndicatorColumnsMax = 100;
+
 export const saveDmaicWorkspaceBodyAnalysisArtifactsAnalysisMonthsMax = 120;
 
 export const saveDmaicWorkspaceBodyAnalysisArtifactsIndicatorAnalysisOneOneRowsMin = 0;
@@ -725,6 +760,13 @@ export const SaveDmaicWorkspaceBody = zod.object({
   "dateColumn": zod.union([zod.string(),zod.null()]),
   "indicatorColumns": zod.array(zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsDatasetOneIndicatorColumnsItemMax)).max(saveDmaicWorkspaceBodyAnalysisArtifactsDatasetOneIndicatorColumnsMax)
 }).describe('Dataset interpretado localmente no navegador, sem os bytes do arquivo original.'),zod.null()]),
+  "measurementDataset": zod.union([zod.object({
+  "fileName": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsMeasurementDatasetOneFileNameMax),
+  "headers": zod.array(zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsMeasurementDatasetOneHeadersItemMax)).max(saveDmaicWorkspaceBodyAnalysisArtifactsMeasurementDatasetOneHeadersMax),
+  "rows": zod.array(zod.record(zod.string(), zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsMeasurementDatasetOneRowsItemMaxOne))).max(saveDmaicWorkspaceBodyAnalysisArtifactsMeasurementDatasetOneRowsMax),
+  "dateColumn": zod.union([zod.string(),zod.null()]),
+  "indicatorColumns": zod.array(zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsMeasurementDatasetOneIndicatorColumnsItemMax)).max(saveDmaicWorkspaceBodyAnalysisArtifactsMeasurementDatasetOneIndicatorColumnsMax)
+}).describe('Dataset interpretado localmente no navegador, sem os bytes do arquivo original.'),zod.null()]).optional().describe('CSV separado da fase de Medição; a primeira coluna é o eixo X e as demais são séries pareadas do indicador.'),
   "analysisMonths": zod.number().min(1).max(saveDmaicWorkspaceBodyAnalysisArtifactsAnalysisMonthsMax),
   "selectedIndicator": zod.string(),
   "indicatorAnalysis": zod.union([zod.union([zod.object({
@@ -933,6 +975,20 @@ export const saveDmaicWorkspaceResponseAnalysisArtifactsDatasetOneIndicatorColum
 
 export const saveDmaicWorkspaceResponseAnalysisArtifactsDatasetOneIndicatorColumnsMax = 100;
 
+export const saveDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneFileNameMax = 255;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneHeadersItemMax = 255;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneHeadersMax = 100;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneRowsItemMaxOne = 4000;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneRowsMax = 10000;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneIndicatorColumnsItemMax = 255;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneIndicatorColumnsMax = 100;
+
 export const saveDmaicWorkspaceResponseAnalysisArtifactsAnalysisMonthsMax = 120;
 
 export const saveDmaicWorkspaceResponseAnalysisArtifactsIndicatorAnalysisOneOneRowsMin = 0;
@@ -1073,6 +1129,13 @@ export const SaveDmaicWorkspaceResponse = zod.object({
   "dateColumn": zod.union([zod.string(),zod.null()]),
   "indicatorColumns": zod.array(zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsDatasetOneIndicatorColumnsItemMax)).max(saveDmaicWorkspaceResponseAnalysisArtifactsDatasetOneIndicatorColumnsMax)
 }).describe('Dataset interpretado localmente no navegador, sem os bytes do arquivo original.'),zod.null()]),
+  "measurementDataset": zod.union([zod.object({
+  "fileName": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneFileNameMax),
+  "headers": zod.array(zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneHeadersItemMax)).max(saveDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneHeadersMax),
+  "rows": zod.array(zod.record(zod.string(), zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneRowsItemMaxOne))).max(saveDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneRowsMax),
+  "dateColumn": zod.union([zod.string(),zod.null()]),
+  "indicatorColumns": zod.array(zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneIndicatorColumnsItemMax)).max(saveDmaicWorkspaceResponseAnalysisArtifactsMeasurementDatasetOneIndicatorColumnsMax)
+}).describe('Dataset interpretado localmente no navegador, sem os bytes do arquivo original.'),zod.null()]).optional().describe('CSV separado da fase de Medição; a primeira coluna é o eixo X e as demais são séries pareadas do indicador.'),
   "analysisMonths": zod.number().min(1).max(saveDmaicWorkspaceResponseAnalysisArtifactsAnalysisMonthsMax),
   "selectedIndicator": zod.string(),
   "indicatorAnalysis": zod.union([zod.union([zod.object({

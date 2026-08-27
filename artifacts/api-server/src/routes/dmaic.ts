@@ -352,6 +352,7 @@ function normalizeAnalysisArtifacts(value: unknown) {
   if (!isPlainRecord(value)) return emptyAnalysisArtifacts();
   return {
     ...value,
+    measurementDataset: value.measurementDataset ?? null,
     pipeline: value.pipeline ? normalizePersistedPipeline(value.pipeline) : null,
   };
 }
@@ -366,6 +367,7 @@ function emptyAnalysisArtifacts() {
   return {
     version: 1,
     dataset: null,
+    measurementDataset: null,
     analysisMonths: 12,
     selectedIndicator: "",
     indicatorAnalysis: null,
