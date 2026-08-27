@@ -6,6 +6,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { MeasurementAnalysisPanel } from '@/components/measurement-analysis-panel';
 import { analyzeMeasurementDataset, parseMeasurementNumber } from '@/lib/measurement-analysis';
+import { shapiroWilk } from '@/lib/shapiro-wilk';
 import NotFound from '@/pages/not-found';
 import {
   Activity,
@@ -739,62 +740,6 @@ function percentile(sorted: number[], proportion: number): number {
   return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
 }
 
-function normalCdf(value: number): number {
-  const sign = value < 0 ? -1 : 1;
-  const absolute = Math.abs(value) / Math.sqrt(2);
-  const t = 1 / (1 + 0.3275911 * absolute);
-  const polynomial = (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t;
-  return 0.5 * (1 + sign * (1 - polynomial * Math.exp(-absolute * absolute)));
-}
-
-function inverseNormalCdf(probability: number): number {
-  const p = Math.min(1 - Number.EPSILON, Math.max(Number.EPSILON, probability));
-  const a = [-39.6968302866538, 220.946098424521, -275.928510446969, 138.357751867269, -30.6647980661472, 2.50662827745924];
-  const b = [-54.4760987982241, 161.585836858041, -155.698979859887, 66.8013118877197, -13.2806815528857];
-  const c = [-0.00778489400243029, -0.322396458041136, -2.40075827716184, -2.54973253934373, 4.37466414146497, 2.93816398269878];
-  const d = [0.00778469570904146, 0.32246712907004, 2.445134137143, 3.75440866190742];
-  if (p < 0.02425) {
-    const q = Math.sqrt(-2 * Math.log(p));
-    return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
-  }
-  if (p > 1 - 0.02425) return -inverseNormalCdf(1 - p);
-  const q = p - 0.5;
-  const r = q * q;
-  const numerator = (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q;
-  const denominator = ((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1;
-  return numerator / denominator;
-}
-
-function shapiroWilk(values: number[]): { statistic: number | null; pValue: number | null; detail: string } {
-  if (values.length < 3) return { statistic: null, pValue: null, detail: 'Teste indisponível: são necessárias pelo menos 3 observações.' };
-  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
-  const sumSquares = values.reduce((sum, value) => sum + (value - mean) ** 2, 0);
-  if (sumSquares <= Number.EPSILON) return { statistic: null, pValue: null, detail: 'Teste indisponível: não há variação suficiente para avaliar a normalidade.' };
-  const sorted = [...values].sort((left, right) => left - right);
-  const expected = sorted.map((_, index) => inverseNormalCdf((index + 1 - 0.375) / (values.length + 0.25)));
-  const expectedMean = expected.reduce((sum, value) => sum + value, 0) / expected.length;
-  const centeredExpected = expected.map((value) => value - expectedMean);
-  const expectedSquares = centeredExpected.reduce((sum, value) => sum + value ** 2, 0);
-  const numerator = centeredExpected.reduce((sum, value, index) => sum + value * (sorted[index] - mean), 0);
-  const statistic = Math.min(1, Math.max(0, (numerator ** 2) / (sumSquares * expectedSquares)));
-  const oneMinusStatistic = Math.max(1e-12, 1 - statistic);
-  let standardized: number;
-  if (values.length <= 11) {
-    const gamma = -2.273 + 0.459 * values.length;
-    const transformed = -Math.log(Math.max(1e-12, gamma - Math.log(oneMinusStatistic)));
-    const expectedMeanForSmallSample = 0.5440 - 0.39978 * values.length + 0.025054 * values.length ** 2 - 0.0006714 * values.length ** 3;
-    const standardDeviationForSmallSample = Math.exp(1.3822 - 0.77857 * values.length + 0.062767 * values.length ** 2 - 0.0020322 * values.length ** 3);
-    standardized = (transformed - expectedMeanForSmallSample) / standardDeviationForSmallSample;
-  } else {
-    const logN = Math.log(values.length);
-    const expectedMeanForLargeSample = 0.0038915 * logN ** 3 - 0.083751 * logN ** 2 - 0.31082 * logN - 1.5861;
-    const standardDeviationForLargeSample = Math.exp(0.0030302 * logN ** 2 - 0.082676 * logN + 0.4803);
-    standardized = (Math.log(oneMinusStatistic) - expectedMeanForLargeSample) / standardDeviationForLargeSample;
-  }
-  const pValue = Math.min(1, Math.max(0, normalCdf(standardized)));
-  return { statistic, pValue, detail: `Shapiro–Wilk · W = ${statistic.toFixed(3)} · p = ${pValue.toFixed(3)} · significância de 5%` };
-}
-
 function formatExploratoryPeriod(row: Record<string, string>, dataset: InputDataset, index: number): string {
   const rawDate = dataset.dateColumn ? row[dataset.dateColumn] : '';
   const date = rawDate ? parseDateValue(rawDate) : null;
@@ -819,7 +764,10 @@ function buildExploratorySummary(dataset: InputDataset, analysis: IndicatorAnaly
   const variance = values.length > 1 ? values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1) : 0;
   const standardDeviation = Math.sqrt(variance);
   const shapiro = shapiroWilk(values);
-  return { points, minimum: sorted[0], q1, median: percentile(sorted, 0.5), q3, maximum: sorted[sorted.length - 1], iqr: q3 - q1, mean, standardDeviation, shapiroW: shapiro.statistic, shapiroPValue: shapiro.pValue, shapiroDetail: shapiro.detail };
+  const shapiroDetail = shapiro.statistic === null || shapiro.pValue === null
+    ? 'Teste indisponível: são necessárias de 3 a 5.000 observações com variação.'
+    : `Shapiro–Wilk · W = ${shapiro.statistic.toFixed(3)} · p = ${shapiro.pValue.toFixed(3)} · significância de 5%`;
+  return { points, minimum: sorted[0], q1, median: percentile(sorted, 0.5), q3, maximum: sorted[sorted.length - 1], iqr: q3 - q1, mean, standardDeviation, shapiroW: shapiro.statistic, shapiroPValue: shapiro.pValue, shapiroDetail };
 }
 
 function diagnosisMatchesCurrentAnalysis(

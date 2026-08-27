@@ -7,6 +7,8 @@ The Measurement CSV is independent from the Definition CSV. Its first column is 
 
 Use repeated-measures ANOVA with a Greenhouse–Geisser correction for the global comparison, followed by paired t-tests with Holm adjustment for all pairwise comparisons. Do not substitute an independent-groups equal-variance ANOVA merely because variable dispersions differ.
 
-**Why:** A row can represent one shared month while columns represent factory units. Treating columns as independent discards the shared-month structure; assuming equal independent variances is especially misleading when one unit is substantially more variable.
+Calculate Shapiro–Wilk with the Royston/AS R94 weight correction and p-value transformation used by R, SciPy, and jamovi. A correlation against expected normal quantiles is Shapiro–Francia-like and must not be labeled Shapiro–Wilk.
 
-**How to apply:** Keep Definition and Measurement datasets distinct in persistence and recovery. Validate every non-X cell as numeric, calculate locally from the paired rows, and label prioritization as an investigation aid rather than causal proof.
+**Why:** A row can represent one shared month while columns represent factory units. Treating columns as independent discards the shared-month structure; assuming equal independent variances is especially misleading when one unit is substantially more variable. Approximate normal-quantile weights produced materially different p-values from jamovi on the same observations.
+
+**How to apply:** Keep Definition and Measurement datasets distinct in persistence and recovery. Validate every non-X cell as numeric, calculate locally from the paired rows, and label prioritization as an investigation aid rather than causal proof. Reuse the shared Shapiro–Wilk implementation in every analysis surface.
