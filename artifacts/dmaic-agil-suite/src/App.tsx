@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicCharter, type DmaicExploratoryDiagnosisInput, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicSipoc, type DmaicSipocRow, type DmaicVocCqt, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
+import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicCharter, type DmaicExploratoryDiagnosisInput, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicRow, type DmaicSipoc, type DmaicSipocRow, type DmaicVocCqt, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -36,6 +36,7 @@ import {
   Search,
   Settings2,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
   Target,
   TestTube2,
@@ -82,7 +83,7 @@ type ProjectCharterDraft = {
 type CharterTextField = Exclude<keyof ProjectCharterDraft, 'team'>;
 type ProjectCharterContext = Omit<ProjectCharterDraft, 'team'> & { team: Array<CharterTeamMember & { role: string }> };
 type GeneratedCharterFields = Pick<ProjectCharterDraft, 'objective' | 'history' | 'goalDefinition' | 'kpis' | 'includedScope' | 'excludedScope' | 'assumptionsAndConstraints' | 'customerRequirements' | 'businessContributions' | 'businessContributionsQuantitative' | 'businessContributionsQualitative' | 'financialGainValue'>;
-type WorkspaceSaveSource = 'statement' | 'charter' | 'suggestions' | 'voc' | 'sipoc';
+type WorkspaceSaveSource = 'statement' | 'charter' | 'suggestions' | 'voc' | 'sipoc' | 'msa' | 'vitalx' | 'gut' | 'solutions' | 'control-plan';
 type WorkspaceSaveData = { projectKey?: number; problemStatement: string; projectCharterContext: ProjectCharterContext; aiCharterSuggestions: GeneratedCharterFields | null; analysisArtifacts: DmaicAnalysisArtifacts };
 type WorkspaceSaveAttempt = { source: WorkspaceSaveSource; data: WorkspaceSaveData; charterToPersist?: ProjectCharterDraft; expectedRevision?: number };
 type WorkspaceLocalDraft = {
@@ -149,6 +150,7 @@ const AI_PROJECT_CHARTER_PREVIEW_LABELS: Record<keyof DmaicCharter, string> = {
   expectedSavings: 'Ganhos Esperados',
 };
 
+type MsaRow = { variable: string; gageRrStatus: string; recommendation: string };
 const createEmptyAnalysisArtifacts = (): DmaicAnalysisArtifacts => ({
   version: 1,
   dataset: null,
@@ -1206,7 +1208,7 @@ function InputDataPanel({ dataset, analysis, error, months, onMonthsChange, sele
   </section>;
 }
 
-function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDataset, csvError, onRetry, pipeline, hasDiagnosis = false, manualRows, hasManualChanges, manualSaveConfirmed, onManualRowsChange, onSaveManualRows, charter, activeProjectName, sipocDirty = false, sipocSaved = false, onSipocChange, onSaveSipoc }: { tool: Tool; onClose: () => void; pareto: { name: string; value: number }[] | null; imr: number[] | null; inputAnalysis?: IndicatorAnalysis | null; hasInputDataset: boolean; csvError: string | null; onRetry: () => void; pipeline: DmaicPipeline | null; hasDiagnosis?: boolean; manualRows: DmaicVocCqt[]; hasManualChanges: boolean; manualSaveConfirmed: boolean; onManualRowsChange: (rows: DmaicVocCqt[]) => void; onSaveManualRows: () => void; charter?: ProjectCharterDraft; activeProjectName?: string; sipocDirty?: boolean; sipocSaved?: boolean; onSipocChange?: (next: DmaicSipoc) => void; onSaveSipoc?: () => void }) {
+function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDataset, csvError, onRetry, pipeline, hasDiagnosis = false, manualRows, hasManualChanges, manualSaveConfirmed, onManualRowsChange, onSaveManualRows, charter, activeProjectName, sipocDirty = false, sipocSaved = false, onSipocChange, onSaveSipoc, msaDirty = false, msaSaved = false, onMsaChange, onSaveMsa, vitalXDirty = false, vitalXSaved = false, onVitalXChange, onSaveVitalX, gutDirty = false, gutSaved = false, onGutChange, onSaveGut, solutionsDirty = false, solutionsSaved = false, onSolutionsChange, onSaveSolutions, controlPlanDirty = false, controlPlanSaved = false, onControlPlanChange, onSaveControlPlan }: { tool: Tool; onClose: () => void; pareto: { name: string; value: number }[] | null; imr: number[] | null; inputAnalysis?: IndicatorAnalysis | null; hasInputDataset: boolean; csvError: string | null; onRetry: () => void; pipeline: DmaicPipeline | null; hasDiagnosis?: boolean; manualRows: DmaicVocCqt[]; hasManualChanges: boolean; manualSaveConfirmed: boolean; onManualRowsChange: (rows: DmaicVocCqt[]) => void; onSaveManualRows: () => void; charter?: ProjectCharterDraft; activeProjectName?: string; sipocDirty?: boolean; sipocSaved?: boolean; onSipocChange?: (next: DmaicSipoc) => void; onSaveSipoc?: () => void; msaDirty?: boolean; msaSaved?: boolean; onMsaChange?: (next: MsaRow[]) => void; onSaveMsa?: () => void; vitalXDirty?: boolean; vitalXSaved?: boolean; onVitalXChange?: (next: VitalXBreakdownRow[]) => void; onSaveVitalX?: () => void; gutDirty?: boolean; gutSaved?: boolean; onGutChange?: (next: GutRow[]) => void; onSaveGut?: () => void; solutionsDirty?: boolean; solutionsSaved?: boolean; onSolutionsChange?: (next: SolutionRow[]) => void; onSaveSolutions?: () => void; controlPlanDirty?: boolean; controlPlanSaved?: boolean; onControlPlanChange?: (next: ControlPlanRow[]) => void; onSaveControlPlan?: () => void }) {
   const [tab, setTab] = useState<'preview' | 'data'>('preview');
   const [maximized, setMaximized] = useState(false);
   const isPareto = tool.id === 'pareto';
@@ -1223,7 +1225,7 @@ function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDatas
       : inputAnalysis.kind === 'continuous' && inputAnalysis.values.length < 2
         ? 'O I-MR precisa de pelo menos duas observações sequenciais no recorte selecionado.'
         : 'O I-MR é aplicável somente a indicadores contínuos. Selecione um indicador numérico compatível.';
-  return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}><section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className={`flex h-full w-full flex-col overflow-y-auto border-l border-border bg-background shadow-2xl transition-[max-width] duration-200 ${maximized ? 'max-w-full' : 'max-w-[560px]'}`}><div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur"><div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">{pipeline ? 'Gerado com IA' : manualRows.length > 0 ? 'Editado pela equipe' : tool.tag ?? 'Entregável gerado'}</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div><div className="flex items-center gap-1"><button data-testid="button-maximize-tool" aria-label={maximized ? 'Restaurar tamanho' : 'Maximizar painel'} aria-pressed={maximized} onClick={() => setMaximized((value) => !value)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted">{maximized ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div></div><div className="border-b border-border px-5 pt-4"><div className="flex gap-5"><button data-testid="tab-preview" onClick={() => setTab('preview')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'preview' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Visualização</button><button data-testid="tab-data" onClick={() => setTab('data')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'data' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Dados & notas</button></div></div><div className="flex-1 p-5">{csvError && isAnalysisTool ? <div data-testid="status-tool-csv-error" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-destructive" /><div><p className="text-sm font-bold text-destructive">Não foi possível ler o arquivo</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{csvError}</p><Button testId="button-retry-upload" onClick={onRetry} variant="outline" className="mt-3"><RefreshCw size={13} /> Tentar com outro arquivo</Button></div></div></div> : isAnalysisTool && !hasCompatibleData ? <div data-testid="status-tool-no-data" className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold">Visualização indisponível</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{unavailableMessage}</p></div></div></div> : tab === 'preview' ? <>{isPareto && pareto ? <ParetoChart data={pareto} cumulative={cumulative} source={source} /> : isImr && imr ? <ImrChart data={imr} source={source} /> : tool.id === 'voc' ? <VocCqtMap rows={pipeline?.vocCtq ?? []} hasPipeline={Boolean(pipeline)} hasDiagnosis={hasDiagnosis} manualRows={manualRows} hasManualChanges={hasManualChanges} hasManualSaveConfirmation={manualSaveConfirmed} onManualRowsChange={onManualRowsChange} onSaveManualRows={onSaveManualRows} /> : tool.id === 'sipoc' ? <SipocMap sipoc={pipeline?.sipoc ?? null} hasPipeline={Boolean(pipeline)} dirty={sipocDirty} saved={sipocSaved} onChange={(next) => onSipocChange?.(next)} onSave={() => onSaveSipoc?.()} /> : <GenericPreview tool={tool} pipeline={pipeline} />}</> : <DataNotes tool={tool} pareto={pareto} imr={imr} source={source} />}</div><div className="border-t border-border bg-card px-5 py-4"><div className="flex items-center justify-between gap-3"><span className="mono-label text-muted-foreground">{pipeline ? 'Conteúdo gerado por Gemini' : manualRows.length > 0 ? 'Indicadores manuais · equipe' : hasInputDataset && isAnalysisTool ? hasCompatibleData ? 'Dados do CSV · local' : 'Sem dados compatíveis' : 'Conteúdo de exemplo · local'}</span><Button testId="button-export-tool" variant="outline" onClick={tool.id === 'charter' && charter ? () => exportProjectCharterPdf(charter, activeProjectName?.trim() || 'Novo projeto') : tool.id === 'sipoc' ? () => exportSipocPdf(pipeline?.sipoc?.length ? pipeline.sipoc : exampleSipoc, activeProjectName?.trim() || 'Novo projeto') : tool.id === 'voc' ? () => exportVocPdf((pipeline?.vocCtq?.length ? pipeline.vocCtq : manualRows.length ? manualRows : exampleVocRows), activeProjectName?.trim() || 'Novo projeto') : undefined}><FileText size={14} /> Exportar visão</Button></div></div></section></div>;
+  return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}><section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className={`flex h-full w-full flex-col overflow-y-auto border-l border-border bg-background shadow-2xl transition-[max-width] duration-200 ${maximized ? 'max-w-full' : 'max-w-[560px]'}`}><div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur"><div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">{pipeline ? 'Gerado com IA' : manualRows.length > 0 ? 'Editado pela equipe' : tool.tag ?? 'Entregável gerado'}</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div><div className="flex items-center gap-1"><button data-testid="button-maximize-tool" aria-label={maximized ? 'Restaurar tamanho' : 'Maximizar painel'} aria-pressed={maximized} onClick={() => setMaximized((value) => !value)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted">{maximized ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div></div><div className="border-b border-border px-5 pt-4"><div className="flex gap-5"><button data-testid="tab-preview" onClick={() => setTab('preview')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'preview' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Visualização</button><button data-testid="tab-data" onClick={() => setTab('data')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'data' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Dados & notas</button></div></div><div className="flex-1 p-5">{csvError && isAnalysisTool ? <div data-testid="status-tool-csv-error" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-destructive" /><div><p className="text-sm font-bold text-destructive">Não foi possível ler o arquivo</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{csvError}</p><Button testId="button-retry-upload" onClick={onRetry} variant="outline" className="mt-3"><RefreshCw size={13} /> Tentar com outro arquivo</Button></div></div></div> : isAnalysisTool && !hasCompatibleData ? <div data-testid="status-tool-no-data" className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold">Visualização indisponível</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{unavailableMessage}</p></div></div></div> : tab === 'preview' ? <>{isPareto && pareto ? <ParetoChart data={pareto} cumulative={cumulative} source={source} /> : isImr && imr ? <ImrChart data={imr} source={source} /> : tool.id === 'voc' ? <VocCqtMap rows={pipeline?.vocCtq ?? []} hasPipeline={Boolean(pipeline)} hasDiagnosis={hasDiagnosis} manualRows={manualRows} hasManualChanges={hasManualChanges} hasManualSaveConfirmation={manualSaveConfirmed} onManualRowsChange={onManualRowsChange} onSaveManualRows={onSaveManualRows} /> : tool.id === 'sipoc' ? <SipocMap sipoc={pipeline?.sipoc ?? null} hasPipeline={Boolean(pipeline)} dirty={sipocDirty} saved={sipocSaved} onChange={(next) => onSipocChange?.(next)} onSave={() => onSaveSipoc?.()} /> : tool.id === 'msa' ? <MsaValidationMap rows={normalizeRows(pipeline?.msaValidation, EMPTY_MSA_ROW)} hasPipeline={Boolean(pipeline)} dirty={msaDirty} saved={msaSaved} onChange={(next) => onMsaChange?.(next)} onSave={() => onSaveMsa?.()} /> : tool.id === 'vitalx' ? <VitalXBreakdownMap rows={normalizeRows(pipeline?.vitalXs, EMPTY_VITAL_X_BREAKDOWN_ROW)} hasPipeline={Boolean(pipeline)} dirty={vitalXDirty} saved={vitalXSaved} onChange={(next) => onVitalXChange?.(next)} onSave={() => onSaveVitalX?.()} /> : tool.id === 'gut' ? <GutPrioritizationMap rows={normalizeRows(pipeline?.gutPrioritization, EMPTY_GUT_ROW)} hasPipeline={Boolean(pipeline)} dirty={gutDirty} saved={gutSaved} onChange={(next) => onGutChange?.(next)} onSave={() => onSaveGut?.()} /> : tool.id === 'solutions' ? <SolutionsTreeMap rows={normalizeRows(pipeline?.actionPlan, EMPTY_SOLUTION_ROW)} hasPipeline={Boolean(pipeline)} dirty={solutionsDirty} saved={solutionsSaved} onChange={(next) => onSolutionsChange?.(next)} onSave={() => onSaveSolutions?.()} /> : tool.id === 'control-plan' ? <ControlPlanMap rows={normalizeRows(pipeline?.controlPlan, EMPTY_CONTROL_PLAN_ROW)} hasPipeline={Boolean(pipeline)} dirty={controlPlanDirty} saved={controlPlanSaved} onChange={(next) => onControlPlanChange?.(next)} onSave={() => onSaveControlPlan?.()} /> : <GenericPreview tool={tool} pipeline={pipeline} />}</> : <DataNotes tool={tool} pareto={pareto} imr={imr} source={source} />}</div><div className="border-t border-border bg-card px-5 py-4"><div className="flex items-center justify-between gap-3"><span className="mono-label text-muted-foreground">{pipeline ? 'Conteúdo gerado por Gemini' : manualRows.length > 0 ? 'Indicadores manuais · equipe' : hasInputDataset && isAnalysisTool ? hasCompatibleData ? 'Dados do CSV · local' : 'Sem dados compatíveis' : 'Conteúdo de exemplo · local'}</span><Button testId="button-export-tool" variant="outline" onClick={tool.id === 'charter' && charter ? () => exportProjectCharterPdf(charter, activeProjectName?.trim() || 'Novo projeto') : tool.id === 'sipoc' ? () => exportSipocPdf(pipeline?.sipoc?.length ? pipeline.sipoc : exampleSipoc, activeProjectName?.trim() || 'Novo projeto') : tool.id === 'voc' ? () => exportVocPdf((pipeline?.vocCtq?.length ? pipeline.vocCtq : manualRows.length ? manualRows : exampleVocRows), activeProjectName?.trim() || 'Novo projeto') : undefined}><FileText size={14} /> Exportar visão</Button></div></div></section></div>;
 }
 
 function ParetoChart({ data, cumulative, source }: { data: { name: string; value: number }[]; cumulative: { name: string; value: number; pct: number }[]; source: 'example' | 'upload' }) {
@@ -1517,6 +1519,10 @@ function SipocMap({ sipoc, hasPipeline, dirty, saved, onChange, onSave }: { sipo
   </div>;
 }
 
+const exampleMsaRows: MsaRow[] = [
+  { variable: 'Tempo até aprovação (min)', gageRrStatus: 'R&R simplificado: 8,2% da variação total; discriminação de 6 categorias.', recommendation: 'Sistema de medição aceitável. Manter captura por timestamp automático, sem leitura manual.' },
+  { variable: 'Classificação de risco do bureau', gageRrStatus: 'Concordância entre avaliadores: 91% nas últimas 30 amostras.', recommendation: 'Padronizar o critério de corte antes de tratar esta variável como Vital X.' },
+];
 function escapeCharterHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -1923,6 +1929,16 @@ function Workspace() {
   const [manualVocCtqDirty, setManualVocCtqDirty] = useState(false);
   const [sipocDirty, setSipocDirty] = useState(false);
   const [sipocSaved, setSipocSaved] = useState(false);
+  const [msaDirty, setMsaDirty] = useState(false);
+  const [msaSaved, setMsaSaved] = useState(false);
+  const [vitalXDirty, setVitalXDirty] = useState(false);
+  const [vitalXSaved, setVitalXSaved] = useState(false);
+  const [gutDirty, setGutDirty] = useState(false);
+  const [gutSaved, setGutSaved] = useState(false);
+  const [solutionsDirty, setSolutionsDirty] = useState(false);
+  const [solutionsSaved, setSolutionsSaved] = useState(false);
+  const [controlPlanDirty, setControlPlanDirty] = useState(false);
+  const [controlPlanSaved, setControlPlanSaved] = useState(false);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [vitalId, setVitalId] = useState('x1');
@@ -2005,6 +2021,16 @@ function Workspace() {
     setManualVocSaved(false);
     setSipocDirty(false);
     setSipocSaved(false);
+    setMsaDirty(false);
+    setMsaSaved(false);
+    setVitalXDirty(false);
+    setVitalXSaved(false);
+    setGutDirty(false);
+    setGutSaved(false);
+    setSolutionsDirty(false);
+    setSolutionsSaved(false);
+    setControlPlanDirty(false);
+    setControlPlanSaved(false);
     setPipelineDone(Boolean(draft.analysisArtifacts.pipeline));
     setCsvError(null);
     workspaceRevisionRef.current = workspace.revision;
@@ -2144,6 +2170,21 @@ function Workspace() {
           } else if (source === 'sipoc') {
             setSipocDirty(false);
             setSipocSaved(true);
+          } else if (source === 'msa') {
+            setMsaDirty(false);
+            setMsaSaved(true);
+          } else if (source === 'vitalx') {
+            setVitalXDirty(false);
+            setVitalXSaved(true);
+          } else if (source === 'gut') {
+            setGutDirty(false);
+            setGutSaved(true);
+          } else if (source === 'solutions') {
+            setSolutionsDirty(false);
+            setSolutionsSaved(true);
+          } else if (source === 'control-plan') {
+            setControlPlanDirty(false);
+            setControlPlanSaved(true);
           }
         },
         onConflict: (latestWorkspace) => setWorkspaceConflict({ latest: latestWorkspace, source }),
@@ -2211,6 +2252,16 @@ function Workspace() {
     setManualVocSaved(false);
     setSipocDirty(false);
     setSipocSaved(false);
+    setMsaDirty(false);
+    setMsaSaved(false);
+    setVitalXDirty(false);
+    setVitalXSaved(false);
+    setGutDirty(false);
+    setGutSaved(false);
+    setSolutionsDirty(false);
+    setSolutionsSaved(false);
+    setControlPlanDirty(false);
+    setControlPlanSaved(false);
     setPipelineDone(Boolean(recoveredDraft.analysisArtifacts.pipeline));
     workspaceRevisionRef.current = recoveredDraft.baseRevision;
     draftWriteEnabledRef.current = true;
@@ -2262,6 +2313,51 @@ function Workspace() {
     if (!pipelineData) return;
     saveWorkspace('sipoc');
   };
+  const updateMsa = (next: MsaRow[]) => {
+    setPipelineData((prev) => prev ? { ...prev, msaValidation: next } : prev);
+    setMsaDirty(true);
+    setMsaSaved(false);
+  };
+  const saveMsa = () => {
+    if (!pipelineData) return;
+    saveWorkspace('msa');
+  };
+  const updateVitalX = (next: VitalXBreakdownRow[]) => {
+    setPipelineData((prev) => prev ? { ...prev, vitalXs: next } : prev);
+    setVitalXDirty(true);
+    setVitalXSaved(false);
+  };
+  const saveVitalX = () => {
+    if (!pipelineData) return;
+    saveWorkspace('vitalx');
+  };
+  const updateGut = (next: GutRow[]) => {
+    setPipelineData((prev) => prev ? { ...prev, gutPrioritization: next } : prev);
+    setGutDirty(true);
+    setGutSaved(false);
+  };
+  const saveGut = () => {
+    if (!pipelineData) return;
+    saveWorkspace('gut');
+  };
+  const updateSolutions = (next: SolutionRow[]) => {
+    setPipelineData((prev) => prev ? { ...prev, actionPlan: next } : prev);
+    setSolutionsDirty(true);
+    setSolutionsSaved(false);
+  };
+  const saveSolutions = () => {
+    if (!pipelineData) return;
+    saveWorkspace('solutions');
+  };
+  const updateControlPlan = (next: ControlPlanRow[]) => {
+    setPipelineData((prev) => prev ? { ...prev, controlPlan: next } : prev);
+    setControlPlanDirty(true);
+    setControlPlanSaved(false);
+  };
+  const saveControlPlan = () => {
+    if (!pipelineData) return;
+    saveWorkspace('control-plan');
+  };
   const loadSelectedProject = async () => {
     const nextProjectKey = Number(selectedProjectKey);
     if (!Number.isSafeInteger(nextProjectKey) || nextProjectKey < 1 || projectLoading) return;
@@ -2311,6 +2407,16 @@ function Workspace() {
     setManualVocSaved(false);
     setSipocDirty(false);
     setSipocSaved(false);
+    setMsaDirty(false);
+    setMsaSaved(false);
+    setVitalXDirty(false);
+    setVitalXSaved(false);
+    setGutDirty(false);
+    setGutSaved(false);
+    setSolutionsDirty(false);
+    setSolutionsSaved(false);
+    setControlPlanDirty(false);
+    setControlPlanSaved(false);
     setPipelineDone(false);
     setInputDataset(null);
     setAnalysisMonths(12);
@@ -2458,7 +2564,7 @@ function Workspace() {
         </div>
       </main>
     </div>
-     {selectedTool && <DetailDrawer tool={selectedTool} onClose={() => setSelectedTool(null)} pareto={pareto} imr={imr} inputAnalysis={inputAnalysis} hasInputDataset={Boolean(inputDataset)} csvError={csvError} onRetry={retryUpload} pipeline={pipelineData} hasDiagnosis={Boolean(pipelineAnalysisContext?.diagnosis)} manualRows={manualVocCtq} hasManualChanges={manualVocCtqDirty} manualSaveConfirmed={manualVocSaved} onManualRowsChange={updateManualVocCtq} onSaveManualRows={saveManualVocCtq} charter={charter} activeProjectName={activeProjectName} sipocDirty={sipocDirty} sipocSaved={sipocSaved} onSipocChange={updateSipoc} onSaveSipoc={saveSipoc} />}
+     {selectedTool && <DetailDrawer tool={selectedTool} onClose={() => setSelectedTool(null)} pareto={pareto} imr={imr} inputAnalysis={inputAnalysis} hasInputDataset={Boolean(inputDataset)} csvError={csvError} onRetry={retryUpload} pipeline={pipelineData} hasDiagnosis={Boolean(pipelineAnalysisContext?.diagnosis)} manualRows={manualVocCtq} hasManualChanges={manualVocCtqDirty} manualSaveConfirmed={manualVocSaved} onManualRowsChange={updateManualVocCtq} onSaveManualRows={saveManualVocCtq} charter={charter} activeProjectName={activeProjectName} sipocDirty={sipocDirty} sipocSaved={sipocSaved} onSipocChange={updateSipoc} onSaveSipoc={saveSipoc} msaDirty={msaDirty} msaSaved={msaSaved} onMsaChange={updateMsa} onSaveMsa={saveMsa} vitalXDirty={vitalXDirty} vitalXSaved={vitalXSaved} onVitalXChange={updateVitalX} onSaveVitalX={saveVitalX} gutDirty={gutDirty} gutSaved={gutSaved} onGutChange={updateGut} onSaveGut={saveGut} solutionsDirty={solutionsDirty} solutionsSaved={solutionsSaved} onSolutionsChange={updateSolutions} onSaveSolutions={saveSolutions} controlPlanDirty={controlPlanDirty} controlPlanSaved={controlPlanSaved} onControlPlanChange={updateControlPlan} onSaveControlPlan={saveControlPlan} />}
   </div>;
 }
 /*
@@ -2679,3 +2785,326 @@ function App() {
 }
 
 export default App;
+
+function SolutionsTreeMap({ rows, hasPipeline, dirty, saved, onChange, onSave }: { rows: SolutionRow[]; hasPipeline: boolean; dirty: boolean; saved: boolean; onChange: (next: SolutionRow[]) => void; onSave: () => void }) {
+  const displayRows = hasPipeline ? rows : exampleSolutionRows;
+  const readOnly = !hasPipeline;
+  const updateCell = (index: number, key: keyof SolutionRow, value: string) => onChange(displayRows.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row));
+  const removeRow = (index: number) => onChange(displayRows.filter((_, rowIndex) => rowIndex !== index));
+  const addRow = () => onChange([...displayRows, { ...EMPTY_SOLUTION_ROW }]);
+  return <div data-testid="map-solutions" className="space-y-6">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="mono-label text-primary">{hasPipeline ? 'Gerado pelo pipeline · editável' : 'Exemplo orientativo'}</p>
+        <h3 className="mt-2 font-serif text-lg font-bold">Hipótese vira experimento</h3>
+        <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">Cada solução aplica o método 5W2H: conecta um porquê validado a um experimento concreto, com dono, prazo e esforço estimado.</p>
+      </div>
+      <Sparkles size={20} className="shrink-0 text-primary" />
+    </div>
+
+    {readOnly && <div data-testid="status-solutions-no-pipeline" className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><p className="leading-relaxed"><strong>A árvore de soluções ainda é um exemplo.</strong> Preencha o Problem Statement, salve o projeto e gere o pipeline para que o Gemini proponha experimentos — depois ajuste com o plano real do time.</p></div>}
+
+    {hasPipeline && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+      <div><p className="text-xs font-bold">Refine o plano com o time</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Adicione novas soluções ou ajuste responsáveis, prazos e esforço estimado.</p></div>
+      <div className="flex flex-wrap gap-2"><Button testId="button-add-solution-row" onClick={addRow}><Plus size={14} /> Adicionar solução</Button>{(dirty || saved) && <Button testId="button-save-solutions" onClick={onSave} variant="outline" disabled={!dirty}><Save size={14} /> Salvar soluções</Button>}</div>
+    </div>}
+    {saved && !dirty && <div data-testid="status-solutions-saved" className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Árvore de soluções salva no Neon.</strong> As alterações continuarão disponíveis ao reabrir este workspace.</span></div>}
+
+    <div className="space-y-3">
+      {displayRows.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma solução registrada ainda.</p>}
+      {displayRows.map((row, index) => <div key={index} data-testid={`card-solution-${index}`} className="overflow-hidden rounded-xl border border-border">
+        <div className="flex items-center justify-between gap-3 border-b border-border bg-primary/5 px-4 py-2.5">
+          <span className="mono-label text-primary">Solução #{index + 1}</span>
+          {!readOnly && <button type="button" data-testid={`button-remove-solution-${index}`} onClick={() => removeRow(index)} className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground hover:text-destructive"><X size={13} /> Remover</button>}
+        </div>
+        <div className="grid gap-3 p-4 sm:grid-cols-2">
+          {SOLUTION_FIELDS.map((field) => <label key={field.key} className="block">
+            <span className="mb-1.5 block text-[10px] font-bold text-muted-foreground">{field.label}</span>
+            {readOnly ? <p data-testid={`text-solution-${field.key}-${index}`} className="rounded-lg bg-muted/50 px-2.5 py-2 text-[11px] leading-relaxed">{row[field.key] || '—'}</p> : <textarea data-testid={`input-solution-${field.key}-${index}`} value={row[field.key]} onChange={(event) => updateCell(index, field.key, event.target.value)} rows={2} className="min-h-[52px] w-full resize-y rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] leading-relaxed outline-none transition-colors focus:border-primary/60" placeholder={field.hint} />}
+          </label>)}
+        </div>
+      </div>)}
+    </div>
+    <p className="text-[10px] leading-relaxed text-muted-foreground">Cada solução é uma hipótese até ser validada por um piloto ou experimento controlado. Confirme impacto e custo real antes de escalar.</p>
+  </div>;
+}
+
+function MsaValidationMap({ rows, hasPipeline, dirty, saved, onChange, onSave }: { rows: MsaRow[]; hasPipeline: boolean; dirty: boolean; saved: boolean; onChange: (next: MsaRow[]) => void; onSave: () => void }) {
+  const displayRows = hasPipeline ? rows : exampleMsaRows;
+  const readOnly = !hasPipeline;
+  const updateCell = (index: number, key: keyof MsaRow, value: string) => onChange(displayRows.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row));
+  const removeRow = (index: number) => onChange(displayRows.filter((_, rowIndex) => rowIndex !== index));
+  const addRow = () => onChange([...displayRows, { ...EMPTY_MSA_ROW }]);
+  return <div data-testid="map-msa" className="space-y-6">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="mono-label text-primary">{hasPipeline ? 'Gerado pelo pipeline · editável' : 'Exemplo orientativo'}</p>
+        <h3 className="mt-2 font-serif text-lg font-bold">A medida merece confiança?</h3>
+        <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">Antes de confiar em um indicador, valide o sistema de medição: repetibilidade (mesma pessoa, mesma leitura) e reprodutibilidade (pessoas diferentes, mesma leitura).</p>
+      </div>
+      <TestTube2 size={20} className="shrink-0 text-primary" />
+    </div>
+
+    {readOnly && <div data-testid="status-msa-no-pipeline" className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><p className="leading-relaxed"><strong>A validação ainda é um exemplo.</strong> Preencha o Problem Statement, salve o projeto e gere o pipeline para que o Gemini avalie as variáveis medidas — depois ajuste com os resultados reais do Gage R&R.</p></div>}
+
+    {hasPipeline && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+      <div><p className="text-xs font-bold">Ajuste com os resultados reais do estudo</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Adicione variáveis medidas ou corrija o veredito com base no Gage R&R conduzido pelo time.</p></div>
+      <div className="flex flex-wrap gap-2"><Button testId="button-add-msa-row" onClick={addRow}><Plus size={14} /> Adicionar variável</Button>{(dirty || saved) && <Button testId="button-save-msa" onClick={onSave} variant="outline" disabled={!dirty}><Save size={14} /> Salvar MSA</Button>}</div>
+    </div>}
+    {saved && !dirty && <div data-testid="status-msa-saved" className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Validação MSA salva no Neon.</strong> As alterações continuarão disponíveis ao reabrir este workspace.</span></div>}
+
+    <div className="overflow-x-auto rounded-xl border border-border" data-testid="table-msa-scroll">
+      <div className="min-w-[720px]">
+        <div className="grid grid-cols-[0.85fr_1.15fr_1.4fr] border-b border-border bg-sidebar px-4 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground">
+          {MSA_FIELDS.map((field) => <div key={field.key}>{field.label}</div>)}
+        </div>
+        {displayRows.length === 0 && <p className="p-4 text-xs text-muted-foreground">Nenhuma variável registrada ainda.</p>}
+        {displayRows.map((row, index) => <div key={index} data-testid={`row-msa-${index}`} className="grid grid-cols-[0.85fr_1.15fr_1.4fr] border-b border-border last:border-0">
+          {MSA_FIELDS.map((field, fieldIndex) => <div key={field.key} className={`p-3 ${fieldIndex < MSA_FIELDS.length - 1 ? 'border-r border-border' : ''}`}>
+            {readOnly ? <p data-testid={`text-msa-${field.key}-${index}`} className="text-xs leading-relaxed">{row[field.key] || '—'}</p> : <textarea data-testid={`input-msa-${field.key}-${index}`} value={row[field.key]} onChange={(event) => updateCell(index, field.key, event.target.value)} rows={2} className="min-h-[56px] w-full resize-y rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] leading-relaxed outline-none transition-colors focus:border-primary/60" />}
+          </div>)}
+          {!readOnly && <div className="col-span-3 flex justify-end border-t border-border/60 px-3 py-1.5"><button type="button" data-testid={`button-remove-msa-${index}`} onClick={() => removeRow(index)} className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground hover:text-destructive"><X size={12} /> Remover variável</button></div>}
+        </div>)}
+      </div>
+    </div>
+    <p className="text-[10px] leading-relaxed text-muted-foreground">Os resultados de Gage R&R e o veredito de confiabilidade devem ser confirmados por um estudo real de sistema de medição antes de orientar decisões do projeto.</p>
+  </div>;
+}
+
+function GutPrioritizationMap({ rows, hasPipeline, dirty, saved, onChange, onSave }: { rows: GutRow[]; hasPipeline: boolean; dirty: boolean; saved: boolean; onChange: (next: GutRow[]) => void; onSave: () => void }) {
+  const displayRows = hasPipeline ? rows : exampleGutRows;
+  const readOnly = !hasPipeline;
+  const maxScore = Math.max(1, ...displayRows.map((row) => parseGutScore(row.gutScore) ?? 0));
+  const updateCell = (index: number, key: keyof GutRow, value: string) => onChange(displayRows.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row));
+  const removeRow = (index: number) => onChange(displayRows.filter((_, rowIndex) => rowIndex !== index));
+  const addRow = () => onChange([...displayRows, { ...EMPTY_GUT_ROW }]);
+  return <div data-testid="map-gut" className="space-y-6">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="mono-label text-primary">{hasPipeline ? 'Gerado pelo pipeline · editável' : 'Exemplo orientativo'}</p>
+        <h3 className="mt-2 font-serif text-lg font-bold">Decida com critério explícito</h3>
+        <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">Gravidade × Urgência × Tendência (cada uma de 1 a 5) formam o score GUT. Trate as causas com maior score primeiro.</p>
+      </div>
+      <ClipboardCheck size={20} className="shrink-0 text-accent-foreground" />
+    </div>
+
+    {readOnly && <div data-testid="status-gut-no-pipeline" className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><p className="leading-relaxed"><strong>A priorização ainda é um exemplo.</strong> Preencha o Problem Statement, salve o projeto e gere o pipeline para que o Gemini avalie as causas — depois ajuste as notas com o critério do time.</p></div>}
+
+    {hasPipeline && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+      <div><p className="text-xs font-bold">Ajuste as notas com o critério do time</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Adicione causas levantadas na matriz 6M ou corrija as notas de Gravidade, Urgência e Tendência.</p></div>
+      <div className="flex flex-wrap gap-2"><Button testId="button-add-gut-row" onClick={addRow}><Plus size={14} /> Adicionar causa</Button>{(dirty || saved) && <Button testId="button-save-gut" onClick={onSave} variant="outline" disabled={!dirty}><Save size={14} /> Salvar priorização</Button>}</div>
+    </div>}
+    {saved && !dirty && <div data-testid="status-gut-saved" className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Priorização GUT salva no Neon.</strong> As alterações continuarão disponíveis ao reabrir este workspace.</span></div>}
+
+    <div className="space-y-2">
+      {displayRows.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma causa registrada ainda.</p>}
+      {displayRows.map((row, index) => {
+        const score = parseGutScore(row.gutScore);
+        const barWidth = score !== null ? Math.max(4, (score / maxScore) * 100) : 0;
+        return <div key={index} data-testid={`row-gut-${index}`} className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <p className="mono-label text-muted-foreground">Causa #{index + 1}</p>
+              {readOnly ? <p data-testid={`text-gut-cause-${index}`} className="mt-1 text-sm font-semibold leading-relaxed">{row.cause || '—'}</p> : <textarea data-testid={`input-gut-cause-${index}`} value={row.cause} onChange={(event) => updateCell(index, 'cause', event.target.value)} rows={2} className="mt-1 min-h-[52px] w-full resize-y rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs leading-relaxed outline-none transition-colors focus:border-primary/60" />}
+            </div>
+            {!readOnly && <button type="button" data-testid={`button-remove-gut-${index}`} onClick={() => removeRow(index)} aria-label="Remover causa" className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-destructive"><X size={13} /></button>}
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-[repeat(3,72px)_1fr]">
+            {GUT_SCORE_FIELDS.map((field) => <label key={field.key} className="block" title={field.hint}>
+              <span className="mb-1 block text-center text-[9px] font-bold uppercase text-muted-foreground">{field.label}</span>
+              {readOnly ? <p data-testid={`text-gut-${field.key}-${index}`} className="rounded-lg bg-muted px-2 py-1.5 text-center text-xs font-bold">{row[field.key] || '—'}</p> : <input data-testid={`input-gut-${field.key}-${index}`} value={row[field.key]} onChange={(event) => updateCell(index, field.key, event.target.value)} className="h-8 w-full rounded-lg border border-border bg-background px-2 text-center text-xs font-bold outline-none transition-colors focus:border-primary/60" />}
+            </label>)}
+            <div>
+              <span className="mb-1 block text-[9px] font-bold uppercase text-muted-foreground">Score GUT</span>
+              <div className="flex items-center gap-2">
+                {readOnly ? <span data-testid={`text-gut-gutScore-${index}`} className="font-mono text-sm font-bold text-primary">{row.gutScore || '—'}</span> : <input data-testid={`input-gut-gutScore-${index}`} value={row.gutScore} onChange={(event) => updateCell(index, 'gutScore', event.target.value)} className="h-8 w-20 shrink-0 rounded-lg border border-border bg-background px-2 text-center text-xs font-bold outline-none transition-colors focus:border-primary/60" />}
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-accent" style={{ width: `${barWidth}%` }} /></div>
+              </div>
+            </div>
+          </div>
+        </div>;
+      })}
+    </div>
+    <p className="text-[10px] leading-relaxed text-muted-foreground">As notas de Gravidade, Urgência e Tendência refletem o julgamento do time no momento da análise; revalide-as periodicamente à medida que o processo muda.</p>
+  </div>;
+}
+
+const MSA_FIELDS: { key: keyof MsaRow; label: string }[] = [
+  { key: 'variable', label: 'Variável medida' },
+  { key: 'gageRrStatus', label: 'Resultado do Gage R&R' },
+  { key: 'recommendation', label: 'Recomendação' },
+];
+
+function VitalXBreakdownMap({ rows, hasPipeline, dirty, saved, onChange, onSave }: { rows: VitalXBreakdownRow[]; hasPipeline: boolean; dirty: boolean; saved: boolean; onChange: (next: VitalXBreakdownRow[]) => void; onSave: () => void }) {
+  const displayRows = hasPipeline ? rows : exampleVitalXBreakdownRows;
+  const readOnly = !hasPipeline;
+  const updateCell = (index: number, key: keyof VitalXBreakdownRow, value: string) => onChange(displayRows.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row));
+  const removeRow = (index: number) => onChange(displayRows.filter((_, rowIndex) => rowIndex !== index));
+  const addRow = () => onChange([...displayRows, { ...EMPTY_VITAL_X_BREAKDOWN_ROW }]);
+  return <div data-testid="map-vitalx" className="space-y-6">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="mono-label text-primary">{hasPipeline ? 'Gerado pelo pipeline · editável' : 'Exemplo orientativo'}</p>
+        <h3 className="mt-2 font-serif text-lg font-bold">Do Y ao fator controlável</h3>
+        <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">Vitais X são os poucos fatores controláveis que mais explicam a variação do indicador Y. Priorize-os com uma meta específica e um sprint responsável antes de desenhar soluções.</p>
+      </div>
+      <Zap size={20} className="shrink-0 text-chart-4" />
+    </div>
+
+    {readOnly && <div data-testid="status-vitalx-no-pipeline" className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><p className="leading-relaxed"><strong>Os vitais X ainda são um exemplo.</strong> Preencha o Problem Statement, salve o projeto e gere o pipeline para que o Gemini proponha os fatores controláveis — depois ajuste com o que o time já sabe do processo.</p></div>}
+
+    {hasPipeline && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+      <div><p className="text-xs font-bold">Ajuste os fatores com o conhecimento do time</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Adicione, edite ou remova vitais X e reatribua sprints conforme a priorização do backlog.</p></div>
+      <div className="flex flex-wrap gap-2"><Button testId="button-add-vitalx-row" onClick={addRow}><Plus size={14} /> Adicionar vital X</Button>{(dirty || saved) && <Button testId="button-save-vitalx" onClick={onSave} variant="outline" disabled={!dirty}><Save size={14} /> Salvar vitais X</Button>}</div>
+    </div>}
+    {saved && !dirty && <div data-testid="status-vitalx-saved" className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Vitais X salvos no Neon.</strong> As alterações continuarão disponíveis ao reabrir este workspace.</span></div>}
+
+    <div className="grid gap-3 sm:grid-cols-2">
+      {displayRows.length === 0 && <p className="text-xs text-muted-foreground">Nenhum vital X registrado ainda.</p>}
+      {displayRows.map((row, index) => <div key={index} data-testid={`card-vitalx-${index}`} className="rounded-xl border border-border bg-card p-4">
+        <div className="flex items-start justify-between gap-2">
+          {readOnly ? <span data-testid={`text-vitalx-id-${index}`} className="rounded-full bg-chart-4/15 px-2.5 py-1 text-[11px] font-bold text-chart-4">{row.id || `X${index + 1}`}</span> : <input data-testid={`input-vitalx-id-${index}`} value={row.id} onChange={(event) => updateCell(index, 'id', event.target.value)} className="h-8 w-20 rounded-lg border border-border bg-background px-2 text-center text-xs font-bold outline-none transition-colors focus:border-primary/60" placeholder={`X${index + 1}`} />}
+          {!readOnly && <button type="button" data-testid={`button-remove-vitalx-${index}`} onClick={() => removeRow(index)} aria-label="Remover vital X" className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-destructive"><X size={13} /></button>}
+        </div>
+        <div className="mt-3">
+          <span className="mono-label text-muted-foreground">Fator controlável</span>
+          {readOnly ? <p data-testid={`text-vitalx-description-${index}`} className="mt-1 text-xs font-semibold leading-relaxed">{row.description || '—'}</p> : <textarea data-testid={`input-vitalx-description-${index}`} value={row.description} onChange={(event) => updateCell(index, 'description', event.target.value)} rows={2} className="mt-1 min-h-[56px] w-full resize-y rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] leading-relaxed outline-none transition-colors focus:border-primary/60" />}
+        </div>
+        <div className="mt-3 rounded-lg bg-muted/60 p-2.5">
+          <span className="mono-label text-muted-foreground">Meta específica de redução</span>
+          {readOnly ? <p data-testid={`text-vitalx-goal-${index}`} className="mt-1 text-[11px] leading-relaxed">{row.specificGoalReduction || '—'}</p> : <textarea data-testid={`input-vitalx-goal-${index}`} value={row.specificGoalReduction} onChange={(event) => updateCell(index, 'specificGoalReduction', event.target.value)} rows={2} className="mt-1 min-h-[52px] w-full resize-y rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] leading-relaxed outline-none transition-colors focus:border-primary/60" />}
+        </div>
+        <div className="mt-3 flex items-center gap-2">
+          <ArrowRight size={13} className="shrink-0 text-muted-foreground" />
+          <span className="mono-label text-muted-foreground">Sprint</span>
+          {readOnly ? <span data-testid={`text-vitalx-sprint-${index}`} className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-bold text-primary">{row.assignedSprint || '—'}</span> : <input data-testid={`input-vitalx-sprint-${index}`} value={row.assignedSprint} onChange={(event) => updateCell(index, 'assignedSprint', event.target.value)} className="h-8 flex-1 rounded-lg border border-border bg-background px-2.5 text-[11px] font-bold outline-none transition-colors focus:border-primary/60" placeholder="Sprint 1" />}
+        </div>
+      </div>)}
+    </div>
+    <p className="text-[10px] leading-relaxed text-muted-foreground">A relação entre cada vital X e o indicador Y é uma hipótese até ser confirmada por análise ou experimento. Valide antes de comprometer sprints inteiros a um único fator.</p>
+  </div>;
+}
+
+const EMPTY_VITAL_X_BREAKDOWN_ROW: VitalXBreakdownRow = { id: '', description: '', specificGoalReduction: '', assignedSprint: '' };
+
+type GutRow = { cause: string; gravity: string; urgency: string; tendency: string; gutScore: string };
+
+const GUT_SCORE_FIELDS: { key: 'gravity' | 'urgency' | 'tendency'; label: string; hint: string }[] = [
+  { key: 'gravity', label: 'G', hint: 'Gravidade · impacto se nada for feito' },
+  { key: 'urgency', label: 'U', hint: 'Urgência · tempo disponível para agir' },
+  { key: 'tendency', label: 'T', hint: 'Tendência · piora se não for tratado' },
+];
+
+const CONTROL_PLAN_FIELDS: { key: keyof ControlPlanRow; label: string }[] = [
+  { key: 'parameter', label: 'Parâmetro' },
+  { key: 'specification', label: 'Especificação' },
+  { key: 'measurementFreq', label: 'Frequência de medição' },
+  { key: 'responsible', label: 'Responsável' },
+  { key: 'reactionPlan', label: 'Plano de reação' },
+];
+
+const EMPTY_SOLUTION_ROW: SolutionRow = { what: '', why: '', where: '', when: '', who: '', how: '', howMuch: '' };
+
+type SolutionRow = { what: string; why: string; where: string; when: string; who: string; how: string; howMuch: string };
+
+type VitalXBreakdownRow = { id: string; description: string; specificGoalReduction: string; assignedSprint: string };
+
+const EMPTY_GUT_ROW: GutRow = { cause: '', gravity: '', urgency: '', tendency: '', gutScore: '' };
+
+type ControlPlanRow = { parameter: string; specification: string; measurementFreq: string; responsible: string; reactionPlan: string };
+
+function normalizeRows<T extends Record<string, string>>(rows: DmaicRow[] | undefined, template: T): T[] {
+  return (rows ?? []).map((row) => normalizeRow(row, template));
+}
+
+const exampleSolutionRows: SolutionRow[] = [
+  { what: 'Checklist digital de documentos obrigatórios', why: 'Reduzir retrabalho por documentação incompleta na abertura', where: 'Etapa de abertura da solicitação', when: 'Próximo sprint', who: 'Operações + TI', how: 'Formulário com validação obrigatória por campo antes do envio', howMuch: 'Baixo custo; reaproveita o sistema atual de abertura' },
+  { what: 'Painel de status para o cliente', why: 'Reduzir cobranças por falta de visibilidade do andamento', where: 'Fluxo completo de aprovação', when: 'Sprint seguinte', who: 'Atendimento + TI', how: 'Tela de acompanhamento com etapas e prazo estimado', howMuch: 'Médio custo; requer integração com o sistema de fluxo' },
+];
+
+const exampleVitalXBreakdownRows: VitalXBreakdownRow[] = [
+  { id: 'X1', description: 'Tempo de espera na triagem inicial', specificGoalReduction: 'Reduzir de 18,4 para 11,0 min', assignedSprint: 'Sprint 1' },
+  { id: 'X2', description: 'Retrabalho por documentação incompleta', specificGoalReduction: 'Reduzir taxa de retrabalho em 30%', assignedSprint: 'Sprint 2' },
+  { id: 'X3', description: 'Carga de solicitações por operador', specificGoalReduction: 'Nivelar carga em até 12 solicitações/h', assignedSprint: 'Sprint 2' },
+];
+
+function parseGutScore(value: string): number | null {
+  const parsed = Number(value.replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function ControlPlanMap({ rows, hasPipeline, dirty, saved, onChange, onSave }: { rows: ControlPlanRow[]; hasPipeline: boolean; dirty: boolean; saved: boolean; onChange: (next: ControlPlanRow[]) => void; onSave: () => void }) {
+  const displayRows = hasPipeline ? rows : exampleControlPlanRows;
+  const readOnly = !hasPipeline;
+  const updateCell = (index: number, key: keyof ControlPlanRow, value: string) => onChange(displayRows.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row));
+  const removeRow = (index: number) => onChange(displayRows.filter((_, rowIndex) => rowIndex !== index));
+  const addRow = () => onChange([...displayRows, { ...EMPTY_CONTROL_PLAN_ROW }]);
+  return <div data-testid="map-control-plan" className="space-y-6">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="mono-label text-primary">{hasPipeline ? 'Gerado pelo pipeline · editável' : 'Exemplo orientativo'}</p>
+        <h3 className="mt-2 font-serif text-lg font-bold">Faça a melhora sobreviver</h3>
+        <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">Um plano de controle define o que medir, com que frequência, quem responde e o que fazer quando o parâmetro sair da especificação.</p>
+      </div>
+      <ShieldCheck size={20} className="shrink-0 text-chart-3" />
+    </div>
+
+    {readOnly && <div data-testid="status-control-plan-no-pipeline" className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><p className="leading-relaxed"><strong>O plano de controle ainda é um exemplo.</strong> Preencha o Problem Statement, salve o projeto e gere o pipeline para que o Gemini proponha os parâmetros — depois ajuste com o padrão real de operação.</p></div>}
+
+    {hasPipeline && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+      <div><p className="text-xs font-bold">Ajuste o plano com o padrão de operação</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Adicione parâmetros de controle ou corrija especificação, frequência, responsável e plano de reação.</p></div>
+      <div className="flex flex-wrap gap-2"><Button testId="button-add-control-plan-row" onClick={addRow}><Plus size={14} /> Adicionar parâmetro</Button>{(dirty || saved) && <Button testId="button-save-control-plan" onClick={onSave} variant="outline" disabled={!dirty}><Save size={14} /> Salvar plano de controle</Button>}</div>
+    </div>}
+    {saved && !dirty && <div data-testid="status-control-plan-saved" className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Plano de controle salvo no Neon.</strong> As alterações continuarão disponíveis ao reabrir este workspace.</span></div>}
+
+    <div className="overflow-x-auto rounded-xl border border-border" data-testid="table-control-plan-scroll">
+      <div className="min-w-[900px]">
+        <div className="grid grid-cols-[0.85fr_1fr_1fr_0.75fr_1.1fr] border-b border-border bg-sidebar px-4 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground">
+          {CONTROL_PLAN_FIELDS.map((field) => <div key={field.key}>{field.label}</div>)}
+        </div>
+        {displayRows.length === 0 && <p className="p-4 text-xs text-muted-foreground">Nenhum parâmetro registrado ainda.</p>}
+        {displayRows.map((row, index) => <div key={index} data-testid={`row-control-plan-${index}`} className="grid grid-cols-[0.85fr_1fr_1fr_0.75fr_1.1fr] border-b border-border last:border-0">
+          {CONTROL_PLAN_FIELDS.map((field, fieldIndex) => <div key={field.key} className={`p-3 ${fieldIndex < CONTROL_PLAN_FIELDS.length - 1 ? 'border-r border-border' : ''}`}>
+            {readOnly ? <p data-testid={`text-control-plan-${field.key}-${index}`} className="text-xs leading-relaxed">{row[field.key] || '—'}</p> : <textarea data-testid={`input-control-plan-${field.key}-${index}`} value={row[field.key]} onChange={(event) => updateCell(index, field.key, event.target.value)} rows={2} className="min-h-[56px] w-full resize-y rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] leading-relaxed outline-none transition-colors focus:border-primary/60" />}
+          </div>)}
+          {!readOnly && <div className="col-span-5 flex justify-end border-t border-border/60 px-3 py-1.5"><button type="button" data-testid={`button-remove-control-plan-${index}`} onClick={() => removeRow(index)} className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground hover:text-destructive"><X size={12} /> Remover parâmetro</button></div>}
+        </div>)}
+      </div>
+    </div>
+    <p className="text-[10px] leading-relaxed text-muted-foreground">Especificações, frequências e planos de reação devem ser validados com o dono do processo antes de se tornarem padrão operacional.</p>
+  </div>;
+}
+
+const EMPTY_CONTROL_PLAN_ROW: ControlPlanRow = { parameter: '', specification: '', measurementFreq: '', responsible: '', reactionPlan: '' };
+
+const SOLUTION_FIELDS: { key: keyof SolutionRow; label: string; hint: string }[] = [
+  { key: 'what', label: 'O quê', hint: 'A solução proposta' },
+  { key: 'why', label: 'Por quê', hint: 'A causa ou hipótese que ela ataca' },
+  { key: 'where', label: 'Onde', hint: 'Etapa do processo' },
+  { key: 'when', label: 'Quando', hint: 'Prazo ou sprint' },
+  { key: 'who', label: 'Quem', hint: 'Responsáveis' },
+  { key: 'how', label: 'Como', hint: 'Forma de implementação' },
+  { key: 'howMuch', label: 'Quanto custa', hint: 'Esforço ou investimento estimado' },
+];
+
+const exampleGutRows: GutRow[] = [
+  { cause: 'Documentação incompleta na abertura da solicitação', gravity: '5', urgency: '4', tendency: '4', gutScore: '80' },
+  { cause: 'Retrabalho na validação manual de dados do bureau', gravity: '4', urgency: '4', tendency: '3', gutScore: '48' },
+  { cause: 'Fila de integração entre sistemas na aprovação', gravity: '3', urgency: '3', tendency: '3', gutScore: '27' },
+];
+
+const EMPTY_MSA_ROW: MsaRow = { variable: '', gageRrStatus: '', recommendation: '' };
+
+function normalizeRow<T extends Record<string, string>>(row: DmaicRow | undefined, template: T): T {
+  const result = { ...template };
+  (Object.keys(template) as (keyof T)[]).forEach((key) => {
+    const value = row?.[key as string];
+    if (typeof value === 'string') result[key] = value as T[keyof T];
+  });
+  return result;
+}
+
+const exampleControlPlanRows: ControlPlanRow[] = [
+  { parameter: 'Tempo total até aprovação', specification: '≤ 11,0 min (meta)', measurementFreq: 'Diário, por amostragem de 10 solicitações', responsible: 'Líder de operações', reactionPlan: 'Escalar para o Belt se ficar acima do limite por 3 dias seguidos' },
+  { parameter: 'Taxa de retrabalho por documentação', specification: '≤ 5%', measurementFreq: 'Semanal', responsible: 'Supervisor de triagem', reactionPlan: 'Reforçar checklist e revisar treinamento da equipe' },
+];
