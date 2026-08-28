@@ -13,6 +13,7 @@ import type { DmaicMeasurementWhatIfRecord } from './dmaicMeasurementWhatIfRecor
 import type { DmaicParetoItem } from './dmaicParetoItem';
 import type { DmaicPipeline } from './dmaicPipeline';
 import type { DmaicPipelineAnalysisContext } from './dmaicPipelineAnalysisContext';
+import type { DmaicProcessMap } from './dmaicProcessMap';
 import type { DmaicVocCqt } from './dmaicVocCqt';
 
 /**
@@ -46,4 +47,6 @@ export interface DmaicAnalysisArtifacts {
      * @maxItems 50
      */
   whatIfAnalyses?: DmaicMeasurementWhatIfRecord[];
+  /** Mapa de processo editável e parâmetros Y/X específicos do projeto. */
+  processMap?: DmaicProcessMap | null;
 }

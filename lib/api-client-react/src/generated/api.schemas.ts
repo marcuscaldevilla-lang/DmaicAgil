@@ -298,6 +298,121 @@ export interface DmaicMeasurementWhatIfRecord {
   context: DmaicMeasurementWhatIfContext;
 }
 
+export type DmaicProcessNodeType = typeof DmaicProcessNodeType[keyof typeof DmaicProcessNodeType];
+
+
+export const DmaicProcessNodeType = {
+  start: 'start',
+  end: 'end',
+  activity: 'activity',
+  decision: 'decision',
+} as const;
+
+export type DmaicProcessNodePosition = {
+  /**
+     * @minimum 0
+     * @maximum 5000
+     */
+  x: number;
+  /**
+     * @minimum 0
+     * @maximum 5000
+     */
+  y: number;
+};
+
+export interface DmaicProcessNode {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  id: string;
+  type: DmaicProcessNodeType;
+  /** @maxLength 300 */
+  label: string;
+  position: DmaicProcessNodePosition;
+  /**
+     * @maxItems 20
+     * @items.maxLength 500
+     */
+  processInputs: string[];
+  /**
+     * @maxItems 20
+     * @items.maxLength 500
+     */
+  processOutputs: string[];
+}
+
+export interface DmaicProcessEdge {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  source: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  target: string;
+  /** @maxLength 120 */
+  label: string;
+  /** @maxLength 240 */
+  condition: string;
+}
+
+export type DmaicProcessVariableKind = typeof DmaicProcessVariableKind[keyof typeof DmaicProcessVariableKind];
+
+
+export const DmaicProcessVariableKind = {
+  Y: 'Y',
+  X: 'X',
+} as const;
+
+export type DmaicProcessVariableClassification = typeof DmaicProcessVariableClassification[keyof typeof DmaicProcessVariableClassification];
+
+
+export const DmaicProcessVariableClassification = {
+  controlável: 'controlável',
+  ruído: 'ruído',
+  referência: 'referência',
+} as const;
+
+export interface DmaicProcessVariable {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  id: string;
+  /** @maxLength 240 */
+  name: string;
+  kind: DmaicProcessVariableKind;
+  classification: DmaicProcessVariableClassification;
+  /** @maxLength 80 */
+  unit: string;
+  /** @maxLength 240 */
+  measure: string;
+  /** @maxLength 500 */
+  notes: string;
+  /** @maxLength 100 */
+  nodeId: string;
+}
+
+export interface DmaicProcessMap {
+  /** @minimum 1 */
+  version: number;
+  /** @maxItems 100 */
+  nodes: DmaicProcessNode[];
+  /** @maxItems 200 */
+  edges: DmaicProcessEdge[];
+  /** @maxItems 300 */
+  variables: DmaicProcessVariable[];
+}
+
 /**
  * Editable Project Charter suggestions generated from the problem statement.
  */
@@ -533,6 +648,8 @@ export interface DmaicAnalysisArtifacts {
      * @maxItems 50
      */
   whatIfAnalyses?: DmaicMeasurementWhatIfRecord[];
+  /** Mapa de processo editável e parâmetros Y/X específicos do projeto. */
+  processMap?: DmaicProcessMap | null;
 }
 
 export interface DmaicWorkspaceInput {

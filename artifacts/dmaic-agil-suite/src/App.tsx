@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicCharter, type DmaicCsvDataset, type DmaicExploratoryDiagnosisInput, type DmaicMeasurementWhatIfContext, type DmaicMeasurementWhatIfRecord, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicRow, type DmaicSipoc, type DmaicSipocRow, type DmaicVocCqt, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicMeasurementWhatIf, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
+import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicCharter, type DmaicCsvDataset, type DmaicExploratoryDiagnosisInput, type DmaicMeasurementWhatIfContext, type DmaicMeasurementWhatIfRecord, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicProcessMap, type DmaicRow, type DmaicSipoc, type DmaicSipocRow, type DmaicVocCqt, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicMeasurementWhatIf, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { MeasurementAnalysisPanel } from '@/components/measurement-analysis-panel';
+import { ProcessMapEditor } from '@/components/process-map-editor';
 import { analyzeMeasurementDataset, parseMeasurementNumber } from '@/lib/measurement-analysis';
+import { cloneProcessMap, createInitialProcessMap } from '@/lib/process-map';
 import { shapiroWilk } from '@/lib/shapiro-wilk';
 import NotFound from '@/pages/not-found';
 import {
@@ -86,7 +88,7 @@ type ProjectCharterDraft = {
 type CharterTextField = Exclude<keyof ProjectCharterDraft, 'team'>;
 type ProjectCharterContext = Omit<ProjectCharterDraft, 'team'> & { team: Array<CharterTeamMember & { role: string }> };
 type GeneratedCharterFields = Pick<ProjectCharterDraft, 'objective' | 'history' | 'goalDefinition' | 'kpis' | 'includedScope' | 'excludedScope' | 'assumptionsAndConstraints' | 'customerRequirements' | 'businessContributions' | 'businessContributionsQuantitative' | 'businessContributionsQualitative' | 'financialGainValue'>;
-type WorkspaceSaveSource = 'statement' | 'charter' | 'suggestions' | 'voc' | 'sipoc' | 'msa' | 'vitalx' | 'gut' | 'solutions' | 'control-plan' | 'what-if';
+type WorkspaceSaveSource = 'statement' | 'charter' | 'suggestions' | 'voc' | 'sipoc' | 'msa' | 'vitalx' | 'gut' | 'solutions' | 'control-plan' | 'what-if' | 'process-map';
 type WorkspaceSaveData = { projectKey?: number; problemStatement: string; projectCharterContext: ProjectCharterContext; aiCharterSuggestions: GeneratedCharterFields | null; analysisArtifacts: DmaicAnalysisArtifacts };
 type WorkspaceSaveAttempt = { source: WorkspaceSaveSource; data: WorkspaceSaveData; charterToPersist?: ProjectCharterDraft; expectedRevision?: number };
 type WorkspaceLocalDraft = {
@@ -170,6 +172,7 @@ const createEmptyAnalysisArtifacts = (): DmaicAnalysisArtifacts => ({
   pipeline: null,
   manualVocCtq: [],
   whatIfAnalyses: [],
+  processMap: createInitialProcessMap(),
 });
 
 function parseAnalysisArtifacts(value: unknown): DmaicAnalysisArtifacts {
@@ -179,7 +182,20 @@ function parseAnalysisArtifacts(value: unknown): DmaicAnalysisArtifacts {
     pipeline: normalizePipelineSnapshot(value.pipeline),
     manualVocCtq: parseManualVocRows(value.manualVocCtq),
     whatIfAnalyses: Array.isArray(value.whatIfAnalyses) ? value.whatIfAnalyses : [],
+    processMap: parseProcessMapSnapshot(value.processMap),
   } as unknown as DmaicAnalysisArtifacts;
+}
+
+function parseProcessMapSnapshot(value: unknown): DmaicProcessMap {
+  if (!isObject(value) || !Array.isArray(value.nodes) || !Array.isArray(value.edges) || !Array.isArray(value.variables)) {
+    return createInitialProcessMap();
+  }
+  return {
+    version: typeof value.version === 'number' ? value.version : 1,
+    nodes: value.nodes as DmaicProcessMap['nodes'],
+    edges: value.edges as DmaicProcessMap['edges'],
+    variables: value.variables as DmaicProcessMap['variables'],
+  };
 }
 
 function analysisArtifactsSizeInBytes(artifacts: DmaicAnalysisArtifacts): number {
@@ -1922,6 +1938,9 @@ function Workspace() {
   const [measurementDataset, setMeasurementDataset] = useState<DmaicCsvDataset | null>(() => initialLocalDraft?.analysisArtifacts.measurementDataset ?? null);
   const [whatIfAnalyses, setWhatIfAnalyses] = useState<DmaicMeasurementWhatIfRecord[]>(() => initialLocalDraft?.analysisArtifacts.whatIfAnalyses ?? []);
   const [whatIfSaved, setWhatIfSaved] = useState(false);
+  const [processMap, setProcessMap] = useState<DmaicProcessMap>(() => cloneProcessMap(initialLocalDraft?.analysisArtifacts.processMap ?? createInitialProcessMap()));
+  const [processMapDirty, setProcessMapDirty] = useState(false);
+  const [processMapSaved, setProcessMapSaved] = useState(false);
   const [analysisMonths, setAnalysisMonths] = useState(() => initialLocalDraft?.analysisArtifacts.analysisMonths ?? 12);
   const [selectedIndicator, setSelectedIndicator] = useState(() => initialLocalDraft?.analysisArtifacts.selectedIndicator ?? initialLocalDraft?.analysisArtifacts.dataset?.indicatorColumns[0] ?? '');
   const [exploratoryDiagnosis, setExploratoryDiagnosis] = useState<string | null>(() => initialLocalDraft?.analysisArtifacts.diagnosis ?? null);
@@ -1967,6 +1986,7 @@ function Workspace() {
       pipeline: pipelineData,
       manualVocCtq,
       whatIfAnalyses,
+      processMap,
     };
   };
   createAnalysisArtifactsRef.current = createAnalysisArtifacts;
@@ -2000,6 +2020,9 @@ function Workspace() {
     setMeasurementDataset(draft.analysisArtifacts.measurementDataset ?? null);
     setWhatIfAnalyses(draft.analysisArtifacts.whatIfAnalyses ?? []);
     setWhatIfSaved(false);
+    setProcessMap(cloneProcessMap(draft.analysisArtifacts.processMap ?? createInitialProcessMap()));
+    setProcessMapDirty(false);
+    setProcessMapSaved(false);
     setAnalysisMonths(draft.analysisArtifacts.analysisMonths);
     setSelectedIndicator(draft.analysisArtifacts.selectedIndicator || draft.analysisArtifacts.dataset?.indicatorColumns[0] || '');
     setExploratoryDiagnosis(draft.analysisArtifacts.diagnosis);
@@ -2055,7 +2078,7 @@ function Workspace() {
   useEffect(() => {
     if (localDraftConflict || !draftWriteEnabledRef.current) return;
     writeCurrentLocalDraft();
-  }, [aiCharterSuggestions, analysisMonths, charter, confirmedCharter, exploratoryDiagnosis, exploratoryDiagnosisInput, inputDataset, localDraftConflict, manualVocCtq, measurementDataset, pipelineAnalysisContext, pipelineData, selectedIndicator, statement, whatIfAnalyses]);
+  }, [aiCharterSuggestions, analysisMonths, charter, confirmedCharter, exploratoryDiagnosis, exploratoryDiagnosisInput, inputDataset, localDraftConflict, manualVocCtq, measurementDataset, pipelineAnalysisContext, pipelineData, processMap, selectedIndicator, statement, whatIfAnalyses]);
 
   const queueWorkspaceSave = (
     attempt: WorkspaceSaveAttempt,
@@ -2178,6 +2201,9 @@ function Workspace() {
             setControlPlanSaved(true);
           } else if (source === 'what-if') {
             setWhatIfSaved(true);
+          } else if (source === 'process-map') {
+            setProcessMapDirty(false);
+            setProcessMapSaved(true);
           }
         },
         onConflict: (latestWorkspace) => setWorkspaceConflict({ latest: latestWorkspace, source }),
@@ -2189,6 +2215,12 @@ function Workspace() {
   };
   const saveStatement = () => saveWorkspace('statement');
   const saveCharter = () => saveWorkspace('charter');
+  const updateProcessMap = (nextProcessMap: DmaicProcessMap) => {
+    setProcessMap(nextProcessMap);
+    setProcessMapDirty(true);
+    setProcessMapSaved(false);
+  };
+  const saveProcessMap = () => saveWorkspace('process-map');
   const handleDiagnosisChange = (diagnosis: string | null, diagnosisInput: DmaicExploratoryDiagnosisInput) => {
     setExploratoryDiagnosis(diagnosis);
     setExploratoryDiagnosisInput(diagnosisInput);
@@ -2314,6 +2346,9 @@ function Workspace() {
     setMeasurementDataset(recoveredDraft.analysisArtifacts.measurementDataset ?? null);
     setWhatIfAnalyses(recoveredDraft.analysisArtifacts.whatIfAnalyses ?? []);
     setWhatIfSaved(false);
+    setProcessMap(cloneProcessMap(recoveredDraft.analysisArtifacts.processMap ?? createInitialProcessMap()));
+    setProcessMapDirty(false);
+    setProcessMapSaved(false);
     setAnalysisMonths(recoveredDraft.analysisArtifacts.analysisMonths);
     setSelectedIndicator(recoveredDraft.analysisArtifacts.selectedIndicator || recoveredDraft.analysisArtifacts.dataset?.indicatorColumns[0] || '');
     setExploratoryDiagnosis(recoveredDraft.analysisArtifacts.diagnosis);
@@ -2496,6 +2531,9 @@ function Workspace() {
     setMeasurementDataset(null);
     setWhatIfAnalyses([]);
     setWhatIfSaved(false);
+    setProcessMap(createInitialProcessMap());
+    setProcessMapDirty(false);
+    setProcessMapSaved(false);
     setAnalysisMonths(12);
     setSelectedIndicator('');
     setExploratoryDiagnosis(null);
@@ -2670,7 +2708,10 @@ function Workspace() {
            {saved && <div data-testid="status-statement-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Mudança salva no Neon.</strong> O enunciado estará disponível ao reabrir este workspace.</span></div>}
            {charterSaved && <div data-testid="status-charter-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Project charter salvo no Neon.</strong> Essas informações serão carregadas ao reabrir este workspace e usadas como contexto na geração do pipeline.</span></div>}
               {area === 'overview' ? <Overview statement={statement} setStatement={updateStatement} onSave={saveStatement} charter={charter} onCharterChange={updateCharter} onTeamChange={updateCharterTeam} onSaveCharter={saveCharter} pipelineDone={pipelineDone} hasAiSuggestions={Boolean(aiCharterSuggestions)} onOpenArea={setArea} /> : <SprintView area={area} onOpenTool={openTool} onChangeVital={setVitalId} vitalId={vitalId} inputDataset={inputDataset} inputAnalysis={inputAnalysis} inputError={csvError} analysisMonths={analysisMonths} onAnalysisMonthsChange={updateAnalysisMonths} selectedIndicator={selectedIndicator} onSelectedIndicatorChange={updateSelectedIndicator} diagnosis={exploratoryDiagnosis} onDiagnosisChange={handleDiagnosisChange} onSaveAnalysis={saveStatement} onUpload={handleUpload} inputRef={fileRef} activeProjectName={activeProjectName} />}
-              {area === 'measurement' && <MeasurementAnalysisPanel dataset={measurementDataset} analysis={measurementAnalysis} error={measurementCsvError} onUpload={handleMeasurementUpload} inputRef={measurementFileRef} onSave={saveStatement} activeProjectName={activeProjectName} whatIfAnalyses={whatIfAnalyses} onRunWhatIf={runMeasurementWhatIf} whatIfLoading={whatIfMutation.isPending} whatIfError={whatIfMutation.isError ? (whatIfMutation.error instanceof Error ? whatIfMutation.error.message.replace(/^HTTP \d+ [^:]+:\s*/, '') : 'Não foi possível realizar a análise What If agora.') : null} whatIfSaved={whatIfSaved} />}
+              {area === 'measurement' && <>
+                <MeasurementAnalysisPanel dataset={measurementDataset} analysis={measurementAnalysis} error={measurementCsvError} onUpload={handleMeasurementUpload} inputRef={measurementFileRef} onSave={saveStatement} activeProjectName={activeProjectName} whatIfAnalyses={whatIfAnalyses} onRunWhatIf={runMeasurementWhatIf} whatIfLoading={whatIfMutation.isPending} whatIfError={whatIfMutation.isError ? (whatIfMutation.error instanceof Error ? whatIfMutation.error.message.replace(/^HTTP \d+ [^:]+:\s*/, '') : 'Não foi possível realizar a análise What If agora.') : null} whatIfSaved={whatIfSaved} />
+                <ProcessMapEditor value={processMap} onChange={updateProcessMap} onSave={saveProcessMap} dirty={processMapDirty} saved={processMapSaved} />
+              </>}
              <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-[10px] text-muted-foreground"><span className="mono-label">DMAIC Ágil Suite · workspace no Neon {projectKey ? `· projeto #${projectKey}` : '· novo projeto'}</span><span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> {pipelineData ? 'artefatos gerados por IA · revise com o time' : 'dados de exemplo sinalizados · sem envio externo'}</span></footer>
         </div>
       </main>

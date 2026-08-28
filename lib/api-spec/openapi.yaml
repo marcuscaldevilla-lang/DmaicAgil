@@ -367,6 +367,68 @@ components:
         createdAt: { type: string, format: date-time }
         context:
           $ref: "#/components/schemas/DmaicMeasurementWhatIfContext"
+    DmaicProcessNode:
+      type: object
+      required: [id, type, label, position, processInputs, processOutputs]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 100 }
+        type: { type: string, enum: [start, end, activity, decision] }
+        label: { type: string, maxLength: 300 }
+        position:
+          type: object
+          required: [x, y]
+          properties:
+            x: { type: number, minimum: 0, maximum: 5000 }
+            y: { type: number, minimum: 0, maximum: 5000 }
+        processInputs:
+          type: array
+          maxItems: 20
+          items: { type: string, maxLength: 500 }
+        processOutputs:
+          type: array
+          maxItems: 20
+          items: { type: string, maxLength: 500 }
+    DmaicProcessEdge:
+      type: object
+      required: [id, source, target, label, condition]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 100 }
+        source: { type: string, minLength: 1, maxLength: 100 }
+        target: { type: string, minLength: 1, maxLength: 100 }
+        label: { type: string, maxLength: 120 }
+        condition: { type: string, maxLength: 240 }
+    DmaicProcessVariable:
+      type: object
+      required: [id, name, kind, classification, unit, measure, notes, nodeId]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 100 }
+        name: { type: string, maxLength: 240 }
+        kind: { type: string, enum: [Y, X] }
+        classification: { type: string, enum: [controlável, ruído, referência] }
+        unit: { type: string, maxLength: 80 }
+        measure: { type: string, maxLength: 240 }
+        notes: { type: string, maxLength: 500 }
+        nodeId: { type: string, maxLength: 100 }
+    DmaicProcessMap:
+      type: object
+      required: [version, nodes, edges, variables]
+      properties:
+        version: { type: number, minimum: 1 }
+        nodes:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/DmaicProcessNode"
+        edges:
+          type: array
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/DmaicProcessEdge"
+        variables:
+          type: array
+          maxItems: 300
+          items:
+            $ref: "#/components/schemas/DmaicProcessVariable"
     DmaicCharterTeamMember:
       type: object
       required: [role, name, position, areaCompany]
@@ -692,6 +754,11 @@ components:
           maxItems: 50
           items:
             $ref: "#/components/schemas/DmaicMeasurementWhatIfRecord"
+        processMap:
+          description: Mapa de processo editável e parâmetros Y/X específicos do projeto.
+          anyOf:
+            - $ref: "#/components/schemas/DmaicProcessMap"
+            - type: "null"
     DmaicTeam:
       type: object
       required: [productOwner, scrumMaster, beltSquadMembers]

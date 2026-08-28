@@ -368,6 +368,53 @@ export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContext
 
 export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesMax = 50;
 
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemIdMax = 100;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemLabelMax = 300;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemPositionXMin = 0;
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemPositionXMax = 5000;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemPositionYMin = 0;
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemPositionYMax = 5000;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemProcessInputsItemMax = 500;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemProcessInputsMax = 20;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemProcessOutputsItemMax = 500;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemProcessOutputsMax = 20;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesMax = 100;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemIdMax = 100;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemSourceMax = 100;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemTargetMax = 100;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemLabelMax = 120;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemConditionMax = 240;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesMax = 200;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemIdMax = 100;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemNameMax = 240;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemUnitMax = 80;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemMeasureMax = 240;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemNotesMax = 500;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemNodeIdMax = 100;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesMax = 300;
+
 export const getDmaicWorkspaceResponseRevisionMin = 0;
 
 
@@ -668,7 +715,38 @@ export const GetDmaicWorkspaceResponse = zod.object({
   "kpis": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextKpisMax).optional(),
   "assumptions": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax).optional()
 })
-})).max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesMax).optional().describe('Histórico de perguntas e respostas de cenários What If da Medição.')
+})).max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesMax).optional().describe('Histórico de perguntas e respostas de cenários What If da Medição.'),
+  "processMap": zod.union([zod.object({
+  "version": zod.number().min(1),
+  "nodes": zod.array(zod.object({
+  "id": zod.string().min(1).max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemIdMax),
+  "type": zod.enum(['start', 'end', 'activity', 'decision']),
+  "label": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemLabelMax),
+  "position": zod.object({
+  "x": zod.number().min(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemPositionXMin).max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemPositionXMax),
+  "y": zod.number().min(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemPositionYMin).max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemPositionYMax)
+}),
+  "processInputs": zod.array(zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemProcessInputsItemMax)).max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemProcessInputsMax),
+  "processOutputs": zod.array(zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemProcessOutputsItemMax)).max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemProcessOutputsMax)
+})).max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesMax),
+  "edges": zod.array(zod.object({
+  "id": zod.string().min(1).max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemIdMax),
+  "source": zod.string().min(1).max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemSourceMax),
+  "target": zod.string().min(1).max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemTargetMax),
+  "label": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemLabelMax),
+  "condition": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemConditionMax)
+})).max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesMax),
+  "variables": zod.array(zod.object({
+  "id": zod.string().min(1).max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemIdMax),
+  "name": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemNameMax),
+  "kind": zod.enum(['Y', 'X']),
+  "classification": zod.enum(['controlável', 'ruído', 'referência']),
+  "unit": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemUnitMax),
+  "measure": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemMeasureMax),
+  "notes": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemNotesMax),
+  "nodeId": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemNodeIdMax)
+})).max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesMax)
+}),zod.null()]).optional().describe('Mapa de processo editável e parâmetros Y\/X específicos do projeto.')
 }).describe('Current derived data and generated artifacts associated with a DMAIC project.'),
   "revision": zod.number().min(getDmaicWorkspaceResponseRevisionMin),
   "createdAt": zod.coerce.date(),
@@ -838,6 +916,53 @@ export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextKpi
 export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax = 2000;
 
 export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesMax = 50;
+
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemIdMax = 100;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemLabelMax = 300;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemPositionXMin = 0;
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemPositionXMax = 5000;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemPositionYMin = 0;
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemPositionYMax = 5000;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemProcessInputsItemMax = 500;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemProcessInputsMax = 20;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemProcessOutputsItemMax = 500;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemProcessOutputsMax = 20;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesMax = 100;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneEdgesItemIdMax = 100;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneEdgesItemSourceMax = 100;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneEdgesItemTargetMax = 100;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneEdgesItemLabelMax = 120;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneEdgesItemConditionMax = 240;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneEdgesMax = 200;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesItemIdMax = 100;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesItemNameMax = 240;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesItemUnitMax = 80;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesItemMeasureMax = 240;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesItemNotesMax = 500;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesItemNodeIdMax = 100;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesMax = 300;
 
 export const saveDmaicWorkspaceBodyExpectedRevisionMin = 0;
 
@@ -1138,7 +1263,38 @@ export const SaveDmaicWorkspaceBody = zod.object({
   "kpis": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextKpisMax).optional(),
   "assumptions": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax).optional()
 })
-})).max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesMax).optional().describe('Histórico de perguntas e respostas de cenários What If da Medição.')
+})).max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesMax).optional().describe('Histórico de perguntas e respostas de cenários What If da Medição.'),
+  "processMap": zod.union([zod.object({
+  "version": zod.number().min(1),
+  "nodes": zod.array(zod.object({
+  "id": zod.string().min(1).max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemIdMax),
+  "type": zod.enum(['start', 'end', 'activity', 'decision']),
+  "label": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemLabelMax),
+  "position": zod.object({
+  "x": zod.number().min(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemPositionXMin).max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemPositionXMax),
+  "y": zod.number().min(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemPositionYMin).max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemPositionYMax)
+}),
+  "processInputs": zod.array(zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemProcessInputsItemMax)).max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemProcessInputsMax),
+  "processOutputs": zod.array(zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemProcessOutputsItemMax)).max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesItemProcessOutputsMax)
+})).max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneNodesMax),
+  "edges": zod.array(zod.object({
+  "id": zod.string().min(1).max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneEdgesItemIdMax),
+  "source": zod.string().min(1).max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneEdgesItemSourceMax),
+  "target": zod.string().min(1).max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneEdgesItemTargetMax),
+  "label": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneEdgesItemLabelMax),
+  "condition": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneEdgesItemConditionMax)
+})).max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneEdgesMax),
+  "variables": zod.array(zod.object({
+  "id": zod.string().min(1).max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesItemIdMax),
+  "name": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesItemNameMax),
+  "kind": zod.enum(['Y', 'X']),
+  "classification": zod.enum(['controlável', 'ruído', 'referência']),
+  "unit": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesItemUnitMax),
+  "measure": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesItemMeasureMax),
+  "notes": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesItemNotesMax),
+  "nodeId": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesItemNodeIdMax)
+})).max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesMax)
+}),zod.null()]).optional().describe('Mapa de processo editável e parâmetros Y\/X específicos do projeto.')
 }).optional().describe('Current CSV-derived analysis data and generated artifacts. Omit for backwards-compatible saves without analysis data.'),
   "expectedRevision": zod.number().min(saveDmaicWorkspaceBodyExpectedRevisionMin).describe('Monotonic version returned by the last workspace read or save. Send 0 when creating the workspace for the first time.')
 })
@@ -1298,6 +1454,53 @@ export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContex
 export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax = 2000;
 
 export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesMax = 50;
+
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemIdMax = 100;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemLabelMax = 300;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemPositionXMin = 0;
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemPositionXMax = 5000;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemPositionYMin = 0;
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemPositionYMax = 5000;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemProcessInputsItemMax = 500;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemProcessInputsMax = 20;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemProcessOutputsItemMax = 500;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemProcessOutputsMax = 20;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesMax = 100;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemIdMax = 100;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemSourceMax = 100;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemTargetMax = 100;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemLabelMax = 120;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemConditionMax = 240;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesMax = 200;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemIdMax = 100;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemNameMax = 240;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemUnitMax = 80;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemMeasureMax = 240;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemNotesMax = 500;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemNodeIdMax = 100;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesMax = 300;
 
 export const saveDmaicWorkspaceResponseRevisionMin = 0;
 
@@ -1599,7 +1802,38 @@ export const SaveDmaicWorkspaceResponse = zod.object({
   "kpis": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextKpisMax).optional(),
   "assumptions": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax).optional()
 })
-})).max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesMax).optional().describe('Histórico de perguntas e respostas de cenários What If da Medição.')
+})).max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesMax).optional().describe('Histórico de perguntas e respostas de cenários What If da Medição.'),
+  "processMap": zod.union([zod.object({
+  "version": zod.number().min(1),
+  "nodes": zod.array(zod.object({
+  "id": zod.string().min(1).max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemIdMax),
+  "type": zod.enum(['start', 'end', 'activity', 'decision']),
+  "label": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemLabelMax),
+  "position": zod.object({
+  "x": zod.number().min(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemPositionXMin).max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemPositionXMax),
+  "y": zod.number().min(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemPositionYMin).max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemPositionYMax)
+}),
+  "processInputs": zod.array(zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemProcessInputsItemMax)).max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemProcessInputsMax),
+  "processOutputs": zod.array(zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemProcessOutputsItemMax)).max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesItemProcessOutputsMax)
+})).max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneNodesMax),
+  "edges": zod.array(zod.object({
+  "id": zod.string().min(1).max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemIdMax),
+  "source": zod.string().min(1).max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemSourceMax),
+  "target": zod.string().min(1).max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemTargetMax),
+  "label": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemLabelMax),
+  "condition": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesItemConditionMax)
+})).max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneEdgesMax),
+  "variables": zod.array(zod.object({
+  "id": zod.string().min(1).max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemIdMax),
+  "name": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemNameMax),
+  "kind": zod.enum(['Y', 'X']),
+  "classification": zod.enum(['controlável', 'ruído', 'referência']),
+  "unit": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemUnitMax),
+  "measure": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemMeasureMax),
+  "notes": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemNotesMax),
+  "nodeId": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemNodeIdMax)
+})).max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesMax)
+}),zod.null()]).optional().describe('Mapa de processo editável e parâmetros Y\/X específicos do projeto.')
 }).describe('Current derived data and generated artifacts associated with a DMAIC project.'),
   "revision": zod.number().min(saveDmaicWorkspaceResponseRevisionMin),
   "createdAt": zod.coerce.date(),

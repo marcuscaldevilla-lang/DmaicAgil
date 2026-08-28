@@ -11,3 +11,4 @@
 - [Legacy schema migration, dual-sided](legacy-schema-migration-dual-sided.md) — Normalize old JSON shapes on both client AND server before the server's strict zod safeParse, or old rows 500 on load.
 - [Paired measurement analysis](paired-measurement-analysis.md) — Treat Measurement CSV rows as paired observations and keep its dataset separate from Definition input.
 - [Measurement What If snapshots](measurement-what-if-snapshots.md) — Persist each AI scenario with its statistical context snapshot, never raw CSV rows or automatic target changes.
+- [Process map persistence](process-map-persistence.md) — Keep each project map as structured JSON in analysis artifacts and seed missing maps from an independently cloned template.
