@@ -35,14 +35,73 @@ export function IshikawaDiagramEditor({ sourceText, value, dirty, saved, generat
     </section>
 
     {value ? <section className="rounded-xl border border-border bg-card p-4">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><p className="mono-label text-accent-foreground">Matriz Ishikawa · 6M</p><h3 className="mt-1 font-serif text-lg font-bold">Causas organizadas pela IA e revisáveis pela equipe</h3></div><button data-testid="button-save-ishikawa" type="button" onClick={onSave} disabled={!dirty} className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold hover:border-primary disabled:opacity-50"><Save size={14} /> {saved ? 'Salvo no Neon' : 'Salvar matriz'}</button></div>
-      <div className="relative grid gap-4 lg:grid-cols-2">
-        <div className="pointer-events-none absolute left-1/2 top-4 hidden h-[calc(100%-2rem)] w-px bg-primary/25 lg:block" />
-        {CATEGORIES.map((category, categoryIndex) => <CategoryCard key={category} category={category} causes={matrix[category] ?? []} side={categoryIndex % 2 === 0 ? 'left' : 'right'} onChange={(causes) => updateCategory(category, causes)} />)}
-      </div>
-      <div className="relative mt-5 rounded-xl border border-primary/25 bg-primary/8 px-4 py-3 text-center"><div className="absolute left-0 top-1/2 hidden h-px w-full -translate-y-1/2 bg-primary/20 lg:block" /><span className="relative bg-card px-3 text-xs font-bold text-primary">EFEITO ANALISADO</span><p className="relative mt-2 line-clamp-3 text-xs leading-relaxed text-muted-foreground">{sourceText}</p></div>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><p className="mono-label text-accent-foreground">Diagrama de causa e efeito · 6M</p><h3 className="mt-1 font-serif text-lg font-bold">Espinha de peixe para discussão com o time</h3><p className="mt-1 text-xs text-muted-foreground">A leitura visual segue o padrão clássico; os campos editáveis ficam logo abaixo de cada ramo.</p></div><button data-testid="button-save-ishikawa" type="button" onClick={onSave} disabled={!dirty} className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold hover:border-primary disabled:opacity-50"><Save size={14} /> {saved ? 'Salvo no Neon' : 'Salvar matriz'}</button></div>
+      <FishboneDiagram matrix={matrix} effect={sourceText} />
+      <div className="mt-5 border-t border-border pt-5"><p className="mono-label text-muted-foreground">Edição das causas</p><div className="mt-3 grid gap-4 lg:grid-cols-2">{CATEGORIES.map((category, categoryIndex) => <CategoryCard key={category} category={category} causes={matrix[category] ?? []} side={categoryIndex % 2 === 0 ? 'left' : 'right'} onChange={(causes) => updateCategory(category, causes)} />)}</div></div>
     </section> : <div className="rounded-xl border border-dashed border-border p-6 text-center"><Sparkles size={22} className="mx-auto text-primary" /><p className="mt-3 text-sm font-bold">A matriz ainda não foi gerada</p><p className="mt-1 text-xs text-muted-foreground">Preencha o texto acima e use o botão para criar a primeira versão.</p></div>}
   </div>;
+}
+
+function FishboneDiagram({ matrix, effect }: { matrix: Record<string, string[]>; effect: string }) {
+  const width = 1120;
+  const height = 540;
+  const spineY = 270;
+  const branches = [
+    { category: CATEGORIES[0], branchX: 225, endX: 115, endY: 90, labelX: 35, labelY: 34, side: 'top' as const },
+    { category: CATEGORIES[1], branchX: 465, endX: 355, endY: 90, labelX: 275, labelY: 34, side: 'top' as const },
+    { category: CATEGORIES[2], branchX: 705, endX: 595, endY: 90, labelX: 515, labelY: 34, side: 'top' as const },
+    { category: CATEGORIES[3], branchX: 225, endX: 115, endY: 450, labelX: 35, labelY: 500, side: 'bottom' as const },
+    { category: CATEGORIES[4], branchX: 465, endX: 355, endY: 450, labelX: 275, labelY: 500, side: 'bottom' as const },
+    { category: CATEGORIES[5], branchX: 705, endX: 595, endY: 450, labelX: 515, labelY: 500, side: 'bottom' as const },
+  ];
+  let causeNumber = 0;
+  const effectLines = wrapSvgText(effect || 'Efeito a definir pela equipe', 24);
+  return <div data-testid="ishikawa-fishbone" className="overflow-x-auto rounded-xl border border-border bg-background p-2 sm:p-4">
+    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Diagrama Ishikawa de causa e efeito" className="min-w-[760px] w-full">
+      <line x1="48" y1={spineY} x2="900" y2={spineY} stroke="hsl(var(--foreground) / .72)" strokeWidth="3" />
+      <path d={`M 900 ${spineY} l -16 -8 M 900 ${spineY} l -16 8`} fill="none" stroke="hsl(var(--foreground) / .72)" strokeWidth="3" />
+      {branches.map((branch) => {
+        const causes = matrix[branch.category] ?? [];
+        const displayCauses = causes.length ? causes : ['Causa a investigar'];
+        const causeStartY = branch.side === 'top' ? 86 : 380;
+        const lineGap = branch.side === 'top' ? 22 : 22;
+        const currentStart = causeNumber + 1;
+        causeNumber += causes.length;
+        return <g key={branch.category}>
+          <line x1={branch.branchX} y1={spineY} x2={branch.endX} y2={branch.endY} stroke="hsl(var(--foreground) / .62)" strokeWidth="2" />
+          <rect x={branch.labelX} y={branch.labelY} width="178" height="32" fill="hsl(var(--background))" stroke="hsl(var(--foreground) / .45)" />
+          <text x={branch.labelX + 89} y={branch.labelY + 21} textAnchor="middle" fontSize="14" fontWeight="700" fontStyle="italic" fill="hsl(var(--foreground))">{branch.category}</text>
+          {displayCauses.slice(0, 6).map((cause, index) => <text key={`${branch.category}-${index}`} x={branch.endX + 10} y={causeStartY + index * lineGap} fontSize="12" fill={causes.length ? 'hsl(var(--foreground) / .88)' : 'hsl(var(--muted-foreground))'}>{causes.length ? `${currentStart + index}. ${truncateSvgText(cause, 27)}` : '— ' + cause}</text>)}
+        </g>;
+      })}
+      <rect x="902" y="190" width="196" height="160" rx="2" fill="hsl(var(--chart-3) / .28)" stroke="hsl(var(--chart-3) / .65)" />
+      <text x="918" y="218" fontSize="12" fontWeight="800" fill="hsl(var(--foreground))">EFEITO =</text>
+      {effectLines.slice(0, 7).map((line, index) => <text key={line + index} x="918" y={244 + index * 17} fontSize="12" fill="hsl(var(--foreground) / .92)">{line}</text>)}
+    </svg>
+    <p className="mt-1 px-2 text-[10px] text-muted-foreground">As causas exibidas no desenho são um resumo visual. Edite o conteúdo nos campos correspondentes abaixo.</p>
+  </div>;
+}
+
+function truncateSvgText(value: string, maxLength: number): string {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 1)}…` : normalized;
+}
+
+function wrapSvgText(value: string, maxCharactersPerLine: number): string[] {
+  const words = value.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length > maxCharactersPerLine && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.length ? lines : ['Efeito a definir pela equipe'];
 }
 
 function CategoryCard({ category, causes, side, onChange }: { category: string; causes: string[]; side: 'left' | 'right'; onChange: (causes: string[]) => void }) {
