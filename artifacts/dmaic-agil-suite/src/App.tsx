@@ -7,7 +7,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { MeasurementAnalysisPanel } from '@/components/measurement-analysis-panel';
 import { ProcessMapEditor } from '@/components/process-map-editor';
 import { analyzeMeasurementDataset, parseMeasurementNumber } from '@/lib/measurement-analysis';
-import { cloneProcessMap, createInitialProcessMap } from '@/lib/process-map';
+import { cloneProcessMap, createInitialProcessMap, createProcessMapFromSipoc } from '@/lib/process-map';
 import { shapiroWilk } from '@/lib/shapiro-wilk';
 import NotFound from '@/pages/not-found';
 import {
@@ -182,12 +182,19 @@ function parseAnalysisArtifacts(value: unknown): DmaicAnalysisArtifacts {
     pipeline: normalizePipelineSnapshot(value.pipeline),
     manualVocCtq: parseManualVocRows(value.manualVocCtq),
     whatIfAnalyses: Array.isArray(value.whatIfAnalyses) ? value.whatIfAnalyses : [],
-    processMap: parseProcessMapSnapshot(value.processMap),
+    processMap: parseProcessMapSnapshot(value.processMap, value.pipeline),
   } as unknown as DmaicAnalysisArtifacts;
 }
 
-function parseProcessMapSnapshot(value: unknown): DmaicProcessMap {
+function parseProcessMapSnapshot(value: unknown, pipelineValue?: unknown): DmaicProcessMap {
   if (!isObject(value) || !Array.isArray(value.nodes) || !Array.isArray(value.edges) || !Array.isArray(value.variables)) {
+    if (isObject(pipelineValue) && Array.isArray(pipelineValue.sipoc)) {
+      return createProcessMapFromSipoc(
+        pipelineValue.sipoc as DmaicSipoc,
+        Array.isArray(pipelineValue.vocCtq) ? pipelineValue.vocCtq as DmaicVocCqt[] : [],
+        isObject(pipelineValue.indicatorsY) ? pipelineValue.indicatorsY as unknown as DmaicPipeline['indicatorsY'] : null,
+      );
+    }
     return createInitialProcessMap();
   }
   return {
@@ -2589,10 +2596,19 @@ function Workspace() {
             return;
           }
           const generatedCharter = applyGeneratedCharterFields(charter, data.generatedCharter);
+           const shouldSeedProcessMap = !pipelineData && !processMapDirty;
+           const generatedProcessMap = shouldSeedProcessMap
+             ? createProcessMapFromSipoc(data.sipoc, data.vocCtq, data.indicatorsY)
+             : processMap;
           setPipelineData(data);
           setPipelineAnalysisContext(analysisContext);
           setCharter(generatedCharter);
           setAiCharterSuggestions(data.generatedCharter);
+           if (shouldSeedProcessMap) {
+             setProcessMap(generatedProcessMap);
+             setProcessMapDirty(false);
+             setProcessMapSaved(false);
+           }
           setPipelineDone(true);
           setArea('overview');
           queueWorkspaceSave(
@@ -2603,7 +2619,7 @@ function Workspace() {
                 problemStatement: statement.trim(),
                 projectCharterContext: toProjectCharterContext(charter),
                 aiCharterSuggestions: data.generatedCharter,
-                analysisArtifacts: { ...createAnalysisArtifacts(), pipeline: data, pipelineAnalysisContext: analysisContext },
+                 analysisArtifacts: { ...createAnalysisArtifacts(), pipeline: data, pipelineAnalysisContext: analysisContext, processMap: generatedProcessMap },
               },
             },
             {
