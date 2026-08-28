@@ -415,6 +415,10 @@ export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesIte
 
 export const getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesMax = 300;
 
+export const getDmaicWorkspaceResponseAnalysisArtifactsIshikawaOneItemMax = 500;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsIshikawaInputTextMax = 12000;
+
 export const getDmaicWorkspaceResponseRevisionMin = 0;
 
 
@@ -746,7 +750,9 @@ export const GetDmaicWorkspaceResponse = zod.object({
   "notes": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemNotesMax),
   "nodeId": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemNodeIdMax)
 })).max(getDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesMax)
-}),zod.null()]).optional().describe('Mapa de processo editável e parâmetros Y\/X específicos do projeto.')
+}),zod.null()]).optional().describe('Mapa de processo editável e parâmetros Y\/X específicos do projeto.'),
+  "ishikawa": zod.union([zod.record(zod.string(), zod.array(zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsIshikawaOneItemMax))),zod.null()]).optional().describe('Diagrama de causa e efeito editável gerado a partir do texto da equipe.'),
+  "ishikawaInputText": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsIshikawaInputTextMax).optional().describe('Texto livre fornecido pela equipe como base para a geração do diagrama de causa e efeito.')
 }).describe('Current derived data and generated artifacts associated with a DMAIC project.'),
   "revision": zod.number().min(getDmaicWorkspaceResponseRevisionMin),
   "createdAt": zod.coerce.date(),
@@ -963,6 +969,10 @@ export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesItemNo
 export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesItemNodeIdMax = 100;
 
 export const saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesMax = 300;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsIshikawaOneItemMax = 500;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsIshikawaInputTextMax = 12000;
 
 export const saveDmaicWorkspaceBodyExpectedRevisionMin = 0;
 
@@ -1294,7 +1304,9 @@ export const SaveDmaicWorkspaceBody = zod.object({
   "notes": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesItemNotesMax),
   "nodeId": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesItemNodeIdMax)
 })).max(saveDmaicWorkspaceBodyAnalysisArtifactsProcessMapOneVariablesMax)
-}),zod.null()]).optional().describe('Mapa de processo editável e parâmetros Y\/X específicos do projeto.')
+}),zod.null()]).optional().describe('Mapa de processo editável e parâmetros Y\/X específicos do projeto.'),
+  "ishikawa": zod.union([zod.record(zod.string(), zod.array(zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsIshikawaOneItemMax))),zod.null()]).optional().describe('Diagrama de causa e efeito editável gerado a partir do texto da equipe.'),
+  "ishikawaInputText": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsIshikawaInputTextMax).optional().describe('Texto livre fornecido pela equipe como base para a geração do diagrama de causa e efeito.')
 }).optional().describe('Current CSV-derived analysis data and generated artifacts. Omit for backwards-compatible saves without analysis data.'),
   "expectedRevision": zod.number().min(saveDmaicWorkspaceBodyExpectedRevisionMin).describe('Monotonic version returned by the last workspace read or save. Send 0 when creating the workspace for the first time.')
 })
@@ -1501,6 +1513,10 @@ export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesIt
 export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemNodeIdMax = 100;
 
 export const saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesMax = 300;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsIshikawaOneItemMax = 500;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsIshikawaInputTextMax = 12000;
 
 export const saveDmaicWorkspaceResponseRevisionMin = 0;
 
@@ -1833,7 +1849,9 @@ export const SaveDmaicWorkspaceResponse = zod.object({
   "notes": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemNotesMax),
   "nodeId": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesItemNodeIdMax)
 })).max(saveDmaicWorkspaceResponseAnalysisArtifactsProcessMapOneVariablesMax)
-}),zod.null()]).optional().describe('Mapa de processo editável e parâmetros Y\/X específicos do projeto.')
+}),zod.null()]).optional().describe('Mapa de processo editável e parâmetros Y\/X específicos do projeto.'),
+  "ishikawa": zod.union([zod.record(zod.string(), zod.array(zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsIshikawaOneItemMax))),zod.null()]).optional().describe('Diagrama de causa e efeito editável gerado a partir do texto da equipe.'),
+  "ishikawaInputText": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsIshikawaInputTextMax).optional().describe('Texto livre fornecido pela equipe como base para a geração do diagrama de causa e efeito.')
 }).describe('Current derived data and generated artifacts associated with a DMAIC project.'),
   "revision": zod.number().min(saveDmaicWorkspaceResponseRevisionMin),
   "createdAt": zod.coerce.date(),
@@ -2012,6 +2030,28 @@ export const runDmaicMeasurementWhatIfResponseAnswerMax = 16000;
 
 export const RunDmaicMeasurementWhatIfResponse = zod.object({
   "answer": zod.string().min(1).max(runDmaicMeasurementWhatIfResponseAnswerMax)
+})
+
+
+/**
+ * Generates an editable 6M cause structure from free-form team notes.
+ * @summary Generate an Ishikawa cause-and-effect diagram
+ */
+export const runDmaicIshikawaBodySourceTextMin = 10;
+export const runDmaicIshikawaBodySourceTextMax = 12000;
+
+
+
+export const RunDmaicIshikawaBody = zod.object({
+  "sourceText": zod.string().min(runDmaicIshikawaBodySourceTextMin).max(runDmaicIshikawaBodySourceTextMax)
+})
+
+export const runDmaicIshikawaResponseIshikawaItemMax = 500;
+
+
+
+export const RunDmaicIshikawaResponse = zod.object({
+  "ishikawa": zod.record(zod.string(), zod.array(zod.string().max(runDmaicIshikawaResponseIshikawaItemMax)))
 })
 
 

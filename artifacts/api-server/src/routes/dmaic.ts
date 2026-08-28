@@ -4,6 +4,8 @@ import {
   ListDmaicWorkspacesResponse,
   RunDmaicExploratoryDiagnosisBody,
   RunDmaicExploratoryDiagnosisResponse,
+  RunDmaicIshikawaBody,
+  RunDmaicIshikawaResponse,
   RunDmaicMeasurementWhatIfBody,
   RunDmaicMeasurementWhatIfResponse,
   RunDmaicPipelineBody,
@@ -78,6 +80,10 @@ Quando a pergunta solicitar uma meta numérica, mostre a fórmula passo a passo.
 Se algumas unidades tiverem mudança percentual definida e as demais precisarem compensar para atingir uma meta global, calcule primeiro os novos resultados das unidades fixadas, depois mostre o total restante necessário e a meta média das unidades a ajustar. Não distribua metas individuais diferentes entre duas ou mais unidades sem uma regra explícita; nesse caso, apresente a meta comum que resolveria o cenário e explique que outras combinações também são possíveis.
 Declare claramente se "aumentar" é melhoria ou piora apenas quando o contexto informar a direção desejada. Não invente uma meta global ausente, moeda, causalidade, capacidade operacional ou precisão inexistente. Se faltar um valor indispensável, diga exatamente qual dado falta e forneça a fórmula pronta para preenchimento em vez de fabricar um número.
 Organize a resposta nos títulos: Resposta direta, Cálculo do cenário, Premissas usadas, Limites e validações. Use números com precisão compatível com os dados e termine lembrando que a simulação não altera automaticamente a meta nem a priorização salva no projeto.`;
+const ISHIKAWA_SYSTEM_PROMPT = `Você é um Master Black Belt especialista em Lean Seis Sigma.
+Transforme as anotações livres da equipe em uma matriz Ishikawa 6M acionável, em português do Brasil.
+Responda SOMENTE com JSON válido, sem markdown, usando exatamente as chaves "Método", "Máquina", "Material", "Mão de Obra", "Medição" e "Meio Ambiente".
+Cada chave deve conter uma lista de 0 a 6 causas curtas e específicas. Use somente hipóteses sustentadas ou claramente inferidas do texto; não invente fatos, números ou causas. Preserve termos e evidências fornecidos pela equipe.`;
 
 const DIAGNOSIS_WINDOW_MS = 10 * 60 * 1000;
 const DIAGNOSIS_MAX_REQUESTS_PER_WINDOW = 6;
@@ -88,6 +94,7 @@ const MAX_PIPELINE_ANALYSIS_CONTEXT_BYTES = 80_000;
 const MAX_WHAT_IF_CONTEXT_BYTES = 120_000;
 const diagnosisRequests = new Map<string, { count: number; windowStartedAt: number }>();
 const whatIfRequests = new Map<string, { count: number; windowStartedAt: number }>();
+const ishikawaRequests = new Map<string, { count: number; windowStartedAt: number }>();
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 const RETRYABLE_GEMINI_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
 const PIPELINE_ANALYSIS_CONTEXT_KEYS = new Set(["indicator", "analysisMonths", "indicatorSummary", "exploratoryStatistics", "diagnosis"]);
@@ -180,6 +187,33 @@ function canGenerateMeasurementWhatIf(clientKey: string): boolean {
   if (current.count >= WHAT_IF_MAX_REQUESTS_PER_WINDOW) return false;
   current.count += 1;
   return true;
+}
+
+function canGenerateIshikawa(clientKey: string): boolean {
+  const now = Date.now();
+  for (const [key, record] of ishikawaRequests) {
+    if (now - record.windowStartedAt >= WHAT_IF_WINDOW_MS) ishikawaRequests.delete(key);
+  }
+  const current = ishikawaRequests.get(clientKey);
+  if (!current || now - current.windowStartedAt >= WHAT_IF_WINDOW_MS) {
+    ishikawaRequests.set(clientKey, { count: 1, windowStartedAt: now });
+    return true;
+  }
+  if (current.count >= WHAT_IF_MAX_REQUESTS_PER_WINDOW) return false;
+  current.count += 1;
+  return true;
+}
+
+const ISHIKAWA_CATEGORIES = ["Método", "Máquina", "Material", "Mão de Obra", "Medição", "Meio Ambiente"] as const;
+
+function normalizeIshikawa(value: unknown): Record<string, string[]> {
+  const source = isPlainRecord(value) ? value : {};
+  return Object.fromEntries(ISHIKAWA_CATEGORIES.map((category) => [
+    category,
+    Array.isArray(source[category])
+      ? source[category].filter((cause): cause is string => typeof cause === "string").map((cause) => cause.trim()).filter(Boolean).slice(0, 6)
+      : [],
+  ]));
 }
 
 function wait(milliseconds: number): Promise<void> {
@@ -379,11 +413,27 @@ function normalizePersistedPipeline(value: unknown) {
 
 function normalizeAnalysisArtifacts(value: unknown) {
   if (!isPlainRecord(value)) return emptyAnalysisArtifacts();
+  const whatIfAnalyses = Array.isArray(value.whatIfAnalyses)
+    ? value.whatIfAnalyses.map((record) => {
+        if (!isPlainRecord(record) || !isPlainRecord(record.context)) return record;
+        return {
+          ...record,
+          context: {
+            ...record.context,
+            pairwiseTotal: typeof record.context.pairwiseTotal === "number"
+              ? record.context.pairwiseTotal
+              : Array.isArray(record.context.pairwise) ? record.context.pairwise.length : 0,
+          },
+        };
+      })
+    : [];
   return {
     ...value,
     measurementDataset: value.measurementDataset ?? null,
     pipeline: value.pipeline ? normalizePersistedPipeline(value.pipeline) : null,
-    whatIfAnalyses: Array.isArray(value.whatIfAnalyses) ? value.whatIfAnalyses : [],
+    whatIfAnalyses,
+    ishikawa: value.ishikawa ? normalizeIshikawa(value.ishikawa) : null,
+    ishikawaInputText: typeof value.ishikawaInputText === "string" ? value.ishikawaInputText : "",
   };
 }
 
@@ -408,6 +458,8 @@ function emptyAnalysisArtifacts() {
     imr: [],
     pipeline: null,
     whatIfAnalyses: [],
+    ishikawa: null,
+    ishikawaInputText: "",
   };
 }
 
@@ -476,7 +528,7 @@ router.get("/dmaic/workspace", async (req, res): Promise<void> => {
       : await workspaceRepository.findMostRecent();
     const payload = GetDmaicWorkspaceResponse.safeParse(serializeWorkspace(workspace));
     if (!payload.success) {
-      req.log.error({ errors: payload.error.flatten() }, "Stored DMAIC workspace has an invalid shape");
+      req.log.error({ errors: payload.error.flatten(), issues: payload.error.issues }, "Stored DMAIC workspace has an invalid shape");
       res.status(500).json({ error: "Não foi possível ler o workspace salvo." });
       return;
     }
@@ -763,6 +815,75 @@ router.post("/dmaic/measurement-what-if", async (req, res): Promise<void> => {
   } catch (error) {
     req.log.error({ error }, "Failed to generate Measurement what-if analysis");
     res.status(502).json({ error: "Ocorreu um erro ao realizar a análise What If. Tente novamente." });
+  }
+});
+
+router.post("/dmaic/ishikawa", async (req, res): Promise<void> => {
+  const body = RunDmaicIshikawaBody.safeParse(req.body);
+  if (!body.success) {
+    req.log.warn({ errors: body.error.flatten() }, "Invalid Ishikawa generation request");
+    res.status(400).json({ error: "Descreva as causas e o efeito com pelo menos 10 caracteres." });
+    return;
+  }
+
+  const clientKey = req.ip || req.socket.remoteAddress || "unknown";
+  if (!canGenerateIshikawa(clientKey)) {
+    req.log.warn({ clientKey }, "Ishikawa generation rate limit reached");
+    res.status(429).json({ error: "Você atingiu o limite temporário de gerações do Ishikawa. Aguarde alguns minutos antes de tentar novamente." });
+    return;
+  }
+
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    req.log.error("GOOGLE_API_KEY is not configured");
+    res.status(503).json({ error: "A integração Gemini ainda não está configurada." });
+    return;
+  }
+
+  try {
+    const response = await requestGemini(apiKey, {
+      contents: [{
+        role: "user",
+        parts: [{
+          text: `${ISHIKAWA_SYSTEM_PROMPT}\n\nAnotações da equipe:\n---\n${body.data.sourceText}\n---`,
+        }],
+      }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.2,
+        maxOutputTokens: 4096,
+      },
+    });
+
+    if (!response.ok) {
+      const details = await response.text();
+      req.log.error({ status: response.status, details: details.slice(0, 500) }, "Gemini Ishikawa request failed");
+      res.status(502).json({ error: "Não foi possível gerar o Diagrama de Causa e Efeito agora. Tente novamente." });
+      return;
+    }
+
+    const payload = (await response.json()) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim() ?? "";
+    if (!text) {
+      req.log.error("Gemini returned no Ishikawa content");
+      res.status(502).json({ error: "A geração retornou uma resposta vazia. Tente novamente." });
+      return;
+    }
+
+    const parsed = RunDmaicIshikawaResponse.safeParse({ ishikawa: normalizeIshikawa(parseModelJson(text)) });
+    if (!parsed.success) {
+      req.log.error({ errors: parsed.error.flatten() }, "Gemini returned an invalid Ishikawa structure");
+      res.status(502).json({ error: "A matriz gerada ficou incompleta. Tente novamente." });
+      return;
+    }
+
+    req.log.info("DMAIC Ishikawa generated");
+    res.json(parsed.data);
+  } catch (error) {
+    req.log.error({ error }, "Failed to generate DMAIC Ishikawa");
+    res.status(502).json({ error: "Ocorreu um erro ao gerar o Diagrama de Causa e Efeito. Tente novamente." });
   }
 });
 

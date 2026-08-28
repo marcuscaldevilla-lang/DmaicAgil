@@ -22,6 +22,8 @@ import type {
 import type {
   DmaicExploratoryDiagnosis,
   DmaicExploratoryDiagnosisInput,
+  DmaicIshikawaInput,
+  DmaicIshikawaResponse,
   DmaicMeasurementWhatIfInput,
   DmaicMeasurementWhatIfResponse,
   DmaicPipeline,
@@ -588,5 +590,77 @@ export const useRunDmaicMeasurementWhatIf = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRunDmaicMeasurementWhatIfMutationOptions(options));
+    }
+
+export const getRunDmaicIshikawaUrl = () => {
+
+
+
+
+  return `/api/dmaic/ishikawa`
+}
+
+/**
+ * Generates an editable 6M cause structure from free-form team notes.
+ * @summary Generate an Ishikawa cause-and-effect diagram
+ */
+export const runDmaicIshikawa = async (dmaicIshikawaInput: DmaicIshikawaInput, options?: Parameters<typeof customFetch>[1]): Promise<DmaicIshikawaResponse> => {
+
+  return customFetch<DmaicIshikawaResponse>(getRunDmaicIshikawaUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(dmaicIshikawaInput)
+  }
+);}
+
+
+
+
+
+export const getRunDmaicIshikawaMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runDmaicIshikawa>>, TError,{data: BodyType<DmaicIshikawaInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runDmaicIshikawa>>, TError,{data: BodyType<DmaicIshikawaInput>}, TContext> => {
+
+const mutationKey = ['runDmaicIshikawa'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runDmaicIshikawa>>, {data: BodyType<DmaicIshikawaInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  runDmaicIshikawa(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunDmaicIshikawaMutationResult = NonNullable<Awaited<ReturnType<typeof runDmaicIshikawa>>>
+    export type RunDmaicIshikawaMutationBody = BodyType<DmaicIshikawaInput>
+    export type RunDmaicIshikawaMutationError = ErrorType<void>
+
+    /**
+ * @summary Generate an Ishikawa cause-and-effect diagram
+ */
+export const useRunDmaicIshikawa = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runDmaicIshikawa>>, TError,{data: BodyType<DmaicIshikawaInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runDmaicIshikawa>>,
+        TError,
+        {data: BodyType<DmaicIshikawaInput>},
+        TContext
+      > => {
+      return useMutation(getRunDmaicIshikawaMutationOptions(options));
     }
 

@@ -169,6 +169,33 @@ paths:
           description: Gemini integration is not configured
         "502":
           description: AI generation failed
+  /dmaic/ishikawa:
+    post:
+      operationId: runDmaicIshikawa
+      tags: [dmaic]
+      summary: Generate an Ishikawa cause-and-effect diagram
+      description: Generates an editable 6M cause structure from free-form team notes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DmaicIshikawaInput"
+      responses:
+        "200":
+          description: Ishikawa diagram generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DmaicIshikawaResponse"
+        "400":
+          description: Invalid cause-and-effect notes
+        "429":
+          description: Ishikawa generation rate limit reached
+        "503":
+          description: Gemini integration is not configured
+        "502":
+          description: AI generation failed
 components:
   schemas:
     HealthStatus:
@@ -759,6 +786,18 @@ components:
           anyOf:
             - $ref: "#/components/schemas/DmaicProcessMap"
             - type: "null"
+        ishikawa:
+          description: Diagrama de causa e efeito editável gerado a partir do texto da equipe.
+          anyOf:
+            - type: object
+              additionalProperties:
+                type: array
+                items: { type: string, maxLength: 500 }
+            - type: "null"
+        ishikawaInputText:
+          description: Texto livre fornecido pela equipe como base para a geração do diagrama de causa e efeito.
+          type: string
+          maxLength: 12000
     DmaicTeam:
       type: object
       required: [productOwner, scrumMaster, beltSquadMembers]
@@ -889,4 +928,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DmaicRow"
+    DmaicIshikawaInput:
+      type: object
+      required: [sourceText]
+      properties:
+        sourceText:
+          type: string
+          minLength: 10
+          maxLength: 12000
+    DmaicIshikawaResponse:
+      type: object
+      required: [ishikawa]
+      properties:
+        ishikawa:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string, maxLength: 500 }
 

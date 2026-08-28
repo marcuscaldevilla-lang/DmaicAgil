@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { DmaicAnalysisArtifactsIshikawa } from './dmaicAnalysisArtifactsIshikawa';
 import type { DmaicCsvDataset } from './dmaicCsvDataset';
 import type { DmaicExploratoryDiagnosisInput } from './dmaicExploratoryDiagnosisInput';
 import type { DmaicExploratorySummary } from './dmaicExploratorySummary';
@@ -49,4 +50,11 @@ export interface DmaicAnalysisArtifacts {
   whatIfAnalyses?: DmaicMeasurementWhatIfRecord[];
   /** Mapa de processo editável e parâmetros Y/X específicos do projeto. */
   processMap?: DmaicProcessMap | null;
+  /** Diagrama de causa e efeito editável gerado a partir do texto da equipe. */
+  ishikawa?: DmaicAnalysisArtifactsIshikawa;
+  /**
+     * Texto livre fornecido pela equipe como base para a geração do diagrama de causa e efeito.
+     * @maxLength 12000
+     */
+  ishikawaInputText?: string;
 }

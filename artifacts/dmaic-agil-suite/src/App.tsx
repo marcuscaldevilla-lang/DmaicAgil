@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicCharter, type DmaicCsvDataset, type DmaicExploratoryDiagnosisInput, type DmaicMeasurementWhatIfContext, type DmaicMeasurementWhatIfRecord, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicProcessMap, type DmaicRow, type DmaicSipoc, type DmaicSipocRow, type DmaicVocCqt, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicMeasurementWhatIf, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
+import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicAnalysisArtifactsIshikawa, type DmaicCharter, type DmaicCsvDataset, type DmaicExploratoryDiagnosisInput, type DmaicMeasurementWhatIfContext, type DmaicMeasurementWhatIfRecord, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicProcessMap, type DmaicRow, type DmaicSipoc, type DmaicSipocRow, type DmaicVocCqt, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicIshikawa, useRunDmaicMeasurementWhatIf, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { MeasurementAnalysisPanel } from '@/components/measurement-analysis-panel';
 import { ProcessMapEditor } from '@/components/process-map-editor';
+import { IshikawaDiagramEditor } from '@/components/ishikawa-diagram-editor';
 import { analyzeMeasurementDataset, parseMeasurementNumber } from '@/lib/measurement-analysis';
 import { cloneProcessMap, createInitialProcessMap, createProcessMapFromSipoc } from '@/lib/process-map';
 import { shapiroWilk } from '@/lib/shapiro-wilk';
@@ -88,7 +89,7 @@ type ProjectCharterDraft = {
 type CharterTextField = Exclude<keyof ProjectCharterDraft, 'team'>;
 type ProjectCharterContext = Omit<ProjectCharterDraft, 'team'> & { team: Array<CharterTeamMember & { role: string }> };
 type GeneratedCharterFields = Pick<ProjectCharterDraft, 'objective' | 'history' | 'goalDefinition' | 'kpis' | 'includedScope' | 'excludedScope' | 'assumptionsAndConstraints' | 'customerRequirements' | 'businessContributions' | 'businessContributionsQuantitative' | 'businessContributionsQualitative' | 'financialGainValue'>;
-type WorkspaceSaveSource = 'statement' | 'charter' | 'suggestions' | 'voc' | 'sipoc' | 'msa' | 'vitalx' | 'gut' | 'solutions' | 'control-plan' | 'what-if' | 'process-map';
+type WorkspaceSaveSource = 'statement' | 'charter' | 'suggestions' | 'voc' | 'sipoc' | 'msa' | 'vitalx' | 'gut' | 'solutions' | 'control-plan' | 'what-if' | 'process-map' | 'ishikawa';
 type WorkspaceSaveData = { projectKey?: number; problemStatement: string; projectCharterContext: ProjectCharterContext; aiCharterSuggestions: GeneratedCharterFields | null; analysisArtifacts: DmaicAnalysisArtifacts };
 type WorkspaceSaveAttempt = { source: WorkspaceSaveSource; data: WorkspaceSaveData; charterToPersist?: ProjectCharterDraft; expectedRevision?: number };
 type WorkspaceLocalDraft = {
@@ -173,6 +174,8 @@ const createEmptyAnalysisArtifacts = (): DmaicAnalysisArtifacts => ({
   manualVocCtq: [],
   whatIfAnalyses: [],
   processMap: createInitialProcessMap(),
+  ishikawa: null,
+  ishikawaInputText: '',
 });
 
 function parseAnalysisArtifacts(value: unknown): DmaicAnalysisArtifacts {
@@ -183,6 +186,8 @@ function parseAnalysisArtifacts(value: unknown): DmaicAnalysisArtifacts {
     manualVocCtq: parseManualVocRows(value.manualVocCtq),
     whatIfAnalyses: Array.isArray(value.whatIfAnalyses) ? value.whatIfAnalyses : [],
     processMap: parseProcessMapSnapshot(value.processMap, value.pipeline),
+    ishikawa: isObject(value.ishikawa) ? value.ishikawa as DmaicAnalysisArtifactsIshikawa : null,
+    ishikawaInputText: typeof value.ishikawaInputText === 'string' ? value.ishikawaInputText : '',
   } as unknown as DmaicAnalysisArtifacts;
 }
 
@@ -1206,7 +1211,7 @@ function InputDataPanel({ dataset, analysis, error, months, onMonthsChange, sele
   </section>;
 }
 
-function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDataset, csvError, onRetry, pipeline, hasDiagnosis = false, manualRows, hasManualChanges, manualSaveConfirmed, onManualRowsChange, onSaveManualRows, charter, activeProjectName, sipocDirty = false, sipocSaved = false, onSipocChange, onSaveSipoc, msaDirty = false, msaSaved = false, onMsaChange, onSaveMsa, vitalXDirty = false, vitalXSaved = false, onVitalXChange, onSaveVitalX, gutDirty = false, gutSaved = false, onGutChange, onSaveGut, solutionsDirty = false, solutionsSaved = false, onSolutionsChange, onSaveSolutions, controlPlanDirty = false, controlPlanSaved = false, onControlPlanChange, onSaveControlPlan }: { tool: Tool; onClose: () => void; pareto: { name: string; value: number }[] | null; imr: number[] | null; inputAnalysis?: IndicatorAnalysis | null; hasInputDataset: boolean; csvError: string | null; onRetry: () => void; pipeline: DmaicPipeline | null; hasDiagnosis?: boolean; manualRows: DmaicVocCqt[]; hasManualChanges: boolean; manualSaveConfirmed: boolean; onManualRowsChange: (rows: DmaicVocCqt[]) => void; onSaveManualRows: () => void; charter?: ProjectCharterDraft; activeProjectName?: string; sipocDirty?: boolean; sipocSaved?: boolean; onSipocChange?: (next: DmaicSipoc) => void; onSaveSipoc?: () => void; msaDirty?: boolean; msaSaved?: boolean; onMsaChange?: (next: MsaRow[]) => void; onSaveMsa?: () => void; vitalXDirty?: boolean; vitalXSaved?: boolean; onVitalXChange?: (next: VitalXBreakdownRow[]) => void; onSaveVitalX?: () => void; gutDirty?: boolean; gutSaved?: boolean; onGutChange?: (next: GutRow[]) => void; onSaveGut?: () => void; solutionsDirty?: boolean; solutionsSaved?: boolean; onSolutionsChange?: (next: SolutionRow[]) => void; onSaveSolutions?: () => void; controlPlanDirty?: boolean; controlPlanSaved?: boolean; onControlPlanChange?: (next: ControlPlanRow[]) => void; onSaveControlPlan?: () => void }) {
+function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDataset, csvError, onRetry, pipeline, hasDiagnosis = false, manualRows, hasManualChanges, manualSaveConfirmed, onManualRowsChange, onSaveManualRows, charter, activeProjectName, sipocDirty = false, sipocSaved = false, onSipocChange, onSaveSipoc, msaDirty = false, msaSaved = false, onMsaChange, onSaveMsa, vitalXDirty = false, vitalXSaved = false, onVitalXChange, onSaveVitalX, gutDirty = false, gutSaved = false, onGutChange, onSaveGut, solutionsDirty = false, solutionsSaved = false, onSolutionsChange, onSaveSolutions, controlPlanDirty = false, controlPlanSaved = false, onControlPlanChange, onSaveControlPlan, ishikawa, ishikawaInputText = '', ishikawaDirty = false, ishikawaSaved = false, ishikawaGenerating = false, ishikawaError = null, onIshikawaInputTextChange, onGenerateIshikawa, onIshikawaChange, onSaveIshikawa }: { tool: Tool; onClose: () => void; pareto: { name: string; value: number }[] | null; imr: number[] | null; inputAnalysis?: IndicatorAnalysis | null; hasInputDataset: boolean; csvError: string | null; onRetry: () => void; pipeline: DmaicPipeline | null; hasDiagnosis?: boolean; manualRows: DmaicVocCqt[]; hasManualChanges: boolean; manualSaveConfirmed: boolean; onManualRowsChange: (rows: DmaicVocCqt[]) => void; onSaveManualRows: () => void; charter?: ProjectCharterDraft; activeProjectName?: string; sipocDirty?: boolean; sipocSaved?: boolean; onSipocChange?: (next: DmaicSipoc) => void; onSaveSipoc?: () => void; msaDirty?: boolean; msaSaved?: boolean; onMsaChange?: (next: MsaRow[]) => void; onSaveMsa?: () => void; vitalXDirty?: boolean; vitalXSaved?: boolean; onVitalXChange?: (next: VitalXBreakdownRow[]) => void; onSaveVitalX?: () => void; gutDirty?: boolean; gutSaved?: boolean; onGutChange?: (next: GutRow[]) => void; onSaveGut?: () => void; solutionsDirty?: boolean; solutionsSaved?: boolean; onSolutionsChange?: (next: SolutionRow[]) => void; onSaveSolutions?: () => void; controlPlanDirty?: boolean; controlPlanSaved?: boolean; onControlPlanChange?: (next: ControlPlanRow[]) => void; onSaveControlPlan?: () => void; ishikawa?: DmaicAnalysisArtifactsIshikawa; ishikawaInputText?: string; ishikawaDirty?: boolean; ishikawaSaved?: boolean; ishikawaGenerating?: boolean; ishikawaError?: string | null; onIshikawaInputTextChange?: (value: string) => void; onGenerateIshikawa?: () => void; onIshikawaChange?: (value: Record<string, string[]>) => void; onSaveIshikawa?: () => void }) {
   const [tab, setTab] = useState<'preview' | 'data'>('preview');
   const [maximized, setMaximized] = useState(false);
   const isPareto = tool.id === 'pareto';
@@ -1223,6 +1228,17 @@ function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDatas
       : inputAnalysis.kind === 'continuous' && inputAnalysis.values.length < 2
         ? 'O I-MR precisa de pelo menos duas observações sequenciais no recorte selecionado.'
         : 'O I-MR é aplicável somente a indicadores contínuos. Selecione um indicador numérico compatível.';
+  if (tool.id === 'causes') {
+    return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}>
+      <section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className={`flex h-full w-full flex-col overflow-y-auto border-l border-border bg-background shadow-2xl transition-[max-width] duration-200 ${maximized ? 'max-w-full' : 'max-w-[960px]'}`}>
+        <div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur">
+          <div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">Hipóteses geradas com IA e validadas pela equipe</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div>
+          <div className="flex items-center gap-1"><button data-testid="button-maximize-tool" aria-label={maximized ? 'Restaurar tamanho' : 'Maximizar painel'} aria-pressed={maximized} onClick={() => setMaximized((value) => !value)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted">{maximized ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div>
+        </div>
+        <div className="flex-1 p-5"><IshikawaDiagramEditor sourceText={ishikawaInputText} value={ishikawa ?? null} dirty={ishikawaDirty} saved={ishikawaSaved} generating={ishikawaGenerating} error={ishikawaError} onSourceTextChange={(value) => onIshikawaInputTextChange?.(value)} onGenerate={() => onGenerateIshikawa?.()} onChange={(value) => onIshikawaChange?.(value)} onSave={() => onSaveIshikawa?.()} /></div>
+      </section>
+    </div>;
+  }
   return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}><section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className={`flex h-full w-full flex-col overflow-y-auto border-l border-border bg-background shadow-2xl transition-[max-width] duration-200 ${maximized ? 'max-w-full' : 'max-w-[560px]'}`}><div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur"><div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">{pipeline ? 'Gerado com IA' : manualRows.length > 0 ? 'Editado pela equipe' : tool.tag ?? 'Entregável gerado'}</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div><div className="flex items-center gap-1"><button data-testid="button-maximize-tool" aria-label={maximized ? 'Restaurar tamanho' : 'Maximizar painel'} aria-pressed={maximized} onClick={() => setMaximized((value) => !value)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted">{maximized ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div></div><div className="border-b border-border px-5 pt-4"><div className="flex gap-5"><button data-testid="tab-preview" onClick={() => setTab('preview')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'preview' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Visualização</button><button data-testid="tab-data" onClick={() => setTab('data')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'data' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Dados & notas</button></div></div><div className="flex-1 p-5">{csvError && isAnalysisTool ? <div data-testid="status-tool-csv-error" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-destructive" /><div><p className="text-sm font-bold text-destructive">Não foi possível ler o arquivo</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{csvError}</p><Button testId="button-retry-upload" onClick={onRetry} variant="outline" className="mt-3"><RefreshCw size={13} /> Tentar com outro arquivo</Button></div></div></div> : isAnalysisTool && !hasCompatibleData ? <div data-testid="status-tool-no-data" className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold">Visualização indisponível</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{unavailableMessage}</p></div></div></div> : tab === 'preview' ? <>{isPareto && pareto ? <ParetoChart data={pareto} cumulative={cumulative} source={source} /> : isImr && imr ? <ImrChart data={imr} source={source} /> : tool.id === 'voc' ? <VocCqtMap rows={pipeline?.vocCtq ?? []} hasPipeline={Boolean(pipeline)} hasDiagnosis={hasDiagnosis} manualRows={manualRows} hasManualChanges={hasManualChanges} hasManualSaveConfirmation={manualSaveConfirmed} onManualRowsChange={onManualRowsChange} onSaveManualRows={onSaveManualRows} /> : tool.id === 'sipoc' ? <SipocMap sipoc={pipeline?.sipoc ?? null} hasPipeline={Boolean(pipeline)} dirty={sipocDirty} saved={sipocSaved} onChange={(next) => onSipocChange?.(next)} onSave={() => onSaveSipoc?.()} /> : tool.id === 'msa' ? <MsaValidationMap rows={normalizeRows(pipeline?.msaValidation, EMPTY_MSA_ROW)} hasPipeline={Boolean(pipeline)} dirty={msaDirty} saved={msaSaved} onChange={(next) => onMsaChange?.(next)} onSave={() => onSaveMsa?.()} /> : tool.id === 'vitalx' ? <VitalXBreakdownMap rows={normalizeRows(pipeline?.vitalXs, EMPTY_VITAL_X_BREAKDOWN_ROW)} hasPipeline={Boolean(pipeline)} dirty={vitalXDirty} saved={vitalXSaved} onChange={(next) => onVitalXChange?.(next)} onSave={() => onSaveVitalX?.()} /> : tool.id === 'gut' ? <GutPrioritizationMap rows={normalizeRows(pipeline?.gutPrioritization, EMPTY_GUT_ROW)} hasPipeline={Boolean(pipeline)} dirty={gutDirty} saved={gutSaved} onChange={(next) => onGutChange?.(next)} onSave={() => onSaveGut?.()} /> : tool.id === 'solutions' ? <SolutionsTreeMap rows={normalizeRows(pipeline?.actionPlan, EMPTY_SOLUTION_ROW)} hasPipeline={Boolean(pipeline)} dirty={solutionsDirty} saved={solutionsSaved} onChange={(next) => onSolutionsChange?.(next)} onSave={() => onSaveSolutions?.()} /> : tool.id === 'control-plan' ? <ControlPlanMap rows={normalizeRows(pipeline?.controlPlan, EMPTY_CONTROL_PLAN_ROW)} hasPipeline={Boolean(pipeline)} dirty={controlPlanDirty} saved={controlPlanSaved} onChange={(next) => onControlPlanChange?.(next)} onSave={() => onSaveControlPlan?.()} /> : <GenericPreview tool={tool} pipeline={pipeline} />}</> : <DataNotes tool={tool} pareto={pareto} imr={imr} source={source} />}</div><div className="border-t border-border bg-card px-5 py-4"><div className="flex items-center justify-between gap-3"><span className="mono-label text-muted-foreground">{pipeline ? 'Conteúdo gerado por Gemini' : manualRows.length > 0 ? 'Indicadores manuais · equipe' : hasInputDataset && isAnalysisTool ? hasCompatibleData ? 'Dados do CSV · local' : 'Sem dados compatíveis' : 'Conteúdo de exemplo · local'}</span><Button testId="button-export-tool" variant="outline" onClick={tool.id === 'charter' && charter ? () => exportProjectCharterPdf(charter, activeProjectName?.trim() || 'Novo projeto') : tool.id === 'sipoc' ? () => exportSipocPdf(pipeline?.sipoc?.length ? pipeline.sipoc : exampleSipoc, activeProjectName?.trim() || 'Novo projeto') : tool.id === 'voc' ? () => exportVocPdf((pipeline?.vocCtq?.length ? pipeline.vocCtq : manualRows.length ? manualRows : exampleVocRows), activeProjectName?.trim() || 'Novo projeto') : undefined}><FileText size={14} /> Exportar visão</Button></div></div></section></div>;
 }
 
@@ -1895,10 +1911,17 @@ function DataNotes({ tool, pareto, imr, source }: { tool: Tool; pareto: { name: 
   return <div><p className="mono-label text-primary">Notas do método</p><h3 className="mt-2 font-serif text-lg font-bold">Como ler este resultado</h3><p className="mt-3 text-sm leading-relaxed text-muted-foreground">{source === 'upload' ? 'Esta visualização usa o indicador selecionado do CSV e é calculada localmente no navegador.' : 'Esta visualização usa dados de exemplo e cálculos executados localmente. Troque o arquivo no bloco de upload para explorar seu próprio processo sem enviar dados para um servidor.'}</p><div className="mt-5 space-y-3"><div className="rounded-xl border border-border p-4"><div className="flex gap-3"><Database size={16} className="mt-0.5 text-primary" /><div><p className="text-xs font-bold">Fonte</p><p className="mt-1 text-[11px] text-muted-foreground">{sourceDetail}</p></div></div></div><div className="rounded-xl border border-border p-4"><div className="flex gap-3"><ClipboardCheck size={16} className="mt-0.5 text-chart-3" /><div><p className="text-xs font-bold">Próxima pergunta</p><p className="mt-1 text-[11px] text-muted-foreground">O padrão se mantém quando o time muda o turno ou o volume de entrada?</p></div></div></div></div></div>;
 }
 
+function getApiErrorMessage(error: unknown): string {
+  return error instanceof Error
+    ? error.message.replace(/^HTTP \d+ [^:]+:\s*/, '')
+    : 'Não foi possível gerar o Diagrama de Causa e Efeito agora.';
+}
+
 // hint: Structural and logic conflict. Both design and behavior differ.
 function Workspace() {
   const pipelineMutation = useRunDmaicPipeline();
   const whatIfMutation = useRunDmaicMeasurementWhatIf();
+  const ishikawaMutation = useRunDmaicIshikawa();
   const [initialLocalDraft] = useState<WorkspaceLocalDraft | null>(() => readWorkspaceLocalDraft());
   const workspaceQuery = useGetDmaicWorkspace(initialLocalDraft?.projectKey ? { projectKey: initialLocalDraft.projectKey } : undefined);
   const workspacesQuery = useListDmaicWorkspaces();
@@ -1948,6 +1971,10 @@ function Workspace() {
   const [processMap, setProcessMap] = useState<DmaicProcessMap>(() => cloneProcessMap(initialLocalDraft?.analysisArtifacts.processMap ?? createInitialProcessMap()));
   const [processMapDirty, setProcessMapDirty] = useState(false);
   const [processMapSaved, setProcessMapSaved] = useState(false);
+  const [ishikawa, setIshikawa] = useState<DmaicAnalysisArtifactsIshikawa>(() => initialLocalDraft?.analysisArtifacts.ishikawa ?? initialLocalDraft?.analysisArtifacts.pipeline?.ishikawa ?? null);
+  const [ishikawaInputText, setIshikawaInputText] = useState(() => initialLocalDraft?.analysisArtifacts.ishikawaInputText ?? '');
+  const [ishikawaDirty, setIshikawaDirty] = useState(false);
+  const [ishikawaSaved, setIshikawaSaved] = useState(false);
   const [analysisMonths, setAnalysisMonths] = useState(() => initialLocalDraft?.analysisArtifacts.analysisMonths ?? 12);
   const [selectedIndicator, setSelectedIndicator] = useState(() => initialLocalDraft?.analysisArtifacts.selectedIndicator ?? initialLocalDraft?.analysisArtifacts.dataset?.indicatorColumns[0] ?? '');
   const [exploratoryDiagnosis, setExploratoryDiagnosis] = useState<string | null>(() => initialLocalDraft?.analysisArtifacts.diagnosis ?? null);
@@ -1994,6 +2021,8 @@ function Workspace() {
       manualVocCtq,
       whatIfAnalyses,
       processMap,
+      ishikawa,
+      ishikawaInputText,
     };
   };
   createAnalysisArtifactsRef.current = createAnalysisArtifacts;
@@ -2030,6 +2059,10 @@ function Workspace() {
     setProcessMap(cloneProcessMap(draft.analysisArtifacts.processMap ?? createInitialProcessMap()));
     setProcessMapDirty(false);
     setProcessMapSaved(false);
+    setIshikawa(draft.analysisArtifacts.ishikawa ?? draft.analysisArtifacts.pipeline?.ishikawa ?? null);
+    setIshikawaInputText(draft.analysisArtifacts.ishikawaInputText ?? '');
+    setIshikawaDirty(false);
+    setIshikawaSaved(false);
     setAnalysisMonths(draft.analysisArtifacts.analysisMonths);
     setSelectedIndicator(draft.analysisArtifacts.selectedIndicator || draft.analysisArtifacts.dataset?.indicatorColumns[0] || '');
     setExploratoryDiagnosis(draft.analysisArtifacts.diagnosis);
@@ -2085,7 +2118,7 @@ function Workspace() {
   useEffect(() => {
     if (localDraftConflict || !draftWriteEnabledRef.current) return;
     writeCurrentLocalDraft();
-  }, [aiCharterSuggestions, analysisMonths, charter, confirmedCharter, exploratoryDiagnosis, exploratoryDiagnosisInput, inputDataset, localDraftConflict, manualVocCtq, measurementDataset, pipelineAnalysisContext, pipelineData, processMap, selectedIndicator, statement, whatIfAnalyses]);
+  }, [aiCharterSuggestions, analysisMonths, charter, confirmedCharter, exploratoryDiagnosis, exploratoryDiagnosisInput, inputDataset, ishikawa, ishikawaInputText, localDraftConflict, manualVocCtq, measurementDataset, pipelineAnalysisContext, pipelineData, processMap, selectedIndicator, statement, whatIfAnalyses]);
 
   const queueWorkspaceSave = (
     attempt: WorkspaceSaveAttempt,
@@ -2211,6 +2244,9 @@ function Workspace() {
           } else if (source === 'process-map') {
             setProcessMapDirty(false);
             setProcessMapSaved(true);
+          } else if (source === 'ishikawa') {
+            setIshikawaDirty(false);
+            setIshikawaSaved(true);
           }
         },
         onConflict: (latestWorkspace) => setWorkspaceConflict({ latest: latestWorkspace, source }),
@@ -2228,6 +2264,29 @@ function Workspace() {
     setProcessMapSaved(false);
   };
   const saveProcessMap = () => saveWorkspace('process-map');
+  const updateIshikawaInputText = (value: string) => {
+    setIshikawaInputText(value);
+    setIshikawaDirty(true);
+    setIshikawaSaved(false);
+    ishikawaMutation.reset();
+  };
+  const updateIshikawa = (value: Record<string, string[]>) => {
+    setIshikawa(value);
+    setIshikawaDirty(true);
+    setIshikawaSaved(false);
+  };
+  const generateIshikawa = () => {
+    const sourceText = ishikawaInputText.trim();
+    if (sourceText.length < 10) return;
+    ishikawaMutation.mutate({ data: { sourceText } }, {
+      onSuccess: (result) => {
+        setIshikawa(result.ishikawa);
+        setIshikawaDirty(true);
+        setIshikawaSaved(false);
+      },
+    });
+  };
+  const saveIshikawa = () => saveWorkspace('ishikawa');
   const handleDiagnosisChange = (diagnosis: string | null, diagnosisInput: DmaicExploratoryDiagnosisInput) => {
     setExploratoryDiagnosis(diagnosis);
     setExploratoryDiagnosisInput(diagnosisInput);
@@ -2356,6 +2415,10 @@ function Workspace() {
     setProcessMap(cloneProcessMap(recoveredDraft.analysisArtifacts.processMap ?? createInitialProcessMap()));
     setProcessMapDirty(false);
     setProcessMapSaved(false);
+    setIshikawa(recoveredDraft.analysisArtifacts.ishikawa ?? recoveredDraft.analysisArtifacts.pipeline?.ishikawa ?? null);
+    setIshikawaInputText(recoveredDraft.analysisArtifacts.ishikawaInputText ?? '');
+    setIshikawaDirty(false);
+    setIshikawaSaved(false);
     setAnalysisMonths(recoveredDraft.analysisArtifacts.analysisMonths);
     setSelectedIndicator(recoveredDraft.analysisArtifacts.selectedIndicator || recoveredDraft.analysisArtifacts.dataset?.indicatorColumns[0] || '');
     setExploratoryDiagnosis(recoveredDraft.analysisArtifacts.diagnosis);
@@ -2541,6 +2604,10 @@ function Workspace() {
     setProcessMap(createInitialProcessMap());
     setProcessMapDirty(false);
     setProcessMapSaved(false);
+    setIshikawa(null);
+    setIshikawaInputText('');
+    setIshikawaDirty(false);
+    setIshikawaSaved(false);
     setAnalysisMonths(12);
     setSelectedIndicator('');
     setExploratoryDiagnosis(null);
@@ -2732,7 +2799,7 @@ function Workspace() {
         </div>
       </main>
     </div>
-     {selectedTool && <DetailDrawer tool={selectedTool} onClose={() => setSelectedTool(null)} pareto={pareto} imr={imr} inputAnalysis={inputAnalysis} hasInputDataset={Boolean(inputDataset)} csvError={csvError} onRetry={retryUpload} pipeline={pipelineData} hasDiagnosis={Boolean(pipelineAnalysisContext?.diagnosis)} manualRows={manualVocCtq} hasManualChanges={manualVocCtqDirty} manualSaveConfirmed={manualVocSaved} onManualRowsChange={updateManualVocCtq} onSaveManualRows={saveManualVocCtq} charter={charter} activeProjectName={activeProjectName} sipocDirty={sipocDirty} sipocSaved={sipocSaved} onSipocChange={updateSipoc} onSaveSipoc={saveSipoc} msaDirty={msaDirty} msaSaved={msaSaved} onMsaChange={updateMsa} onSaveMsa={saveMsa} vitalXDirty={vitalXDirty} vitalXSaved={vitalXSaved} onVitalXChange={updateVitalX} onSaveVitalX={saveVitalX} gutDirty={gutDirty} gutSaved={gutSaved} onGutChange={updateGut} onSaveGut={saveGut} solutionsDirty={solutionsDirty} solutionsSaved={solutionsSaved} onSolutionsChange={updateSolutions} onSaveSolutions={saveSolutions} controlPlanDirty={controlPlanDirty} controlPlanSaved={controlPlanSaved} onControlPlanChange={updateControlPlan} onSaveControlPlan={saveControlPlan} />}
+     {selectedTool && <DetailDrawer tool={selectedTool} onClose={() => setSelectedTool(null)} pareto={pareto} imr={imr} inputAnalysis={inputAnalysis} hasInputDataset={Boolean(inputDataset)} csvError={csvError} onRetry={retryUpload} pipeline={pipelineData} hasDiagnosis={Boolean(pipelineAnalysisContext?.diagnosis)} manualRows={manualVocCtq} hasManualChanges={manualVocCtqDirty} manualSaveConfirmed={manualVocSaved} onManualRowsChange={updateManualVocCtq} onSaveManualRows={saveManualVocCtq} charter={charter} activeProjectName={activeProjectName} sipocDirty={sipocDirty} sipocSaved={sipocSaved} onSipocChange={updateSipoc} onSaveSipoc={saveSipoc} msaDirty={msaDirty} msaSaved={msaSaved} onMsaChange={updateMsa} onSaveMsa={saveMsa} vitalXDirty={vitalXDirty} vitalXSaved={vitalXSaved} onVitalXChange={updateVitalX} onSaveVitalX={saveVitalX} gutDirty={gutDirty} gutSaved={gutSaved} onGutChange={updateGut} onSaveGut={saveGut} solutionsDirty={solutionsDirty} solutionsSaved={solutionsSaved} onSolutionsChange={updateSolutions} onSaveSolutions={saveSolutions} controlPlanDirty={controlPlanDirty} controlPlanSaved={controlPlanSaved} onControlPlanChange={updateControlPlan} onSaveControlPlan={saveControlPlan} ishikawa={ishikawa} ishikawaInputText={ishikawaInputText} ishikawaDirty={ishikawaDirty} ishikawaSaved={ishikawaSaved} ishikawaGenerating={ishikawaMutation.isPending} ishikawaError={ishikawaMutation.isError ? getApiErrorMessage(ishikawaMutation.error) : null} onIshikawaInputTextChange={updateIshikawaInputText} onGenerateIshikawa={generateIshikawa} onIshikawaChange={updateIshikawa} onSaveIshikawa={saveIshikawa} />}
   </div>;
 }
 /*

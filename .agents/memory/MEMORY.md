@@ -12,3 +12,4 @@
 - [Paired measurement analysis](paired-measurement-analysis.md) — Treat Measurement CSV rows as paired observations and keep its dataset separate from Definition input.
 - [Measurement What If snapshots](measurement-what-if-snapshots.md) — Persist each AI scenario with its statistical context snapshot, never raw CSV rows or automatic target changes.
 - [Process map persistence](process-map-persistence.md) — Seed missing maps from Define-phase SIPOC/VOC text, then preserve operator edits as project-owned structured JSON.
+- [Ishikawa persistence](ishikawa-persistence.md) — Store team source text and the editable 6M matrix per project; AI generation must never block later manual revision.

@@ -7,6 +7,7 @@
  */
 
 export * from './dmaicAnalysisArtifacts';
+export * from './dmaicAnalysisArtifactsIshikawa';
 export * from './dmaicCharter';
 export * from './dmaicCharterContext';
 export * from './dmaicCharterTeamMember';
@@ -25,6 +26,9 @@ export * from './dmaicExploratorySummary';
 export * from './dmaicGeneratedCharter';
 export * from './dmaicIndicator';
 export * from './dmaicIndicatorAnalysis';
+export * from './dmaicIshikawaInput';
+export * from './dmaicIshikawaResponse';
+export * from './dmaicIshikawaResponseIshikawa';
 export * from './dmaicMeasurementWhatIfContext';
 export * from './dmaicMeasurementWhatIfContextAnova';
 export * from './dmaicMeasurementWhatIfContextPairwiseItem';

@@ -618,6 +618,11 @@ export interface DmaicPipeline {
 }
 
 /**
+ * Diagrama de causa e efeito editável gerado a partir do texto da equipe.
+ */
+export type DmaicAnalysisArtifactsIshikawa = {[key: string]: string[]} | null;
+
+/**
  * Current derived data and generated artifacts associated with a DMAIC project.
  */
 export interface DmaicAnalysisArtifacts {
@@ -650,6 +655,13 @@ export interface DmaicAnalysisArtifacts {
   whatIfAnalyses?: DmaicMeasurementWhatIfRecord[];
   /** Mapa de processo editável e parâmetros Y/X específicos do projeto. */
   processMap?: DmaicProcessMap | null;
+  /** Diagrama de causa e efeito editável gerado a partir do texto da equipe. */
+  ishikawa?: DmaicAnalysisArtifactsIshikawa;
+  /**
+     * Texto livre fornecido pela equipe como base para a geração do diagrama de causa e efeito.
+     * @maxLength 12000
+     */
+  ishikawaInputText?: string;
 }
 
 export interface DmaicWorkspaceInput {
@@ -703,6 +715,20 @@ export interface DmaicWorkspaceSummary {
   /** @minimum 0 */
   revision: number;
   updatedAt: string;
+}
+
+export interface DmaicIshikawaInput {
+  /**
+     * @minLength 10
+     * @maxLength 12000
+     */
+  sourceText: string;
+}
+
+export type DmaicIshikawaResponseIshikawa = {[key: string]: string[]};
+
+export interface DmaicIshikawaResponse {
+  ishikawa: DmaicIshikawaResponseIshikawa;
 }
 
 export type GetDmaicWorkspaceParams = {
