@@ -22,6 +22,8 @@ import type {
 import type {
   DmaicExploratoryDiagnosis,
   DmaicExploratoryDiagnosisInput,
+  DmaicMeasurementWhatIfInput,
+  DmaicMeasurementWhatIfResponse,
   DmaicPipeline,
   DmaicPipelineInput,
   DmaicWorkspace,
@@ -514,5 +516,77 @@ export const useRunDmaicExploratoryDiagnosis = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRunDmaicExploratoryDiagnosisMutationOptions(options));
+    }
+
+export const getRunDmaicMeasurementWhatIfUrl = () => {
+
+
+
+
+  return `/api/dmaic/measurement-what-if`
+}
+
+/**
+ * Generates an evidence-based scenario answer from summarized Measurement statistics and project context.
+ * @summary Analyze a Measurement what-if scenario
+ */
+export const runDmaicMeasurementWhatIf = async (dmaicMeasurementWhatIfInput: DmaicMeasurementWhatIfInput, options?: Parameters<typeof customFetch>[1]): Promise<DmaicMeasurementWhatIfResponse> => {
+
+  return customFetch<DmaicMeasurementWhatIfResponse>(getRunDmaicMeasurementWhatIfUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(dmaicMeasurementWhatIfInput)
+  }
+);}
+
+
+
+
+
+export const getRunDmaicMeasurementWhatIfMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runDmaicMeasurementWhatIf>>, TError,{data: BodyType<DmaicMeasurementWhatIfInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runDmaicMeasurementWhatIf>>, TError,{data: BodyType<DmaicMeasurementWhatIfInput>}, TContext> => {
+
+const mutationKey = ['runDmaicMeasurementWhatIf'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runDmaicMeasurementWhatIf>>, {data: BodyType<DmaicMeasurementWhatIfInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  runDmaicMeasurementWhatIf(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunDmaicMeasurementWhatIfMutationResult = NonNullable<Awaited<ReturnType<typeof runDmaicMeasurementWhatIf>>>
+    export type RunDmaicMeasurementWhatIfMutationBody = BodyType<DmaicMeasurementWhatIfInput>
+    export type RunDmaicMeasurementWhatIfMutationError = ErrorType<void>
+
+    /**
+ * @summary Analyze a Measurement what-if scenario
+ */
+export const useRunDmaicMeasurementWhatIf = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runDmaicMeasurementWhatIf>>, TError,{data: BodyType<DmaicMeasurementWhatIfInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runDmaicMeasurementWhatIf>>,
+        TError,
+        {data: BodyType<DmaicMeasurementWhatIfInput>},
+        TContext
+      > => {
+      return useMutation(getRunDmaicMeasurementWhatIfMutationOptions(options));
     }
 

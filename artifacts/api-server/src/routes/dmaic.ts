@@ -4,6 +4,8 @@ import {
   ListDmaicWorkspacesResponse,
   RunDmaicExploratoryDiagnosisBody,
   RunDmaicExploratoryDiagnosisResponse,
+  RunDmaicMeasurementWhatIfBody,
+  RunDmaicMeasurementWhatIfResponse,
   RunDmaicPipelineBody,
   RunDmaicPipelineResponse,
   SaveDmaicWorkspaceBody,
@@ -69,11 +71,23 @@ Explique o que os dados sustentam e o que ainda precisa ser investigado, sem afi
 Use os valores numéricos informados para justificar as conclusões. Interprete o p-valor de Shapiro-Wilk com nível de significância de 5%: p >= 0,05 indica que não há evidência suficiente para rejeitar normalidade; p < 0,05 indica evidência de desvio da normalidade.
 Considere que os gráficos e estatísticas podem conter todas as observações, enquanto a lista de pontos enviada pode ser uma amostra cronológica. Entregue 5 a 8 parágrafos completos, com recomendações acionáveis e perguntas para a próxima etapa. Não corte a resposta no meio de uma frase.`;
 
+const MEASUREMENT_WHAT_IF_SYSTEM_PROMPT = `Você é um Master Black Belt especialista em Lean Seis Sigma e análise de cenários quantitativos.
+Responda em português do Brasil a uma pergunta "what if" da fase de Medição usando SOMENTE o problema, a meta, as premissas e os resumos estatísticos fornecidos.
+Trate médias, medianas, dispersões, ANOVA, comparações e priorização como evidências observadas; trate percentuais futuros, metas e mudanças propostas na pergunta como premissas de cenário, nunca como fatos medidos. O campo pairwiseTotal informa quantas comparações foram calculadas localmente; quando for maior que a lista pairwise, a lista contém somente as 100 comparações mais informativas. Declare essa limitação se ela afetar a resposta e nunca afirme que a lista resumida é completa.
+Quando a pergunta solicitar uma meta numérica, mostre a fórmula passo a passo. Para uma média global entre unidades com o mesmo número de observações, use a média aritmética das médias das unidades. Se os tamanhos forem diferentes, use média ponderada pelos respectivos n.
+Se algumas unidades tiverem mudança percentual definida e as demais precisarem compensar para atingir uma meta global, calcule primeiro os novos resultados das unidades fixadas, depois mostre o total restante necessário e a meta média das unidades a ajustar. Não distribua metas individuais diferentes entre duas ou mais unidades sem uma regra explícita; nesse caso, apresente a meta comum que resolveria o cenário e explique que outras combinações também são possíveis.
+Declare claramente se "aumentar" é melhoria ou piora apenas quando o contexto informar a direção desejada. Não invente uma meta global ausente, moeda, causalidade, capacidade operacional ou precisão inexistente. Se faltar um valor indispensável, diga exatamente qual dado falta e forneça a fórmula pronta para preenchimento em vez de fabricar um número.
+Organize a resposta nos títulos: Resposta direta, Cálculo do cenário, Premissas usadas, Limites e validações. Use números com precisão compatível com os dados e termine lembrando que a simulação não altera automaticamente a meta nem a priorização salva no projeto.`;
+
 const DIAGNOSIS_WINDOW_MS = 10 * 60 * 1000;
 const DIAGNOSIS_MAX_REQUESTS_PER_WINDOW = 6;
+const WHAT_IF_WINDOW_MS = 10 * 60 * 1000;
+const WHAT_IF_MAX_REQUESTS_PER_WINDOW = 8;
 const MAX_ANALYSIS_ARTIFACT_BYTES = 3_000_000;
 const MAX_PIPELINE_ANALYSIS_CONTEXT_BYTES = 80_000;
+const MAX_WHAT_IF_CONTEXT_BYTES = 120_000;
 const diagnosisRequests = new Map<string, { count: number; windowStartedAt: number }>();
+const whatIfRequests = new Map<string, { count: number; windowStartedAt: number }>();
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 const RETRYABLE_GEMINI_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
 const PIPELINE_ANALYSIS_CONTEXT_KEYS = new Set(["indicator", "analysisMonths", "indicatorSummary", "exploratoryStatistics", "diagnosis"]);
@@ -149,6 +163,21 @@ function canGenerateExploratoryDiagnosis(clientKey: string): boolean {
     return true;
   }
   if (current.count >= DIAGNOSIS_MAX_REQUESTS_PER_WINDOW) return false;
+  current.count += 1;
+  return true;
+}
+
+function canGenerateMeasurementWhatIf(clientKey: string): boolean {
+  const now = Date.now();
+  for (const [key, record] of whatIfRequests) {
+    if (now - record.windowStartedAt >= WHAT_IF_WINDOW_MS) whatIfRequests.delete(key);
+  }
+  const current = whatIfRequests.get(clientKey);
+  if (!current || now - current.windowStartedAt >= WHAT_IF_WINDOW_MS) {
+    whatIfRequests.set(clientKey, { count: 1, windowStartedAt: now });
+    return true;
+  }
+  if (current.count >= WHAT_IF_MAX_REQUESTS_PER_WINDOW) return false;
   current.count += 1;
   return true;
 }
@@ -354,6 +383,7 @@ function normalizeAnalysisArtifacts(value: unknown) {
     ...value,
     measurementDataset: value.measurementDataset ?? null,
     pipeline: value.pipeline ? normalizePersistedPipeline(value.pipeline) : null,
+    whatIfAnalyses: Array.isArray(value.whatIfAnalyses) ? value.whatIfAnalyses : [],
   };
 }
 
@@ -377,6 +407,7 @@ function emptyAnalysisArtifacts() {
     pareto: [],
     imr: [],
     pipeline: null,
+    whatIfAnalyses: [],
   };
 }
 
@@ -648,6 +679,90 @@ router.post("/dmaic/exploratory-diagnosis", async (req, res): Promise<void> => {
       "Failed to generate exploratory diagnosis",
     );
     res.status(502).json({ error: "Ocorreu um erro ao gerar o diagnóstico. Tente novamente." });
+  }
+});
+
+router.post("/dmaic/measurement-what-if", async (req, res): Promise<void> => {
+  const body = RunDmaicMeasurementWhatIfBody.safeParse(req.body);
+  if (!body.success) {
+    req.log.warn({ errors: body.error.flatten() }, "Invalid Measurement what-if request");
+    res.status(400).json({ error: "Escreva uma pergunta válida e conclua a análise da Medição antes de continuar." });
+    return;
+  }
+
+  const contextBytes = Buffer.byteLength(JSON.stringify(body.data.context), "utf8");
+  if (contextBytes > MAX_WHAT_IF_CONTEXT_BYTES) {
+    res.status(400).json({ error: "O resumo da Medição excede o limite permitido para esta análise." });
+    return;
+  }
+
+  const clientKey = req.ip || req.socket.remoteAddress || "unknown";
+  if (!canGenerateMeasurementWhatIf(clientKey)) {
+    req.log.warn({ clientKey }, "Measurement what-if rate limit reached");
+    res.status(429).json({ error: "Você atingiu o limite temporário de análises What If. Aguarde alguns minutos antes de tentar novamente." });
+    return;
+  }
+
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    req.log.error("GOOGLE_API_KEY is not configured");
+    res.status(503).json({ error: "A integração Gemini ainda não está configurada." });
+    return;
+  }
+
+  try {
+    const response = await requestGemini(apiKey, {
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: `${MEASUREMENT_WHAT_IF_SYSTEM_PROMPT}\n\nProblema do projeto:\n${body.data.problemStatement}\n\nPergunta do operador:\n${body.data.question}\n\nContexto resumido e calculado da Medição (não contém o CSV bruto):\n${JSON.stringify(body.data.context, null, 2)}`,
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 4096,
+      },
+    });
+
+    if (!response.ok) {
+      const details = await response.text();
+      req.log.error(
+        { status: response.status, details: details.slice(0, 500) },
+        "Gemini Measurement what-if request failed",
+      );
+      res.status(502).json({ error: "Não foi possível realizar a análise What If agora. Tente novamente." });
+      return;
+    }
+
+    const payload = (await response.json()) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    const answer = completeDiagnosisText(payload.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text ?? "")
+      .join("")
+      .trim() ?? "");
+    if (!answer) {
+      req.log.error("Gemini returned no Measurement what-if answer");
+      res.status(502).json({ error: "A análise retornou uma resposta vazia. Tente novamente." });
+      return;
+    }
+
+    const parsed = RunDmaicMeasurementWhatIfResponse.safeParse({ answer });
+    if (!parsed.success) {
+      req.log.error({ errors: parsed.error.flatten() }, "Gemini returned an invalid Measurement what-if answer");
+      res.status(502).json({ error: "A resposta da análise ficou incompleta. Tente novamente." });
+      return;
+    }
+
+    req.log.info("DMAIC Measurement what-if analysis generated");
+    res.json(parsed.data);
+  } catch (error) {
+    req.log.error({ error }, "Failed to generate Measurement what-if analysis");
+    res.status(502).json({ error: "Ocorreu um erro ao realizar a análise What If. Tente novamente." });
   }
 });
 

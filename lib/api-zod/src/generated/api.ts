@@ -324,6 +324,50 @@ export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOn
 
 export const getDmaicWorkspaceResponseAnalysisArtifactsParetoItemValueMin = 0;
 
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemIdMax = 100;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemQuestionMin = 8;
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemQuestionMax = 3000;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemAnswerMax = 16000;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextXColumnMax = 160;
+
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemNameMax = 160;
+
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemStandardDeviationMin = 0;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemIqrMin = 0;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemNormalityMax = 80;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesMax = 100;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPairwiseItemLeftMax = 160;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPairwiseItemRightMax = 160;
+
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPairwiseMax = 100;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPairwiseTotalMin = 0;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesItemNameMax = 160;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesItemExplanationMax = 800;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesMax = 100;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextProjectGoalMax = 2000;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextKpisMax = 2000;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax = 2000;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesMax = 50;
+
 export const getDmaicWorkspaceResponseRevisionMin = 0;
 
 
@@ -576,7 +620,55 @@ export const GetDmaicWorkspaceResponse = zod.object({
   "measure": zod.string(),
   "issue": zod.string(),
   "ctqMetric": zod.string()
-})).optional().describe('Indicadores VOC\/CTQ adicionados e revisados manualmente pela equipe.')
+})).optional().describe('Indicadores VOC\/CTQ adicionados e revisados manualmente pela equipe.'),
+  "whatIfAnalyses": zod.array(zod.object({
+  "id": zod.string().min(1).max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemIdMax),
+  "question": zod.string().min(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemQuestionMin).max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemQuestionMax),
+  "answer": zod.string().min(1).max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemAnswerMax),
+  "createdAt": zod.coerce.date(),
+  "context": zod.object({
+  "xColumn": zod.string().min(1).max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextXColumnMax),
+  "rowCount": zod.number().min(1),
+  "variables": zod.array(zod.object({
+  "name": zod.string().min(1).max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemNameMax),
+  "count": zod.number().min(1),
+  "mean": zod.number(),
+  "median": zod.number(),
+  "minimum": zod.number(),
+  "maximum": zod.number(),
+  "standardDeviation": zod.number().min(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemStandardDeviationMin),
+  "q1": zod.number(),
+  "q3": zod.number(),
+  "iqr": zod.number().min(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemIqrMin),
+  "normality": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemNormalityMax)
+})).min(1).max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesMax),
+  "anova": zod.object({
+  "available": zod.boolean(),
+  "fStatistic": zod.union([zod.number(),zod.null()]),
+  "pValue": zod.union([zod.number(),zod.null()]),
+  "numeratorDf": zod.union([zod.number(),zod.null()]),
+  "denominatorDf": zod.union([zod.number(),zod.null()]),
+  "epsilon": zod.union([zod.number(),zod.null()])
+}),
+  "pairwise": zod.array(zod.object({
+  "left": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPairwiseItemLeftMax),
+  "right": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPairwiseItemRightMax),
+  "observations": zod.number().min(1),
+  "meanDifference": zod.number(),
+  "adjustedPValue": zod.union([zod.number(),zod.null()]),
+  "significant": zod.boolean()
+})).max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPairwiseMax),
+  "pairwiseTotal": zod.number().min(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPairwiseTotalMin).describe('Total de comparações pareadas calculadas localmente; pairwise contém no máximo as 100 mais informativas.'),
+  "priorities": zod.array(zod.object({
+  "name": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesItemNameMax),
+  "score": zod.number(),
+  "explanation": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesItemExplanationMax)
+})).min(1).max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesMax),
+  "projectGoal": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextProjectGoalMax).optional(),
+  "kpis": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextKpisMax).optional(),
+  "assumptions": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax).optional()
+})
+})).max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesMax).optional().describe('Histórico de perguntas e respostas de cenários What If da Medição.')
 }).describe('Current derived data and generated artifacts associated with a DMAIC project.'),
   "revision": zod.number().min(getDmaicWorkspaceResponseRevisionMin),
   "createdAt": zod.coerce.date(),
@@ -702,6 +794,50 @@ export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneEx
 export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneDiagnosisOneMax = 2000;
 
 export const saveDmaicWorkspaceBodyAnalysisArtifactsParetoItemValueMin = 0;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemIdMax = 100;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemQuestionMin = 8;
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemQuestionMax = 3000;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemAnswerMax = 16000;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextXColumnMax = 160;
+
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemNameMax = 160;
+
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemStandardDeviationMin = 0;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemIqrMin = 0;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemNormalityMax = 80;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextVariablesMax = 100;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextPairwiseItemLeftMax = 160;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextPairwiseItemRightMax = 160;
+
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextPairwiseMax = 100;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextPairwiseTotalMin = 0;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesItemNameMax = 160;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesItemExplanationMax = 800;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesMax = 100;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextProjectGoalMax = 2000;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextKpisMax = 2000;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax = 2000;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesMax = 50;
 
 export const saveDmaicWorkspaceBodyExpectedRevisionMin = 0;
 
@@ -954,7 +1090,55 @@ export const SaveDmaicWorkspaceBody = zod.object({
   "measure": zod.string(),
   "issue": zod.string(),
   "ctqMetric": zod.string()
-})).optional().describe('Indicadores VOC\/CTQ adicionados e revisados manualmente pela equipe.')
+})).optional().describe('Indicadores VOC\/CTQ adicionados e revisados manualmente pela equipe.'),
+  "whatIfAnalyses": zod.array(zod.object({
+  "id": zod.string().min(1).max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemIdMax),
+  "question": zod.string().min(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemQuestionMin).max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemQuestionMax),
+  "answer": zod.string().min(1).max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemAnswerMax),
+  "createdAt": zod.coerce.date(),
+  "context": zod.object({
+  "xColumn": zod.string().min(1).max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextXColumnMax),
+  "rowCount": zod.number().min(1),
+  "variables": zod.array(zod.object({
+  "name": zod.string().min(1).max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemNameMax),
+  "count": zod.number().min(1),
+  "mean": zod.number(),
+  "median": zod.number(),
+  "minimum": zod.number(),
+  "maximum": zod.number(),
+  "standardDeviation": zod.number().min(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemStandardDeviationMin),
+  "q1": zod.number(),
+  "q3": zod.number(),
+  "iqr": zod.number().min(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemIqrMin),
+  "normality": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemNormalityMax)
+})).min(1).max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextVariablesMax),
+  "anova": zod.object({
+  "available": zod.boolean(),
+  "fStatistic": zod.union([zod.number(),zod.null()]),
+  "pValue": zod.union([zod.number(),zod.null()]),
+  "numeratorDf": zod.union([zod.number(),zod.null()]),
+  "denominatorDf": zod.union([zod.number(),zod.null()]),
+  "epsilon": zod.union([zod.number(),zod.null()])
+}),
+  "pairwise": zod.array(zod.object({
+  "left": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextPairwiseItemLeftMax),
+  "right": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextPairwiseItemRightMax),
+  "observations": zod.number().min(1),
+  "meanDifference": zod.number(),
+  "adjustedPValue": zod.union([zod.number(),zod.null()]),
+  "significant": zod.boolean()
+})).max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextPairwiseMax),
+  "pairwiseTotal": zod.number().min(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextPairwiseTotalMin).describe('Total de comparações pareadas calculadas localmente; pairwise contém no máximo as 100 mais informativas.'),
+  "priorities": zod.array(zod.object({
+  "name": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesItemNameMax),
+  "score": zod.number(),
+  "explanation": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesItemExplanationMax)
+})).min(1).max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesMax),
+  "projectGoal": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextProjectGoalMax).optional(),
+  "kpis": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextKpisMax).optional(),
+  "assumptions": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax).optional()
+})
+})).max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesMax).optional().describe('Histórico de perguntas e respostas de cenários What If da Medição.')
 }).optional().describe('Current CSV-derived analysis data and generated artifacts. Omit for backwards-compatible saves without analysis data.'),
   "expectedRevision": zod.number().min(saveDmaicWorkspaceBodyExpectedRevisionMin).describe('Monotonic version returned by the last workspace read or save. Send 0 when creating the workspace for the first time.')
 })
@@ -1070,6 +1254,50 @@ export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextO
 export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOneDiagnosisOneMax = 2000;
 
 export const saveDmaicWorkspaceResponseAnalysisArtifactsParetoItemValueMin = 0;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemIdMax = 100;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemQuestionMin = 8;
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemQuestionMax = 3000;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemAnswerMax = 16000;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextXColumnMax = 160;
+
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemNameMax = 160;
+
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemStandardDeviationMin = 0;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemIqrMin = 0;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemNormalityMax = 80;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesMax = 100;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPairwiseItemLeftMax = 160;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPairwiseItemRightMax = 160;
+
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPairwiseMax = 100;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPairwiseTotalMin = 0;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesItemNameMax = 160;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesItemExplanationMax = 800;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesMax = 100;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextProjectGoalMax = 2000;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextKpisMax = 2000;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax = 2000;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesMax = 50;
 
 export const saveDmaicWorkspaceResponseRevisionMin = 0;
 
@@ -1323,7 +1551,55 @@ export const SaveDmaicWorkspaceResponse = zod.object({
   "measure": zod.string(),
   "issue": zod.string(),
   "ctqMetric": zod.string()
-})).optional().describe('Indicadores VOC\/CTQ adicionados e revisados manualmente pela equipe.')
+})).optional().describe('Indicadores VOC\/CTQ adicionados e revisados manualmente pela equipe.'),
+  "whatIfAnalyses": zod.array(zod.object({
+  "id": zod.string().min(1).max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemIdMax),
+  "question": zod.string().min(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemQuestionMin).max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemQuestionMax),
+  "answer": zod.string().min(1).max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemAnswerMax),
+  "createdAt": zod.coerce.date(),
+  "context": zod.object({
+  "xColumn": zod.string().min(1).max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextXColumnMax),
+  "rowCount": zod.number().min(1),
+  "variables": zod.array(zod.object({
+  "name": zod.string().min(1).max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemNameMax),
+  "count": zod.number().min(1),
+  "mean": zod.number(),
+  "median": zod.number(),
+  "minimum": zod.number(),
+  "maximum": zod.number(),
+  "standardDeviation": zod.number().min(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemStandardDeviationMin),
+  "q1": zod.number(),
+  "q3": zod.number(),
+  "iqr": zod.number().min(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemIqrMin),
+  "normality": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesItemNormalityMax)
+})).min(1).max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextVariablesMax),
+  "anova": zod.object({
+  "available": zod.boolean(),
+  "fStatistic": zod.union([zod.number(),zod.null()]),
+  "pValue": zod.union([zod.number(),zod.null()]),
+  "numeratorDf": zod.union([zod.number(),zod.null()]),
+  "denominatorDf": zod.union([zod.number(),zod.null()]),
+  "epsilon": zod.union([zod.number(),zod.null()])
+}),
+  "pairwise": zod.array(zod.object({
+  "left": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPairwiseItemLeftMax),
+  "right": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPairwiseItemRightMax),
+  "observations": zod.number().min(1),
+  "meanDifference": zod.number(),
+  "adjustedPValue": zod.union([zod.number(),zod.null()]),
+  "significant": zod.boolean()
+})).max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPairwiseMax),
+  "pairwiseTotal": zod.number().min(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPairwiseTotalMin).describe('Total de comparações pareadas calculadas localmente; pairwise contém no máximo as 100 mais informativas.'),
+  "priorities": zod.array(zod.object({
+  "name": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesItemNameMax),
+  "score": zod.number(),
+  "explanation": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesItemExplanationMax)
+})).min(1).max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesMax),
+  "projectGoal": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextProjectGoalMax).optional(),
+  "kpis": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextKpisMax).optional(),
+  "assumptions": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax).optional()
+})
+})).max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesMax).optional().describe('Histórico de perguntas e respostas de cenários What If da Medição.')
 }).describe('Current derived data and generated artifacts associated with a DMAIC project.'),
   "revision": zod.number().min(saveDmaicWorkspaceResponseRevisionMin),
   "createdAt": zod.coerce.date(),
@@ -1400,6 +1676,108 @@ export const runDmaicExploratoryDiagnosisResponseDiagnosisMax = 16000;
 
 export const RunDmaicExploratoryDiagnosisResponse = zod.object({
   "diagnosis": zod.string().min(1).max(runDmaicExploratoryDiagnosisResponseDiagnosisMax)
+})
+
+
+/**
+ * Generates an evidence-based scenario answer from summarized Measurement statistics and project context.
+ * @summary Analyze a Measurement what-if scenario
+ */
+export const runDmaicMeasurementWhatIfBodyQuestionMin = 8;
+export const runDmaicMeasurementWhatIfBodyQuestionMax = 3000;
+
+export const runDmaicMeasurementWhatIfBodyProblemStatementMax = 4000;
+
+export const runDmaicMeasurementWhatIfBodyContextXColumnMax = 160;
+
+
+export const runDmaicMeasurementWhatIfBodyContextVariablesItemNameMax = 160;
+
+
+export const runDmaicMeasurementWhatIfBodyContextVariablesItemStandardDeviationMin = 0;
+
+export const runDmaicMeasurementWhatIfBodyContextVariablesItemIqrMin = 0;
+
+export const runDmaicMeasurementWhatIfBodyContextVariablesItemNormalityMax = 80;
+
+export const runDmaicMeasurementWhatIfBodyContextVariablesMax = 100;
+
+export const runDmaicMeasurementWhatIfBodyContextPairwiseItemLeftMax = 160;
+
+export const runDmaicMeasurementWhatIfBodyContextPairwiseItemRightMax = 160;
+
+
+export const runDmaicMeasurementWhatIfBodyContextPairwiseMax = 100;
+
+export const runDmaicMeasurementWhatIfBodyContextPairwiseTotalMin = 0;
+
+export const runDmaicMeasurementWhatIfBodyContextPrioritiesItemNameMax = 160;
+
+export const runDmaicMeasurementWhatIfBodyContextPrioritiesItemExplanationMax = 800;
+
+export const runDmaicMeasurementWhatIfBodyContextPrioritiesMax = 100;
+
+export const runDmaicMeasurementWhatIfBodyContextProjectGoalMax = 2000;
+
+export const runDmaicMeasurementWhatIfBodyContextKpisMax = 2000;
+
+export const runDmaicMeasurementWhatIfBodyContextAssumptionsMax = 2000;
+
+
+
+export const RunDmaicMeasurementWhatIfBody = zod.object({
+  "question": zod.string().min(runDmaicMeasurementWhatIfBodyQuestionMin).max(runDmaicMeasurementWhatIfBodyQuestionMax),
+  "problemStatement": zod.string().min(1).max(runDmaicMeasurementWhatIfBodyProblemStatementMax),
+  "context": zod.object({
+  "xColumn": zod.string().min(1).max(runDmaicMeasurementWhatIfBodyContextXColumnMax),
+  "rowCount": zod.number().min(1),
+  "variables": zod.array(zod.object({
+  "name": zod.string().min(1).max(runDmaicMeasurementWhatIfBodyContextVariablesItemNameMax),
+  "count": zod.number().min(1),
+  "mean": zod.number(),
+  "median": zod.number(),
+  "minimum": zod.number(),
+  "maximum": zod.number(),
+  "standardDeviation": zod.number().min(runDmaicMeasurementWhatIfBodyContextVariablesItemStandardDeviationMin),
+  "q1": zod.number(),
+  "q3": zod.number(),
+  "iqr": zod.number().min(runDmaicMeasurementWhatIfBodyContextVariablesItemIqrMin),
+  "normality": zod.string().max(runDmaicMeasurementWhatIfBodyContextVariablesItemNormalityMax)
+})).min(1).max(runDmaicMeasurementWhatIfBodyContextVariablesMax),
+  "anova": zod.object({
+  "available": zod.boolean(),
+  "fStatistic": zod.union([zod.number(),zod.null()]),
+  "pValue": zod.union([zod.number(),zod.null()]),
+  "numeratorDf": zod.union([zod.number(),zod.null()]),
+  "denominatorDf": zod.union([zod.number(),zod.null()]),
+  "epsilon": zod.union([zod.number(),zod.null()])
+}),
+  "pairwise": zod.array(zod.object({
+  "left": zod.string().max(runDmaicMeasurementWhatIfBodyContextPairwiseItemLeftMax),
+  "right": zod.string().max(runDmaicMeasurementWhatIfBodyContextPairwiseItemRightMax),
+  "observations": zod.number().min(1),
+  "meanDifference": zod.number(),
+  "adjustedPValue": zod.union([zod.number(),zod.null()]),
+  "significant": zod.boolean()
+})).max(runDmaicMeasurementWhatIfBodyContextPairwiseMax),
+  "pairwiseTotal": zod.number().min(runDmaicMeasurementWhatIfBodyContextPairwiseTotalMin).describe('Total de comparações pareadas calculadas localmente; pairwise contém no máximo as 100 mais informativas.'),
+  "priorities": zod.array(zod.object({
+  "name": zod.string().max(runDmaicMeasurementWhatIfBodyContextPrioritiesItemNameMax),
+  "score": zod.number(),
+  "explanation": zod.string().max(runDmaicMeasurementWhatIfBodyContextPrioritiesItemExplanationMax)
+})).min(1).max(runDmaicMeasurementWhatIfBodyContextPrioritiesMax),
+  "projectGoal": zod.string().max(runDmaicMeasurementWhatIfBodyContextProjectGoalMax).optional(),
+  "kpis": zod.string().max(runDmaicMeasurementWhatIfBodyContextKpisMax).optional(),
+  "assumptions": zod.string().max(runDmaicMeasurementWhatIfBodyContextAssumptionsMax).optional()
+})
+})
+
+export const runDmaicMeasurementWhatIfResponseAnswerMax = 16000;
+
+
+
+export const RunDmaicMeasurementWhatIfResponse = zod.object({
+  "answer": zod.string().min(1).max(runDmaicMeasurementWhatIfResponseAnswerMax)
 })
 
 

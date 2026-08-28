@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicCharter, type DmaicCsvDataset, type DmaicExploratoryDiagnosisInput, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicRow, type DmaicSipoc, type DmaicSipocRow, type DmaicVocCqt, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
+import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicCharter, type DmaicCsvDataset, type DmaicExploratoryDiagnosisInput, type DmaicMeasurementWhatIfContext, type DmaicMeasurementWhatIfRecord, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicRow, type DmaicSipoc, type DmaicSipocRow, type DmaicVocCqt, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicMeasurementWhatIf, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -86,7 +86,7 @@ type ProjectCharterDraft = {
 type CharterTextField = Exclude<keyof ProjectCharterDraft, 'team'>;
 type ProjectCharterContext = Omit<ProjectCharterDraft, 'team'> & { team: Array<CharterTeamMember & { role: string }> };
 type GeneratedCharterFields = Pick<ProjectCharterDraft, 'objective' | 'history' | 'goalDefinition' | 'kpis' | 'includedScope' | 'excludedScope' | 'assumptionsAndConstraints' | 'customerRequirements' | 'businessContributions' | 'businessContributionsQuantitative' | 'businessContributionsQualitative' | 'financialGainValue'>;
-type WorkspaceSaveSource = 'statement' | 'charter' | 'suggestions' | 'voc' | 'sipoc' | 'msa' | 'vitalx' | 'gut' | 'solutions' | 'control-plan';
+type WorkspaceSaveSource = 'statement' | 'charter' | 'suggestions' | 'voc' | 'sipoc' | 'msa' | 'vitalx' | 'gut' | 'solutions' | 'control-plan' | 'what-if';
 type WorkspaceSaveData = { projectKey?: number; problemStatement: string; projectCharterContext: ProjectCharterContext; aiCharterSuggestions: GeneratedCharterFields | null; analysisArtifacts: DmaicAnalysisArtifacts };
 type WorkspaceSaveAttempt = { source: WorkspaceSaveSource; data: WorkspaceSaveData; charterToPersist?: ProjectCharterDraft; expectedRevision?: number };
 type WorkspaceLocalDraft = {
@@ -169,6 +169,7 @@ const createEmptyAnalysisArtifacts = (): DmaicAnalysisArtifacts => ({
   imr: [],
   pipeline: null,
   manualVocCtq: [],
+  whatIfAnalyses: [],
 });
 
 function parseAnalysisArtifacts(value: unknown): DmaicAnalysisArtifacts {
@@ -177,6 +178,7 @@ function parseAnalysisArtifacts(value: unknown): DmaicAnalysisArtifacts {
     ...value,
     pipeline: normalizePipelineSnapshot(value.pipeline),
     manualVocCtq: parseManualVocRows(value.manualVocCtq),
+    whatIfAnalyses: Array.isArray(value.whatIfAnalyses) ? value.whatIfAnalyses : [],
   } as unknown as DmaicAnalysisArtifacts;
 }
 
@@ -1873,6 +1875,7 @@ function DataNotes({ tool, pareto, imr, source }: { tool: Tool; pareto: { name: 
 // hint: Structural and logic conflict. Both design and behavior differ.
 function Workspace() {
   const pipelineMutation = useRunDmaicPipeline();
+  const whatIfMutation = useRunDmaicMeasurementWhatIf();
   const [initialLocalDraft] = useState<WorkspaceLocalDraft | null>(() => readWorkspaceLocalDraft());
   const workspaceQuery = useGetDmaicWorkspace(initialLocalDraft?.projectKey ? { projectKey: initialLocalDraft.projectKey } : undefined);
   const workspacesQuery = useListDmaicWorkspaces();
@@ -1917,6 +1920,8 @@ function Workspace() {
   const [vitalId, setVitalId] = useState('x1');
   const [inputDataset, setInputDataset] = useState<InputDataset | null>(() => initialLocalDraft?.analysisArtifacts.dataset ?? null);
   const [measurementDataset, setMeasurementDataset] = useState<DmaicCsvDataset | null>(() => initialLocalDraft?.analysisArtifacts.measurementDataset ?? null);
+  const [whatIfAnalyses, setWhatIfAnalyses] = useState<DmaicMeasurementWhatIfRecord[]>(() => initialLocalDraft?.analysisArtifacts.whatIfAnalyses ?? []);
+  const [whatIfSaved, setWhatIfSaved] = useState(false);
   const [analysisMonths, setAnalysisMonths] = useState(() => initialLocalDraft?.analysisArtifacts.analysisMonths ?? 12);
   const [selectedIndicator, setSelectedIndicator] = useState(() => initialLocalDraft?.analysisArtifacts.selectedIndicator ?? initialLocalDraft?.analysisArtifacts.dataset?.indicatorColumns[0] ?? '');
   const [exploratoryDiagnosis, setExploratoryDiagnosis] = useState<string | null>(() => initialLocalDraft?.analysisArtifacts.diagnosis ?? null);
@@ -1937,6 +1942,7 @@ function Workspace() {
   const workspaceLocalDraftRef = useRef<WorkspaceLocalDraft | null>(initialLocalDraft);
   const draftWriteEnabledRef = useRef(Boolean(initialLocalDraft));
   const workspaceStateRef = useRef({ projectKey, statement, charter, confirmedCharter, aiCharterSuggestions });
+  const createAnalysisArtifactsRef = useRef<() => DmaicAnalysisArtifacts>(() => createEmptyAnalysisArtifacts());
   const displayArea = area === 'overview' ? 'overview' : area;
   const inputAnalysis = useMemo(() => inputDataset ? summarizeIndicator(inputDataset, selectedIndicator, analysisMonths) : null, [analysisMonths, inputDataset, selectedIndicator]);
   const measurementAnalysis = useMemo(() => measurementDataset ? analyzeMeasurementDataset(measurementDataset) : null, [measurementDataset]);
@@ -1960,8 +1966,10 @@ function Workspace() {
       imr: inputDataset ? imr ?? [] : [],
       pipeline: pipelineData,
       manualVocCtq,
+      whatIfAnalyses,
     };
   };
+  createAnalysisArtifactsRef.current = createAnalysisArtifacts;
 
   const writeCurrentLocalDraft = (revision = workspaceRevisionRef.current) => {
     const current = workspaceStateRef.current;
@@ -1990,6 +1998,8 @@ function Workspace() {
     setAiCharterSuggestions(draft.aiCharterSuggestions);
     setInputDataset(draft.analysisArtifacts.dataset);
     setMeasurementDataset(draft.analysisArtifacts.measurementDataset ?? null);
+    setWhatIfAnalyses(draft.analysisArtifacts.whatIfAnalyses ?? []);
+    setWhatIfSaved(false);
     setAnalysisMonths(draft.analysisArtifacts.analysisMonths);
     setSelectedIndicator(draft.analysisArtifacts.selectedIndicator || draft.analysisArtifacts.dataset?.indicatorColumns[0] || '');
     setExploratoryDiagnosis(draft.analysisArtifacts.diagnosis);
@@ -2045,7 +2055,7 @@ function Workspace() {
   useEffect(() => {
     if (localDraftConflict || !draftWriteEnabledRef.current) return;
     writeCurrentLocalDraft();
-  }, [aiCharterSuggestions, analysisMonths, charter, confirmedCharter, exploratoryDiagnosis, exploratoryDiagnosisInput, inputDataset, localDraftConflict, manualVocCtq, measurementDataset, pipelineAnalysisContext, pipelineData, selectedIndicator, statement]);
+  }, [aiCharterSuggestions, analysisMonths, charter, confirmedCharter, exploratoryDiagnosis, exploratoryDiagnosisInput, inputDataset, localDraftConflict, manualVocCtq, measurementDataset, pipelineAnalysisContext, pipelineData, selectedIndicator, statement, whatIfAnalyses]);
 
   const queueWorkspaceSave = (
     attempt: WorkspaceSaveAttempt,
@@ -2166,10 +2176,14 @@ function Workspace() {
           } else if (source === 'control-plan') {
             setControlPlanDirty(false);
             setControlPlanSaved(true);
+          } else if (source === 'what-if') {
+            setWhatIfSaved(true);
           }
         },
         onConflict: (latestWorkspace) => setWorkspaceConflict({ latest: latestWorkspace, source }),
-        onError: () => setWorkspaceError('Não foi possível salvar no Neon. Confirme a conexão e tente novamente.'),
+        onError: () => setWorkspaceError(source === 'what-if'
+          ? 'A resposta foi gerada, mas ainda não foi salva no Neon. Tente salvar novamente ou resolva o conflito antes de sair.'
+          : 'Não foi possível salvar no Neon. Confirme a conexão e tente novamente.'),
       },
     );
   };
@@ -2180,6 +2194,81 @@ function Workspace() {
     setExploratoryDiagnosisInput(diagnosisInput);
     analysisDirtyRef.current = true;
     if (diagnosis && projectKey) saveWorkspace('statement', undefined, { ...createAnalysisArtifacts(), diagnosis, diagnosisInput });
+  };
+  const runMeasurementWhatIf = (question: string) => {
+    if (!measurementAnalysis || !measurementDataset) return;
+    const requestSession = workspaceSessionRef.current;
+    whatIfMutation.reset();
+    setWhatIfSaved(false);
+    setWorkspaceError(null);
+    const context: DmaicMeasurementWhatIfContext = {
+      xColumn: measurementAnalysis.xColumn,
+      rowCount: measurementDataset.rows.length,
+      variables: measurementAnalysis.variables.map((variable) => ({
+        name: variable.name,
+        count: variable.count,
+        mean: variable.mean,
+        median: variable.median,
+        minimum: variable.minimum,
+        maximum: variable.maximum,
+        standardDeviation: variable.standardDeviation,
+        q1: variable.q1,
+        q3: variable.q3,
+        iqr: variable.iqr,
+        normality: variable.normality,
+      })),
+      anova: {
+        available: measurementAnalysis.anova.available,
+        fStatistic: measurementAnalysis.anova.fStatistic,
+        pValue: measurementAnalysis.anova.pValue,
+        numeratorDf: measurementAnalysis.anova.numeratorDf,
+        denominatorDf: measurementAnalysis.anova.denominatorDf,
+        epsilon: measurementAnalysis.anova.epsilon,
+      },
+      pairwise: [...measurementAnalysis.pairwise]
+        .sort((left, right) => Number(right.significant) - Number(left.significant)
+          || (left.adjustedPValue ?? 1) - (right.adjustedPValue ?? 1)
+          || Math.abs(right.meanDifference) - Math.abs(left.meanDifference)
+          || left.left.localeCompare(right.left)
+          || left.right.localeCompare(right.right))
+        .slice(0, 100)
+        .map((comparison) => ({
+          left: comparison.left,
+          right: comparison.right,
+          observations: comparison.observations,
+          meanDifference: comparison.meanDifference,
+          adjustedPValue: comparison.adjustedPValue,
+          significant: comparison.significant,
+        })),
+      pairwiseTotal: measurementAnalysis.pairwise.length,
+      priorities: measurementAnalysis.priorities.map((priority) => ({
+        name: priority.name,
+        score: priority.score,
+        explanation: priority.explanation,
+      })),
+      projectGoal: confirmedCharter.goalDefinition.trim() || confirmedCharter.objective.trim(),
+      kpis: confirmedCharter.kpis.trim(),
+      assumptions: confirmedCharter.assumptionsAndConstraints.trim(),
+    };
+    whatIfMutation.mutate(
+      { data: { question: question.trim(), problemStatement: statement.trim() || DEFAULT_PROBLEM_STATEMENT, context } },
+      {
+        onSuccess: ({ answer }) => {
+          if (requestSession !== workspaceSessionRef.current) return;
+          const record: DmaicMeasurementWhatIfRecord = {
+            id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `what-if-${Date.now()}`,
+            question: question.trim(),
+            answer,
+            createdAt: new Date().toISOString(),
+            context,
+          };
+          const nextHistory = [record, ...whatIfAnalyses].slice(0, 50);
+          setWhatIfAnalyses(nextHistory);
+          analysisDirtyRef.current = true;
+          saveWorkspace('what-if', undefined, { ...createAnalysisArtifactsRef.current(), whatIfAnalyses: nextHistory });
+        },
+      },
+    );
   };
   useEffect(() => {
     if (!workspaceHydrated || !projectKey || !inputDataset || !analysisDirtyRef.current) return;
@@ -2223,6 +2312,8 @@ function Workspace() {
     setAiCharterSuggestions(recoveredDraft.aiCharterSuggestions);
     setInputDataset(recoveredDraft.analysisArtifacts.dataset);
     setMeasurementDataset(recoveredDraft.analysisArtifacts.measurementDataset ?? null);
+    setWhatIfAnalyses(recoveredDraft.analysisArtifacts.whatIfAnalyses ?? []);
+    setWhatIfSaved(false);
     setAnalysisMonths(recoveredDraft.analysisArtifacts.analysisMonths);
     setSelectedIndicator(recoveredDraft.analysisArtifacts.selectedIndicator || recoveredDraft.analysisArtifacts.dataset?.indicatorColumns[0] || '');
     setExploratoryDiagnosis(recoveredDraft.analysisArtifacts.diagnosis);
@@ -2403,6 +2494,8 @@ function Workspace() {
     setPipelineDone(false);
     setInputDataset(null);
     setMeasurementDataset(null);
+    setWhatIfAnalyses([]);
+    setWhatIfSaved(false);
     setAnalysisMonths(12);
     setSelectedIndicator('');
     setExploratoryDiagnosis(null);
@@ -2577,7 +2670,7 @@ function Workspace() {
            {saved && <div data-testid="status-statement-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Mudança salva no Neon.</strong> O enunciado estará disponível ao reabrir este workspace.</span></div>}
            {charterSaved && <div data-testid="status-charter-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Project charter salvo no Neon.</strong> Essas informações serão carregadas ao reabrir este workspace e usadas como contexto na geração do pipeline.</span></div>}
               {area === 'overview' ? <Overview statement={statement} setStatement={updateStatement} onSave={saveStatement} charter={charter} onCharterChange={updateCharter} onTeamChange={updateCharterTeam} onSaveCharter={saveCharter} pipelineDone={pipelineDone} hasAiSuggestions={Boolean(aiCharterSuggestions)} onOpenArea={setArea} /> : <SprintView area={area} onOpenTool={openTool} onChangeVital={setVitalId} vitalId={vitalId} inputDataset={inputDataset} inputAnalysis={inputAnalysis} inputError={csvError} analysisMonths={analysisMonths} onAnalysisMonthsChange={updateAnalysisMonths} selectedIndicator={selectedIndicator} onSelectedIndicatorChange={updateSelectedIndicator} diagnosis={exploratoryDiagnosis} onDiagnosisChange={handleDiagnosisChange} onSaveAnalysis={saveStatement} onUpload={handleUpload} inputRef={fileRef} activeProjectName={activeProjectName} />}
-              {area === 'measurement' && <MeasurementAnalysisPanel dataset={measurementDataset} analysis={measurementAnalysis} error={measurementCsvError} onUpload={handleMeasurementUpload} inputRef={measurementFileRef} onSave={saveStatement} activeProjectName={activeProjectName} />}
+              {area === 'measurement' && <MeasurementAnalysisPanel dataset={measurementDataset} analysis={measurementAnalysis} error={measurementCsvError} onUpload={handleMeasurementUpload} inputRef={measurementFileRef} onSave={saveStatement} activeProjectName={activeProjectName} whatIfAnalyses={whatIfAnalyses} onRunWhatIf={runMeasurementWhatIf} whatIfLoading={whatIfMutation.isPending} whatIfError={whatIfMutation.isError ? (whatIfMutation.error instanceof Error ? whatIfMutation.error.message.replace(/^HTTP \d+ [^:]+:\s*/, '') : 'Não foi possível realizar a análise What If agora.') : null} whatIfSaved={whatIfSaved} />}
              <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-[10px] text-muted-foreground"><span className="mono-label">DMAIC Ágil Suite · workspace no Neon {projectKey ? `· projeto #${projectKey}` : '· novo projeto'}</span><span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> {pipelineData ? 'artefatos gerados por IA · revise com o time' : 'dados de exemplo sinalizados · sem envio externo'}</span></footer>
         </div>
       </main>

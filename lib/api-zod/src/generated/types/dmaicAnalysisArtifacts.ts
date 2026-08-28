@@ -9,6 +9,7 @@ import type { DmaicCsvDataset } from './dmaicCsvDataset';
 import type { DmaicExploratoryDiagnosisInput } from './dmaicExploratoryDiagnosisInput';
 import type { DmaicExploratorySummary } from './dmaicExploratorySummary';
 import type { DmaicIndicatorAnalysis } from './dmaicIndicatorAnalysis';
+import type { DmaicMeasurementWhatIfRecord } from './dmaicMeasurementWhatIfRecord';
 import type { DmaicParetoItem } from './dmaicParetoItem';
 import type { DmaicPipeline } from './dmaicPipeline';
 import type { DmaicPipelineAnalysisContext } from './dmaicPipelineAnalysisContext';
@@ -40,4 +41,9 @@ export interface DmaicAnalysisArtifacts {
   pipeline: DmaicPipeline | null;
   /** Indicadores VOC/CTQ adicionados e revisados manualmente pela equipe. */
   manualVocCtq?: DmaicVocCqt[];
+  /**
+     * Histórico de perguntas e respostas de cenários What If da Medição.
+     * @maxItems 50
+     */
+  whatIfAnalyses?: DmaicMeasurementWhatIfRecord[];
 }

@@ -171,6 +171,133 @@ export interface DmaicExploratoryDiagnosis {
   diagnosis: string;
 }
 
+export interface DmaicMeasurementWhatIfVariable {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  name: string;
+  /** @minimum 1 */
+  count: number;
+  mean: number;
+  median: number;
+  minimum: number;
+  maximum: number;
+  /** @minimum 0 */
+  standardDeviation: number;
+  q1: number;
+  q3: number;
+  /** @minimum 0 */
+  iqr: number;
+  /** @maxLength 80 */
+  normality: string;
+}
+
+export type DmaicMeasurementWhatIfContextAnova = {
+  available: boolean;
+  fStatistic: number | null;
+  pValue: number | null;
+  numeratorDf: number | null;
+  denominatorDf: number | null;
+  epsilon: number | null;
+};
+
+export type DmaicMeasurementWhatIfContextPairwiseItem = {
+  /** @maxLength 160 */
+  left: string;
+  /** @maxLength 160 */
+  right: string;
+  /** @minimum 1 */
+  observations: number;
+  meanDifference: number;
+  adjustedPValue: number | null;
+  significant: boolean;
+};
+
+export type DmaicMeasurementWhatIfContextPrioritiesItem = {
+  /** @maxLength 160 */
+  name: string;
+  score: number;
+  /** @maxLength 800 */
+  explanation: string;
+};
+
+export interface DmaicMeasurementWhatIfContext {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  xColumn: string;
+  /** @minimum 1 */
+  rowCount: number;
+  /**
+     * @minItems 1
+     * @maxItems 100
+     */
+  variables: DmaicMeasurementWhatIfVariable[];
+  anova: DmaicMeasurementWhatIfContextAnova;
+  /** @maxItems 100 */
+  pairwise: DmaicMeasurementWhatIfContextPairwiseItem[];
+  /**
+     * Total de comparações pareadas calculadas localmente; pairwise contém no máximo as 100 mais informativas.
+     * @minimum 0
+     */
+  pairwiseTotal: number;
+  /**
+     * @minItems 1
+     * @maxItems 100
+     */
+  priorities: DmaicMeasurementWhatIfContextPrioritiesItem[];
+  /** @maxLength 2000 */
+  projectGoal?: string;
+  /** @maxLength 2000 */
+  kpis?: string;
+  /** @maxLength 2000 */
+  assumptions?: string;
+}
+
+export interface DmaicMeasurementWhatIfInput {
+  /**
+     * @minLength 8
+     * @maxLength 3000
+     */
+  question: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  problemStatement: string;
+  context: DmaicMeasurementWhatIfContext;
+}
+
+export interface DmaicMeasurementWhatIfResponse {
+  /**
+     * @minLength 1
+     * @maxLength 16000
+     */
+  answer: string;
+}
+
+export interface DmaicMeasurementWhatIfRecord {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  id: string;
+  /**
+     * @minLength 8
+     * @maxLength 3000
+     */
+  question: string;
+  /**
+     * @minLength 1
+     * @maxLength 16000
+     */
+  answer: string;
+  createdAt: string;
+  context: DmaicMeasurementWhatIfContext;
+}
+
 /**
  * Editable Project Charter suggestions generated from the problem statement.
  */
@@ -401,6 +528,11 @@ export interface DmaicAnalysisArtifacts {
   pipeline: DmaicPipeline | null;
   /** Indicadores VOC/CTQ adicionados e revisados manualmente pela equipe. */
   manualVocCtq?: DmaicVocCqt[];
+  /**
+     * Histórico de perguntas e respostas de cenários What If da Medição.
+     * @maxItems 50
+     */
+  whatIfAnalyses?: DmaicMeasurementWhatIfRecord[];
 }
 
 export interface DmaicWorkspaceInput {

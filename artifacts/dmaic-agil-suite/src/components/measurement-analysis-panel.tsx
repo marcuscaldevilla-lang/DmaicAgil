@@ -1,6 +1,6 @@
-import type { ChangeEvent, RefObject } from 'react';
-import type { DmaicCsvDataset } from '@workspace/api-client-react';
-import { CloudUpload } from 'lucide-react';
+import { useState, type ChangeEvent, type RefObject } from 'react';
+import type { DmaicCsvDataset, DmaicMeasurementWhatIfRecord } from '@workspace/api-client-react';
+import { Clock3, CloudUpload, Loader2, Sparkles } from 'lucide-react';
 import type { MeasurementAnalysis, MeasurementVariableSummary } from '@/lib/measurement-analysis';
 
 type Props = {
@@ -11,6 +11,11 @@ type Props = {
   inputRef: RefObject<HTMLInputElement | null>;
   onSave: () => void;
   activeProjectName: string;
+  whatIfAnalyses: DmaicMeasurementWhatIfRecord[];
+  onRunWhatIf: (question: string) => void;
+  whatIfLoading: boolean;
+  whatIfError: string | null;
+  whatIfSaved: boolean;
 };
 
 const formatMetric = (value: number) => value.toLocaleString('pt-BR', { maximumFractionDigits: 3 });
@@ -105,7 +110,23 @@ function Stat({ label, value }: { label: string; value: string }) {
   return <div className="rounded-xl border border-border bg-card p-3"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{label}</p><p className="mt-1 font-mono text-sm font-black">{value}</p></div>;
 }
 
-export function MeasurementAnalysisPanel({ dataset, analysis, error, onUpload, inputRef, onSave, activeProjectName }: Props) {
+function WhatIfAnalysis({ history, loading, error, saved, onRun }: { history: DmaicMeasurementWhatIfRecord[]; loading: boolean; error: string | null; saved: boolean; onRun: (question: string) => void }) {
+  const [question, setQuestion] = useState('');
+  const canSubmit = question.trim().length >= 8 && !loading;
+  return <section data-testid="panel-measurement-what-if" className="overflow-hidden rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/8 via-card to-card">
+    <div className="border-b border-border p-5 sm:p-6">
+      <div className="flex gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Sparkles size={18} /></span><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">Análise What If</p><h3 className="mt-1 text-lg font-black">Teste um cenário com as evidências da Medição</h3><p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted-foreground">A IA recebe apenas médias, dispersões, testes, prioridades e a meta do Charter. As linhas do CSV não são enviadas e nenhuma meta ou prioridade é alterada automaticamente.</p></div></div>
+      <label htmlFor="measurement-what-if-question" className="mt-5 block text-xs font-bold">Pergunta de cenário</label>
+      <textarea id="measurement-what-if-question" data-testid="input-measurement-what-if" value={question} onChange={(event) => setQuestion(event.target.value)} maxLength={3000} rows={4} placeholder="Ex.: Se BH Centro, BH Pampulha e Betim aumentarem 10%, qual deve ser a meta de BH Belvedere e Contagem para a média global atingir a meta do Charter?" className="mt-2 w-full resize-y rounded-xl border border-border bg-background px-4 py-3 text-sm leading-relaxed outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15" />
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><span className="text-[11px] text-muted-foreground">{question.length}/3000 · mínimo de 8 caracteres</span><button data-testid="button-run-measurement-what-if" type="button" disabled={!canSubmit} onClick={() => onRun(question)} className={`${buttonClass} disabled:cursor-not-allowed disabled:opacity-50`}>{loading ? <><Loader2 size={14} className="animate-spin" />Analisando cenário…</> : <><Sparkles size={14} />Realizar Análise</>}</button></div>
+      {error && <div data-testid="status-measurement-what-if-error" className="mt-4 rounded-xl border border-destructive/25 bg-destructive/5 p-4 text-xs leading-relaxed text-destructive">{error} Sua pergunta foi mantida para nova tentativa.</div>}
+      {saved && <p data-testid="status-measurement-what-if-saved" className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs font-bold text-primary">Pergunta e resposta salvas no projeto.</p>}
+    </div>
+    {history.length > 0 && <div className="space-y-4 p-5 sm:p-6"><div className="flex items-center gap-2"><Clock3 size={15} className="text-muted-foreground" /><h4 className="text-sm font-black">Histórico do projeto</h4><span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold">{history.length}</span></div>{history.map((item, index) => <article key={item.id} data-testid={index === 0 ? 'measurement-what-if-latest' : undefined} className="rounded-xl border border-border bg-background/80 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-black">{item.question}</p><time className="text-[10px] font-semibold text-muted-foreground" dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString('pt-BR')}</time></div><div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-foreground">{item.answer}</div><p className="mt-4 border-t border-border pt-3 text-[10px] text-muted-foreground">Contexto registrado: {item.context.rowCount} observações pareadas, {item.context.variables.length} unidades e meta “{item.context.projectGoal || 'não informada'}”.</p></article>)}</div>}
+  </section>;
+}
+
+export function MeasurementAnalysisPanel({ dataset, analysis, error, onUpload, inputRef, onSave, activeProjectName, whatIfAnalyses, onRunWhatIf, whatIfLoading, whatIfError, whatIfSaved }: Props) {
   return <section data-testid="panel-measurement-analysis" className="reveal mt-8 space-y-5">
     <div className="overflow-hidden rounded-2xl border border-chart-3/25 bg-card shadow-[0_18px_55px_-38px_hsl(var(--chart-3)/0.55)]">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-gradient-to-r from-chart-3/10 via-transparent to-transparent p-5">
@@ -129,6 +150,7 @@ export function MeasurementAnalysisPanel({ dataset, analysis, error, onUpload, i
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">Comparação global</p><h3 className="mt-1 text-base font-black">ANOVA de medidas repetidas com correção Greenhouse–Geisser</h3>{analysis.anova.available ? <><div className="mt-4 grid gap-3 sm:grid-cols-4"><Stat label="F" value={analysis.anova.fStatistic?.toFixed(3) ?? '—'} /><Stat label="gl numerador" value={analysis.anova.numeratorDf?.toFixed(2) ?? '—'} /><Stat label="gl denominador" value={analysis.anova.denominatorDf?.toFixed(2) ?? '—'} /><Stat label="p-valor" value={formatProbability(analysis.anova.pValue)} /></div><p className="mt-4 text-sm font-semibold leading-relaxed">{analysis.anova.conclusion}</p><p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">O modelo respeita o pareamento por linha/{analysis.xColumn}. A correção Greenhouse–Geisser (ε = {analysis.anova.epsilon?.toFixed(3)}) reduz a dependência da hipótese de esfericidade e é preferível à ANOVA independente com variâncias iguais para este desenho.</p></> : <p className="mt-3 text-xs text-muted-foreground">{analysis.anova.conclusion}</p>}</div>
         <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Comparações par a par</p><h3 className="mt-1 text-base font-black">Teste t pareado com correção de Holm</h3><div className="mt-3 max-h-[440px] overflow-auto rounded-xl border border-border"><table className="w-full min-w-[840px] text-left text-xs"><thead className="sticky top-0 bg-muted"><tr>{['Par', 'Diferença média', 't', 'gl', 'p bruto', 'p ajustado', 'Conclusão'].map((label) => <th key={label} className="px-3 py-2.5 font-bold">{label}</th>)}</tr></thead><tbody>{analysis.pairwise.map((comparison) => <tr key={`${comparison.left}-${comparison.right}`} className="border-t border-border"><td className="px-3 py-2.5 font-bold">{comparison.left} × {comparison.right}</td><td className="px-3 py-2.5 font-mono">{formatMetric(comparison.meanDifference)}</td><td className="px-3 py-2.5 font-mono">{comparison.tStatistic === null ? '—' : Number.isFinite(comparison.tStatistic) ? comparison.tStatistic.toFixed(3) : '∞'}</td><td className="px-3 py-2.5 font-mono">{comparison.degreesOfFreedom}</td><td className="px-3 py-2.5 font-mono">{formatProbability(comparison.rawPValue)}</td><td className="px-3 py-2.5 font-mono">{formatProbability(comparison.adjustedPValue)}</td><td className={`px-3 py-2.5 ${comparison.significant ? 'font-bold text-primary' : 'text-muted-foreground'}`}>{comparison.conclusion}</td></tr>)}</tbody></table></div></div>
         <div className="rounded-2xl border border-accent/25 bg-accent/5 p-5"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-accent-foreground">Conclusão e priorização</p><h3 className="mt-1 text-base font-black">Variáveis que merecem investigação primeiro</h3><ol className="mt-4 space-y-3">{analysis.priorities.map((priority, index) => <li key={priority.name} className="flex gap-3 rounded-xl border border-border bg-card p-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-black text-accent-foreground">{index + 1}</span><div><p className="text-sm font-black">{priority.name}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{priority.explanation}</p></div></li>)}</ol><p className="mt-4 text-[11px] leading-relaxed text-muted-foreground">O ranking combina diferenças de média após correção de múltiplas comparações, variabilidade relativa, normalidade, possíveis outliers e comportamento temporal. Ele direciona a investigação; não identifica causa raiz sozinho.</p></div>
+        {analysis.priorities.length > 0 && <WhatIfAnalysis history={whatIfAnalyses} loading={whatIfLoading} error={whatIfError} saved={whatIfSaved} onRun={onRunWhatIf} />}
       </div>}
     </div>
   </section>;

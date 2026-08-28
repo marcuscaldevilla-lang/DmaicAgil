@@ -142,6 +142,33 @@ paths:
           description: Gemini integration is not configured
         "502":
           description: AI generation failed
+  /dmaic/measurement-what-if:
+    post:
+      operationId: runDmaicMeasurementWhatIf
+      tags: [dmaic]
+      summary: Analyze a Measurement what-if scenario
+      description: Generates an evidence-based scenario answer from summarized Measurement statistics and project context.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DmaicMeasurementWhatIfInput"
+      responses:
+        "200":
+          description: What-if analysis generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DmaicMeasurementWhatIfResponse"
+        "400":
+          description: Invalid what-if analysis data
+        "429":
+          description: What-if analysis rate limit reached
+        "503":
+          description: Gemini integration is not configured
+        "502":
+          description: AI generation failed
 components:
   schemas:
     HealthStatus:
@@ -249,6 +276,97 @@ components:
       required: [diagnosis]
       properties:
         diagnosis: { type: string, minLength: 1, maxLength: 16000 }
+    DmaicMeasurementWhatIfVariable:
+      type: object
+      required: [name, count, mean, median, minimum, maximum, standardDeviation, q1, q3, iqr, normality]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        count: { type: number, minimum: 1 }
+        mean: { type: number }
+        median: { type: number }
+        minimum: { type: number }
+        maximum: { type: number }
+        standardDeviation: { type: number, minimum: 0 }
+        q1: { type: number }
+        q3: { type: number }
+        iqr: { type: number, minimum: 0 }
+        normality: { type: string, maxLength: 80 }
+    DmaicMeasurementWhatIfContext:
+      type: object
+      required: [xColumn, rowCount, variables, anova, pairwise, pairwiseTotal, priorities]
+      properties:
+        xColumn: { type: string, minLength: 1, maxLength: 160 }
+        rowCount: { type: number, minimum: 1 }
+        variables:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/DmaicMeasurementWhatIfVariable"
+        anova:
+          type: object
+          required: [available, fStatistic, pValue, numeratorDf, denominatorDf, epsilon]
+          properties:
+            available: { type: boolean }
+            fStatistic: { anyOf: [{ type: number }, { type: "null" }] }
+            pValue: { anyOf: [{ type: number }, { type: "null" }] }
+            numeratorDf: { anyOf: [{ type: number }, { type: "null" }] }
+            denominatorDf: { anyOf: [{ type: number }, { type: "null" }] }
+            epsilon: { anyOf: [{ type: number }, { type: "null" }] }
+        pairwise:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [left, right, observations, meanDifference, adjustedPValue, significant]
+            properties:
+              left: { type: string, maxLength: 160 }
+              right: { type: string, maxLength: 160 }
+              observations: { type: number, minimum: 1 }
+              meanDifference: { type: number }
+              adjustedPValue: { anyOf: [{ type: number }, { type: "null" }] }
+              significant: { type: boolean }
+        pairwiseTotal:
+          description: Total de comparações pareadas calculadas localmente; pairwise contém no máximo as 100 mais informativas.
+          type: number
+          minimum: 0
+        priorities:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            required: [name, score, explanation]
+            properties:
+              name: { type: string, maxLength: 160 }
+              score: { type: number }
+              explanation: { type: string, maxLength: 800 }
+        projectGoal: { type: string, maxLength: 2000 }
+        kpis: { type: string, maxLength: 2000 }
+        assumptions: { type: string, maxLength: 2000 }
+    DmaicMeasurementWhatIfInput:
+      type: object
+      required: [question, problemStatement, context]
+      properties:
+        question: { type: string, minLength: 8, maxLength: 3000 }
+        problemStatement: { type: string, minLength: 1, maxLength: 4000 }
+        context:
+          $ref: "#/components/schemas/DmaicMeasurementWhatIfContext"
+    DmaicMeasurementWhatIfResponse:
+      type: object
+      required: [answer]
+      properties:
+        answer: { type: string, minLength: 1, maxLength: 16000 }
+    DmaicMeasurementWhatIfRecord:
+      type: object
+      required: [id, question, answer, createdAt, context]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 100 }
+        question: { type: string, minLength: 8, maxLength: 3000 }
+        answer: { type: string, minLength: 1, maxLength: 16000 }
+        createdAt: { type: string, format: date-time }
+        context:
+          $ref: "#/components/schemas/DmaicMeasurementWhatIfContext"
     DmaicCharterTeamMember:
       type: object
       required: [role, name, position, areaCompany]
@@ -568,6 +686,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DmaicVocCqt"
+        whatIfAnalyses:
+          description: Histórico de perguntas e respostas de cenários What If da Medição.
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/DmaicMeasurementWhatIfRecord"
     DmaicTeam:
       type: object
       required: [productOwner, scrumMaster, beltSquadMembers]
