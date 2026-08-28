@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import type { DmaicProcessMap, DmaicProcessNode, DmaicProcessVariable } from '@workspace/api-client-react';
-import { Copy, GitBranch, Link2, Plus, Printer, Save, Trash2 } from 'lucide-react';
+import { Copy, GitBranch, Link2, Plus, Printer, Save, Trash2, X } from 'lucide-react';
 
 type Props = {
   value: DmaicProcessMap;
@@ -19,6 +19,7 @@ export function ProcessMapEditor({ value, onChange, onSave, dirty, saved }: Prop
   const canvasRef = useRef<HTMLDivElement>(null);
   const [selectedNodeId, setSelectedNodeId] = useState(value.nodes[0]?.id ?? '');
   const [selectedEdgeId, setSelectedEdgeId] = useState('');
+  const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [connectingFrom, setConnectingFrom] = useState('');
   const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const selectedNode = value.nodes.find((item) => item.id === selectedNodeId);
@@ -70,6 +71,7 @@ export function ProcessMapEditor({ value, onChange, onSave, dirty, saved }: Prop
       setConnectingFrom('');
     }
     setSelectedNodeId(id);
+    setPropertiesOpen(true);
   };
 
   const moveNode = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -125,7 +127,7 @@ export function ProcessMapEditor({ value, onChange, onSave, dirty, saved }: Prop
             </svg>
             {value.edges.map((item) => {
               const from = nodeById.get(item.source); const to = nodeById.get(item.target); if (!from || !to) return null;
-              return <button key={`hit-${item.id}`} type="button" aria-label={`Selecionar conexão ${item.label || item.id}`} onClick={() => { setSelectedEdgeId(item.id); setSelectedNodeId(''); }} className="absolute z-[1] h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full bg-transparent" style={{ left: (from.position.x + to.position.x) / 2 + NODE_WIDTH / 2, top: (from.position.y + to.position.y) / 2 + NODE_HEIGHT / 2 }} />;
+              return <button key={`hit-${item.id}`} type="button" aria-label={`Selecionar conexão ${item.label || item.id}`} onClick={() => { setSelectedEdgeId(item.id); setSelectedNodeId(''); setPropertiesOpen(true); }} className="absolute z-[1] h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full bg-transparent" style={{ left: (from.position.x + to.position.x) / 2 + NODE_WIDTH / 2, top: (from.position.y + to.position.y) / 2 + NODE_HEIGHT / 2 }} />;
             })}
             {value.nodes.map((item) => {
               const vars = value.variables.filter((variable) => variable.nodeId === item.id);
@@ -137,10 +139,10 @@ export function ProcessMapEditor({ value, onChange, onSave, dirty, saved }: Prop
           </div>
         </div>
 
-        <aside className="border-l border-border bg-background p-4">
-          {selectedEdge ? <div className="space-y-3"><h3 className="flex items-center gap-2 font-bold"><Link2 size={16} /> Conexão</h3><Field label="Rótulo" value={selectedEdge.label} onChange={(label) => onChange({ ...value, edges: value.edges.map((item) => item.id === selectedEdge.id ? { ...item, label } : item) })} /><Field label="Condição / observação" value={selectedEdge.condition} onChange={(condition) => onChange({ ...value, edges: value.edges.map((item) => item.id === selectedEdge.id ? { ...item, condition } : item) })} /><button type="button" onClick={() => { onChange({ ...value, edges: value.edges.filter((item) => item.id !== selectedEdge.id) }); setSelectedEdgeId(''); }} className="flex items-center gap-2 text-xs font-bold text-destructive"><Trash2 size={14} /> Excluir conexão</button></div>
+        <aside className={`border-l border-border bg-background p-4 transition-all ${propertiesOpen ? '' : 'hidden'}`}>
+          {selectedEdge ? <div className="space-y-3"><div className="flex items-center justify-between"><h3 className="flex items-center gap-2 font-bold"><Link2 size={16} /> Conexão</h3><button type="button" title="Fechar propriedades" aria-label="Fechar propriedades" onClick={() => { setPropertiesOpen(false); setSelectedEdgeId(''); setSelectedNodeId(''); }} className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><X size={16} /></button></div><Field label="Rótulo" value={selectedEdge.label} onChange={(label) => onChange({ ...value, edges: value.edges.map((item) => item.id === selectedEdge.id ? { ...item, label } : item) })} /><Field label="Condição / observação" value={selectedEdge.condition} onChange={(condition) => onChange({ ...value, edges: value.edges.map((item) => item.id === selectedEdge.id ? { ...item, condition } : item) })} /><button type="button" onClick={() => { onChange({ ...value, edges: value.edges.filter((item) => item.id !== selectedEdge.id) }); setSelectedEdgeId(''); }} className="flex items-center gap-2 text-xs font-bold text-destructive"><Trash2 size={14} /> Excluir conexão</button></div>
           : selectedNode ? <div className="space-y-4">
-            <div className="flex items-center justify-between"><h3 className="font-bold">Propriedades da etapa</h3><div className="flex gap-1"><button title="Duplicar" type="button" onClick={duplicateNode} className="rounded p-2 hover:bg-muted"><Copy size={15} /></button><button title="Excluir" type="button" onClick={removeNode} className="rounded p-2 text-destructive hover:bg-muted"><Trash2 size={15} /></button></div></div>
+            <div className="flex items-center justify-between"><h3 className="font-bold">Propriedades da etapa</h3><div className="flex items-center gap-1"><button title="Duplicar" type="button" onClick={duplicateNode} className="rounded p-2 hover:bg-muted"><Copy size={15} /></button><button title="Excluir" type="button" onClick={removeNode} className="rounded p-2 text-destructive hover:bg-muted"><Trash2 size={15} /></button><button title="Fechar propriedades" aria-label="Fechar propriedades" type="button" onClick={() => { setPropertiesOpen(false); setSelectedNodeId(''); setSelectedEdgeId(''); }} className="rounded p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><X size={15} /></button></div></div>
             <Field label="Nome" value={selectedNode.label} onChange={(label) => patchNode({ label })} />
             <label className="block text-xs font-bold">Tipo<select value={selectedNode.type} onChange={(event) => patchNode({ type: event.target.value as DmaicProcessNode['type'] })} className="mt-1 w-full rounded-lg border border-border bg-background p-2 font-normal"><option value="activity">Atividade</option><option value="decision">Decisão</option><option value="start">Início</option><option value="end">Fim</option></select></label>
             <Field label="Entradas do processo (uma por linha)" value={selectedNode.processInputs.join('\n')} multiline onChange={(text) => patchNode({ processInputs: splitLines(text) })} />
