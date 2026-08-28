@@ -32,6 +32,12 @@ export type MeasurementVariableSummary = {
   sequenceComment: string;
 };
 
+export type MeasurementLongRow = {
+  xValue: string;
+  groupingValue: string;
+  value: number;
+};
+
 export type RepeatedMeasuresAnova = {
   available: boolean;
   fStatistic: number | null;
@@ -64,6 +70,9 @@ export type PrioritizedVariable = {
 export type MeasurementAnalysis = {
   xColumn: string;
   xValues: string[];
+  valueColumn: 'Valor';
+  groupingColumn: 'Unidade';
+  longRows: MeasurementLongRow[];
   variables: MeasurementVariableSummary[];
   anova: RepeatedMeasuresAnova;
   pairwise: PairwiseComparison[];
@@ -222,8 +231,8 @@ function longestRunAroundMean(values: number[], average: number): number {
   return longest;
 }
 
-function summarizeVariable(dataset: DmaicCsvDataset, name: string): MeasurementVariableSummary {
-  const values = dataset.rows.map((row) => parseMeasurementNumber(row[name]) as number);
+function summarizeVariable(longRows: MeasurementLongRow[], name: string): MeasurementVariableSummary {
+  const values = longRows.filter((row) => row.groupingValue === name).map((row) => row.value);
   const sorted = [...values].sort((left, right) => left - right);
   const average = mean(values);
   const median = percentile(sorted, 0.5);
@@ -397,11 +406,20 @@ function prioritizeVariables(variables: MeasurementVariableSummary[], pairwise: 
 }
 
 export function analyzeMeasurementDataset(dataset: DmaicCsvDataset): MeasurementAnalysis {
-  const variables = dataset.indicatorColumns.map((name) => summarizeVariable(dataset, name));
+  const xColumn = dataset.headers[0];
+  const longRows = dataset.rows.flatMap((row) => dataset.indicatorColumns.map((groupingValue) => ({
+    xValue: row[xColumn],
+    groupingValue,
+    value: parseMeasurementNumber(row[groupingValue]) as number,
+  })));
+  const variables = dataset.indicatorColumns.map((name) => summarizeVariable(longRows, name));
   const pairwise = pairedComparisons(variables);
   return {
-    xColumn: dataset.headers[0],
-    xValues: dataset.rows.map((row) => row[dataset.headers[0]]),
+    xColumn,
+    xValues: dataset.rows.map((row) => row[xColumn]),
+    valueColumn: 'Valor',
+    groupingColumn: 'Unidade',
+    longRows,
     variables,
     anova: repeatedMeasuresAnova(variables),
     pairwise,
