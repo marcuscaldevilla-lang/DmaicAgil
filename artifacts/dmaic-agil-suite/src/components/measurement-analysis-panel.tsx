@@ -18,6 +18,22 @@ const formatProbability = (value: number | null) => value === null ? '—' : val
 const buttonClass = 'inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-xs font-bold text-primary-foreground transition-colors hover:bg-primary/90';
 const outlineButtonClass = 'inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-xs font-bold transition-colors hover:bg-muted';
 
+function niceStepCeiling(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 1;
+  const power = 10 ** Math.floor(Math.log10(value));
+  const fraction = value / power;
+  const niceFraction = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
+  return niceFraction * power;
+}
+
+function niceStepFloor(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 1;
+  const power = 10 ** Math.floor(Math.log10(value));
+  const fraction = value / power;
+  const niceFraction = fraction >= 5 ? 5 : fraction >= 2 ? 2 : 1;
+  return niceFraction * power;
+}
+
 function SequenceChart({ variable, labels }: { variable: MeasurementVariableSummary; labels: string[] }) {
   const width = 640;
   const height = 220;
@@ -46,30 +62,42 @@ function SequenceChart({ variable, labels }: { variable: MeasurementVariableSumm
 function Histogram({ variable }: { variable: MeasurementVariableSummary }) {
   const width = 640;
   const height = 220;
-  const left = 42;
+  const left = 48;
   const right = 18;
   const top = 18;
   const bottom = 42;
+  const domainMinimum = variable.histogram[0]?.from ?? variable.minimum;
+  const domainMaximum = variable.histogram.at(-1)?.to ?? variable.maximum;
+  const domainSpan = domainMaximum - domainMinimum || 1;
+  const binWidth = variable.histogram[0] ? variable.histogram[0].to - variable.histogram[0].from : domainSpan;
   const maxCount = Math.max(...variable.histogram.map((bin) => bin.count), 1);
-  const barWidth = (width - left - right) / variable.histogram.length;
-  const frequencyPoint = (bin: { count: number }, index: number) => ({
-    x: left + index * barWidth + barWidth / 2,
-    y: height - bottom - (bin.count / maxCount) * (height - top - bottom),
+  const bandwidthBase = Math.min(variable.standardDeviation, variable.iqr > 0 ? variable.iqr / 1.34 : variable.standardDeviation);
+  const bandwidth = Math.max(domainSpan / 1_000, 0.9 * bandwidthBase * variable.values.length ** -0.2);
+  const density = Array.from({ length: 81 }, (_, index) => {
+    const value = domainMinimum + (index / 80) * domainSpan;
+    const kernelSum = variable.values.reduce((sum, observation) => {
+      const standardized = (value - observation) / bandwidth;
+      return sum + Math.exp(-0.5 * standardized ** 2) / Math.sqrt(2 * Math.PI);
+    }, 0);
+    return { value, count: (kernelSum / bandwidth) * binWidth };
   });
+  const maximumDensity = Math.max(...density.map((point) => point.count), 0);
+  const yMaximum = Math.max(maxCount, maximumDensity, 1) * 1.06;
+  const x = (value: number) => left + ((value - domainMinimum) / domainSpan) * (width - left - right);
+  const y = (count: number) => top + ((yMaximum - count) / yMaximum) * (height - top - bottom);
+  const xStep = niceStepCeiling((variable.maximum - variable.minimum) / 3);
+  const xTicks: number[] = [];
+  for (let tick = Math.ceil(variable.minimum / xStep) * xStep; tick <= variable.maximum + xStep * 1e-9; tick += xStep) xTicks.push(tick);
+  const yStep = niceStepFloor(yMaximum / 4);
+  const yTicks: number[] = [];
+  for (let tick = 0; tick <= yMaximum + yStep * 1e-9; tick += yStep) yTicks.push(tick);
   return <svg data-testid={`chart-histogram-${variable.name}`} viewBox={`0 0 ${width} ${height}`} className="h-auto w-full" role="img" aria-label={`Histograma de ${variable.name}`}>
+    {yTicks.map((tick) => <g key={`y-${tick}`}><line x1={left} x2={width - right} y1={y(tick)} y2={y(tick)} stroke="hsl(var(--border))" strokeDasharray={tick === 0 ? undefined : '4 5'} /><text x={left - 8} y={y(tick) + 4} textAnchor="end" className="fill-muted-foreground text-[10px]">{formatMetric(tick)}</text></g>)}
     <line x1={left} x2={left} y1={top} y2={height - bottom} stroke="hsl(var(--border))" />
     <line x1={left} x2={width - right} y1={height - bottom} y2={height - bottom} stroke="hsl(var(--border))" />
-    {variable.histogram.map((bin, index) => {
-      const barHeight = (bin.count / maxCount) * (height - top - bottom);
-      return <g key={`${bin.from}-${index}`}><rect x={left + index * barWidth + 1} y={height - bottom - barHeight} width={Math.max(1, barWidth - 2)} height={barHeight} fill="hsl(var(--accent))" opacity="0.82" />{(index === 0 || index === variable.histogram.length - 1) && <text x={left + index * barWidth + barWidth / 2} y={height - 15} textAnchor="middle" className="fill-muted-foreground text-[9px]">{formatMetric(index === 0 ? bin.from : bin.to)}</text>}</g>;
-    })}
-    <polyline data-testid={`chart-histogram-line-${variable.name}`} fill="none" stroke="hsl(var(--chart-3))" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" points={variable.histogram.map(frequencyPoint).map(({ x, y }) => `${x},${y}`).join(' ')} />
-    {variable.histogram.map((bin, index) => {
-      const point = frequencyPoint(bin, index);
-      return <circle key={`frequency-point-${index}`} cx={point.x} cy={point.y} r="3" fill="hsl(var(--background))" stroke="hsl(var(--chart-3))" strokeWidth="2" />;
-    })}
-    <text x={left - 8} y={top + 4} textAnchor="end" className="fill-muted-foreground text-[10px]">{maxCount}</text>
-    <text x={left - 8} y={height - bottom + 4} textAnchor="end" className="fill-muted-foreground text-[10px]">0</text>
+    {variable.histogram.map((bin, index) => <rect key={`${bin.from}-${index}`} x={x(bin.from)} y={y(bin.count)} width={Math.max(1, x(bin.to) - x(bin.from))} height={height - bottom - y(bin.count)} fill="hsl(var(--accent))" fillOpacity="0.55" stroke="hsl(var(--foreground))" strokeOpacity="0.55" strokeWidth="1.25" />)}
+    <polyline data-testid={`chart-histogram-line-${variable.name}`} fill="none" stroke="hsl(var(--foreground))" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" points={density.map((point) => `${x(point.value)},${y(point.count)}`).join(' ')} />
+    {xTicks.map((tick) => <g key={`x-${tick}`}><line x1={x(tick)} x2={x(tick)} y1={height - bottom} y2={height - bottom + 5} stroke="hsl(var(--border))" /><text x={x(tick)} y={height - 15} textAnchor="middle" className="fill-muted-foreground text-[10px]">{formatMetric(tick)}</text></g>)}
   </svg>;
 }
 

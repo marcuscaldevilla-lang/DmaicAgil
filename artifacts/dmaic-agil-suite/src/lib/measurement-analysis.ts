@@ -194,16 +194,21 @@ function buildHistogram(values: number[], q1: number, q3: number): HistogramBin[
   if (minimum === maximum) return [{ from: minimum, to: maximum, count: values.length }];
   const iqr = q3 - q1;
   const freedmanDiaconisWidth = iqr > 0 ? (2 * iqr) / Math.cbrt(values.length) : 0;
-  const suggestedBins = freedmanDiaconisWidth > 0 ? Math.ceil((maximum - minimum) / freedmanDiaconisWidth) : Math.ceil(Math.sqrt(values.length));
-  const binCount = Math.min(18, Math.max(4, suggestedBins));
-  const width = (maximum - minimum) / binCount;
+  const width = freedmanDiaconisWidth > Number.EPSILON
+    ? freedmanDiaconisWidth
+    : (maximum - minimum) / Math.max(1, Math.floor(Math.sqrt(values.length)));
+  const anchor = Math.round(minimum);
+  let firstBoundary = anchor;
+  while (firstBoundary > minimum) firstBoundary -= width;
+  while (firstBoundary + width <= minimum) firstBoundary += width;
+  const binCount = Math.min(80, Math.max(1, Math.ceil((maximum - firstBoundary) / width)));
   const bins = Array.from({ length: binCount }, (_, index) => ({
-    from: minimum + index * width,
-    to: index === binCount - 1 ? maximum : minimum + (index + 1) * width,
+    from: firstBoundary + index * width,
+    to: firstBoundary + (index + 1) * width,
     count: 0,
   }));
   values.forEach((value) => {
-    const index = Math.min(binCount - 1, Math.floor((value - minimum) / width));
+    const index = Math.min(binCount - 1, Math.max(0, Math.floor((value - firstBoundary) / width)));
     bins[index].count += 1;
   });
   return bins;
