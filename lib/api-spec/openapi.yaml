@@ -196,6 +196,31 @@ paths:
           description: Gemini integration is not configured
         "502":
           description: AI generation failed
+  /dmaic/control-evaluation:
+    post:
+      operationId: runDmaicControlEvaluation
+      tags: [dmaic]
+      summary: Evaluate control-phase results and sustainability
+      description: Compares the project baseline and target with post-intervention control-chart statistics, estimates realized financial gain, and proposes a sustainability plan.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DmaicControlEvaluationInput"
+      responses:
+        "200":
+          description: Control-phase evaluation generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DmaicControlEvaluation"
+        "400":
+          description: Invalid control-phase data
+        "503":
+          description: Gemini integration is not configured
+        "502":
+          description: AI generation failed
 components:
   schemas:
     HealthStatus:
@@ -798,6 +823,172 @@ components:
           description: Texto livre fornecido pela equipe como base para a geração do diagrama de causa e efeito.
           type: string
           maxLength: 12000
+        causeAndEffectMatrix:
+          description: Matriz editável de causas X e saídas Y da Sprint 3.
+          $ref: "#/components/schemas/DmaicCauseAndEffectMatrix"
+        solutionPrioritizationMatrix:
+          description: Matriz editável de priorização de soluções da Sprint 3.
+          $ref: "#/components/schemas/DmaicSolutionPrioritizationMatrix"
+        effortImpactMatrix:
+          description: Classificação esforço x impacto das causas da Sprint 3.
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicEffortImpactRow"
+        controlPhase:
+          description: Dados, cartas X-AM, avaliação IA e plano de sustentabilidade da Fase de Controle.
+          anyOf:
+            - $ref: "#/components/schemas/DmaicControlPhase"
+            - type: "null"
+    DmaicCauseAndEffectMatrix:
+      type: object
+      required: [outputs, rows]
+      properties:
+        outputs:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicMatrixOutput"
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicCauseMatrixRow"
+    DmaicMatrixOutput:
+      type: object
+      required: [id, name, weight]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        weight: { type: number }
+    DmaicCauseMatrixRow:
+      type: object
+      required: [id, cause, scores]
+      properties:
+        id: { type: string }
+        cause: { type: string }
+        scores:
+          type: object
+          additionalProperties: { type: number }
+        totalScore: { type: number }
+    DmaicSolutionPrioritizationMatrix:
+      type: object
+      required: [criteria, solutions]
+      properties:
+        criteria:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicMatrixCriterion"
+        solutions:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicSolutionMatrixRow"
+    DmaicMatrixCriterion:
+      type: object
+      required: [id, name, weight]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        weight: { type: number }
+    DmaicSolutionMatrixRow:
+      type: object
+      required: [id, description, scores]
+      properties:
+        id: { type: string }
+        description: { type: string }
+        scores:
+          type: object
+          additionalProperties: { type: number }
+        totalScore: { type: number }
+    DmaicEffortImpactRow:
+      type: object
+      required: [cause, impact, effort, quadrant]
+      properties:
+        cause: { type: string }
+        impact: { type: string, enum: [Alto, Baixo] }
+        effort: { type: string, enum: [Alto, Baixo] }
+        quadrant:
+          type: string
+          enum: [Maior Interesse, Prioritário com Análise, Descartar, Ganhos Rápidos]
+    DmaicControlStatistic:
+      type: object
+      required: [indicator, count, omitted, mean, standardDeviation, minimum, maximum, movingRangeMean, upperControlLimit, lowerControlLimit, latestValue, baseline, target, improvementPp]
+      properties:
+        indicator: { type: string }
+        count: { type: number, minimum: 1 }
+        omitted: { type: number, minimum: 0 }
+        mean: { type: number }
+        standardDeviation: { type: number, minimum: 0 }
+        minimum: { type: number }
+        maximum: { type: number }
+        movingRangeMean: { type: number, minimum: 0 }
+        upperControlLimit: { type: number }
+        lowerControlLimit: { type: number }
+        latestValue: { type: number }
+        baseline: { type: number }
+        target: { type: number }
+        improvementPp: { type: number }
+        values:
+          type: array
+          items: { type: number }
+    DmaicSustainabilityPillar:
+      type: object
+      required: [title, owner, cadence, controls]
+      properties:
+        title: { type: string }
+        owner: { type: string }
+        cadence: { type: string }
+        controls:
+          type: array
+          items: { type: string }
+    DmaicControlEvaluation:
+      type: object
+      required: [success, summary, baseline, postControlMean, improvementPp, financialGainReal, financialCalculation, sustainabilityPlan]
+      properties:
+        success: { type: boolean }
+        summary: { type: string }
+        baseline: { type: number }
+        postControlMean: { type: number }
+        improvementPp: { type: number }
+        financialGainReal: { type: string }
+        financialCalculation: { type: string }
+        sustainabilityPlan:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items:
+            $ref: "#/components/schemas/DmaicSustainabilityPillar"
+    DmaicControlPhase:
+      type: object
+      required: [dataset, months, selectedIndicators, statistics, evaluation]
+      properties:
+        dataset:
+          anyOf:
+            - $ref: "#/components/schemas/DmaicCsvDataset"
+            - type: "null"
+        months: { type: number, minimum: 1, maximum: 120 }
+        selectedIndicators:
+          type: array
+          items: { type: string }
+        statistics:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicControlStatistic"
+        evaluation:
+          anyOf:
+            - $ref: "#/components/schemas/DmaicControlEvaluation"
+            - type: "null"
+    DmaicControlEvaluationInput:
+      type: object
+      required: [problemStatement, projectCharterContext, months, statistics]
+      properties:
+        problemStatement: { type: string, minLength: 1, maxLength: 4000 }
+        projectCharterContext:
+          $ref: "#/components/schemas/DmaicCharterContext"
+        months: { type: number, minimum: 1, maximum: 120 }
+        statistics:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/DmaicControlStatistic"
     DmaicTeam:
       type: object
       required: [productOwner, scrumMaster, beltSquadMembers]

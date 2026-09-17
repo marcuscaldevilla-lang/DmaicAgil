@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import type { DmaicProcessMap, DmaicProcessNode, DmaicProcessVariable } from '@workspace/api-client-react';
-import { Copy, GitBranch, Link2, Plus, Printer, Save, Trash2, X } from 'lucide-react';
+import { Copy, GitBranch, Image as ImageIcon, Link2, Plus, Save, Trash2, X } from 'lucide-react';
 
 type Props = {
   value: DmaicProcessMap;
@@ -9,6 +9,76 @@ type Props = {
   dirty?: boolean;
   saved?: boolean;
 };
+
+const escapeSvg = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function processMapBounds(value: DmaicProcessMap) {
+  const maxX = Math.max(...value.nodes.map((node) => node.position.x + NODE_WIDTH), 480);
+  const maxY = Math.max(...value.nodes.map((node) => node.position.y + NODE_HEIGHT), 240);
+  return { width: maxX + 48, height: maxY + 152 };
+}
+
+export function processMapSvg(value: DmaicProcessMap) {
+  const { width, height } = processMapBounds(value);
+  const nodeById = new Map(value.nodes.map((node) => [node.id, node]));
+  const nodes = value.nodes.map((node) => {
+    const label = escapeSvg(node.label);
+    const x = node.position.x + 24;
+    const y = node.position.y + 104;
+    const centerX = x + NODE_WIDTH / 2;
+    const centerY = y + NODE_HEIGHT / 2;
+    const variables = value.variables.filter((variable) => variable.nodeId === node.id);
+    const yVariables = variables.filter((variable) => variable.kind === 'Y');
+    const xVariables = variables.filter((variable) => variable.kind === 'X');
+    const variableText = (variable: DmaicProcessVariable) => {
+      const prefix = variable.kind === 'Y' ? 'Y' : variable.classification === 'controlável' ? 'xC' : variable.classification === 'ruído' ? 'xR' : 'x';
+      return `${prefix} – ${variable.name}${variable.unit ? ` (${variable.unit})` : ''}`;
+    };
+    const yLabels = yVariables.map((variable, index) => `<text x="${x}" y="${y - 18 - (yVariables.length - index - 1) * 16}" text-anchor="start" class="variable y-variable">${escapeSvg(variableText(variable))}</text>`).join('');
+    const xLabels = xVariables.map((variable, index) => `<text x="${x}" y="${y + NODE_HEIGHT + 18 + index * 16}" text-anchor="start" class="variable x-variable">${escapeSvg(variableText(variable))}</text>`).join('');
+    const shape = node.type === 'decision'
+      ? `<polygon points="${centerX},${y} ${x + NODE_WIDTH},${centerY} ${centerX},${y + NODE_HEIGHT} ${x},${centerY}" fill="#fffdfa" stroke="#94a3b8" stroke-width="2" filter="url(#shadow)"/><text x="${centerX}" y="${centerY + 4}" text-anchor="middle">${label}</text>`
+      : `<rect x="${x}" y="${y}" width="${NODE_WIDTH}" height="${NODE_HEIGHT}" rx="${node.type === 'start' || node.type === 'end' ? 38 : 14}" fill="#fffdfa" stroke="#cbd5e1" stroke-width="2" filter="url(#shadow)"/><text x="${centerX}" y="${centerY + 4}" text-anchor="middle">${label}</text>`;
+    return `${yLabels}${shape}${xLabels}`;
+  }).join('');
+  const edges = value.edges.map((edge) => {
+    const from = nodeById.get(edge.source); const to = nodeById.get(edge.target);
+    if (!from || !to) return '';
+    const x1 = from.position.x + 24 + NODE_WIDTH / 2; const y1 = from.position.y + 104 + NODE_HEIGHT / 2;
+    const x2 = to.position.x + 24 + NODE_WIDTH / 2; const y2 = to.position.y + 104 + NODE_HEIGHT / 2;
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/><text x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 - 8}" text-anchor="middle">${escapeSvg(edge.label)}</text>`;
+  }).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#0f172a" flood-opacity=".18"/></filter><marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#94a3b8"/></marker></defs><rect width="100%" height="100%" fill="#ffffff"/>${edges}${nodes}<style>text{font-family:Arial,sans-serif;font-size:13px;font-weight:700;fill:#1e293b}.variable{font-size:11px;font-weight:400}.y-variable{fill:#2563eb}.x-variable{fill:#334155}</style></svg>`;
+}
+
+export function exportProcessMapPdf(value: DmaicProcessMap) {
+  const popup = window.open('', '_blank', 'width=1200,height=900');
+  if (!popup) return;
+  const svg = processMapSvg(value);
+  popup.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"/><title>Mapa de Processo</title><style>body{font-family:Arial,sans-serif;margin:0;padding:24px}h1{font-size:20px}.map{overflow:auto;border:1px solid #e2e8f0;padding:12px}svg{display:block;max-width:none}.bar{display:flex;justify-content:flex-end;margin-bottom:16px}@media print{.bar{display:none}body{padding:0}}</style></head><body><div class="bar"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div><h1>Mapa de Processo</h1><div class="map">${svg}</div></body></html>`);
+  popup.document.close();
+  popup.focus();
+}
+
+export function exportProcessMapPng(value: DmaicProcessMap) {
+  const svg = processMapSvg(value);
+  const { width, height } = processMapBounds(value);
+  const image = new Image();
+  image.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = width * 2;
+    canvas.height = height * 2;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.scale(2, 2);
+    context.drawImage(image, 0, 0, width, height);
+    const link = document.createElement('a');
+    link.download = 'mapa-de-processo.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
+  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
 
 const NODE_WIDTH = 180;
 const NODE_HEIGHT = 76;
@@ -102,8 +172,7 @@ export function ProcessMapEditor({ value, onChange, onSave, dirty, saved }: Prop
           <p className="mt-1 text-xs text-muted-foreground">Arraste as etapas, conecte o fluxo e relacione os Ys e Xs do projeto.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted"><Printer size={14} /> Imprimir / PDF</button>
-          <button type="button" onClick={onSave} disabled={!dirty} className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground disabled:opacity-50"><Save size={14} /> {saved ? 'Salvo' : 'Salvar mapa'}</button>
+          <button type="button" onClick={onSave} disabled={!dirty} className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground disabled:opacity-50"><Save size={14} /> {saved ? 'Salvo no Repositório' : 'Salvar no Repositório'}</button>
         </div>
       </header>
 
@@ -131,8 +200,8 @@ export function ProcessMapEditor({ value, onChange, onSave, dirty, saved }: Prop
             })}
             {value.nodes.map((item) => {
               const vars = value.variables.filter((variable) => variable.nodeId === item.id);
-              return <div key={item.id} onPointerDown={(event) => { const target = event.currentTarget; target.setPointerCapture(event.pointerId); setDrag({ id: item.id, dx: event.nativeEvent.offsetX, dy: event.nativeEvent.offsetY }); }} onClick={() => handleNodeClick(item.id)} className={`absolute z-10 flex cursor-move select-none items-center justify-center border-2 bg-background px-4 text-center text-xs font-bold shadow-md transition ${selectedNodeId === item.id ? 'border-primary ring-4 ring-primary/10' : 'border-slate-300'} ${item.type === 'decision' ? 'rounded-sm' : item.type === 'start' || item.type === 'end' ? 'rounded-full' : 'rounded-xl'}`} style={{ left: item.position.x, top: item.position.y, width: NODE_WIDTH, height: NODE_HEIGHT }}>
-                <span className="line-clamp-3">{item.label}</span>
+              return <div key={item.id} onPointerDown={(event) => { if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLButtonElement) return; const target = event.currentTarget; target.setPointerCapture(event.pointerId); setDrag({ id: item.id, dx: event.nativeEvent.offsetX, dy: event.nativeEvent.offsetY }); }} onClick={() => handleNodeClick(item.id)} className={`absolute z-10 flex cursor-move select-none items-center justify-center text-center text-xs font-bold transition ${selectedNodeId === item.id ? 'ring-4 ring-primary/10' : ''} ${item.type === 'decision' ? '[filter:drop-shadow(0_4px_4px_rgba(15,23,42,0.18))] [clip-path:polygon(50%_0%,100%_50%,50%_100%,0%_50%)] bg-slate-300 p-[2px]' : `border-2 bg-background px-4 shadow-md ${selectedNodeId === item.id ? 'border-primary' : 'border-slate-300'} ${item.type === 'start' || item.type === 'end' ? 'rounded-full' : 'rounded-xl'}`} ${item.type === 'decision' ? '' : 'px-4'}`} style={{ left: item.position.x, top: item.position.y, width: NODE_WIDTH, height: NODE_HEIGHT }}>
+                <span className={item.type === 'decision' ? 'flex h-full w-full items-center justify-center bg-background px-4 [clip-path:polygon(50%_0%,100%_50%,50%_100%,0%_50%)]' : 'line-clamp-3'}>{item.label}</span>
                 {vars.length > 0 && <span className="absolute -bottom-3 rounded-full border bg-background px-2 py-0.5 text-[10px] text-muted-foreground">{vars.filter((v) => v.kind === 'Y').length}Y · {vars.filter((v) => v.kind === 'X').length}X</span>}
               </div>;
             })}
@@ -154,6 +223,7 @@ export function ProcessMapEditor({ value, onChange, onSave, dirty, saved }: Prop
           </div> : <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Selecione uma etapa ou conexão para editar. Para criar um fluxo, selecione uma etapa, clique em “Conectar” e depois na etapa de destino.</div>}
         </aside>
       </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/20 px-5 py-3"><p className="text-[11px] text-muted-foreground">Exporte somente o mapa de processos em imagem.</p><button type="button" onClick={() => exportProcessMapPng(value)} className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold hover:bg-muted"><ImageIcon size={14} /> Exportar mapa em PNG</button></div>
     </section>
   );
 }

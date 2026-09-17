@@ -442,8 +442,8 @@
 
 @layer components {
   .dmaic-grid {
-    background-image: linear-gradient(hsl(var(--border) / 0.28) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border) / 0.28) 1px, transparent 1px);
-    background-size: 32px 32px;
+    background-image: linear-gradient(hsl(var(--border) / 0.14) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border) / 0.14) 1px, transparent 1px);
+    background-size: 40px 40px;
   }
   .panel {
     border: 1px solid hsl(var(--border));
@@ -456,6 +456,10 @@
     line-height: 1;
     letter-spacing: .1em;
     text-transform: uppercase;
+  }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
   .reveal { animation: reveal .45s ease-out both; }
   .reveal-2 { animation: reveal .45s .08s ease-out both; }

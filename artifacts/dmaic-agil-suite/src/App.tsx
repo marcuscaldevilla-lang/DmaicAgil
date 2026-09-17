@@ -1,15 +1,45 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import { Children, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getDmaicWorkspace, type DmaicAnalysisArtifacts, type DmaicAnalysisArtifactsIshikawa, type DmaicCharter, type DmaicCsvDataset, type DmaicExploratoryDiagnosisInput, type DmaicMeasurementWhatIfContext, type DmaicMeasurementWhatIfRecord, type DmaicPipeline, type DmaicPipelineAnalysisContext, type DmaicProcessMap, type DmaicRow, type DmaicSipoc, type DmaicSipocRow, type DmaicVocCqt, type DmaicWorkspace, type DmaicWorkspaceSummary, useGetDmaicWorkspace, useListDmaicWorkspaces, useRunDmaicExploratoryDiagnosis, useRunDmaicIshikawa, useRunDmaicMeasurementWhatIf, useRunDmaicPipeline, useSaveDmaicWorkspace } from '@workspace/api-client-react';
+import {
+  getDmaicWorkspace,
+  type DmaicAnalysisArtifacts,
+  type DmaicAnalysisArtifactsIshikawa,
+  type DmaicCharter,
+  type DmaicCsvDataset,
+  type DmaicExploratoryDiagnosisInput,
+  type DmaicMeasurementWhatIfContext,
+  type DmaicMeasurementWhatIfRecord,
+  type DmaicPipeline,
+  type DmaicPipelineAnalysisContext,
+  type DmaicProcessMap,
+  type DmaicRow,
+  type DmaicSipoc,
+  type DmaicSipocRow,
+  type DmaicVocCqt,
+  type DmaicWorkspace,
+  type DmaicWorkspaceSummary,
+  useGetDmaicWorkspace,
+  useListDmaicWorkspaces,
+  useRunDmaicExploratoryDiagnosis,
+  useRunDmaicIshikawa,
+  useRunDmaicMeasurementWhatIf,
+  useRunDmaicPipeline,
+  useSaveDmaicWorkspace,
+} from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { MeasurementAnalysisPanel } from '@/components/measurement-analysis-panel';
-import { ProcessMapEditor } from '@/components/process-map-editor';
+import { ProcessMapEditor, processMapSvg } from '@/components/process-map-editor';
+import type { MeasurementAnalysis } from '@/lib/measurement-analysis';
 import { IshikawaDiagramEditor } from '@/components/ishikawa-diagram-editor';
 import { analyzeMeasurementDataset, parseMeasurementNumber } from '@/lib/measurement-analysis';
 import { cloneProcessMap, createInitialProcessMap, createProcessMapFromSipoc } from '@/lib/process-map';
 import { shapiroWilk } from '@/lib/shapiro-wilk';
+import executiveManualMarkdown from '../../../docs/manual-executivo-dmaic-agil.md?raw';
+import usageManualMarkdown from '../../../docs/manual-utilizacao-dmaic-agil.md?raw';
+import { Sprint3Matrices } from './components/Sprint3Matrices';
+import { ControlPhasePanel, type ControlEvaluation, type ControlPhase, type ControlStatistic } from './components/control-phase-panel';
 import NotFound from '@/pages/not-found';
 import {
   Activity,
@@ -21,6 +51,7 @@ import {
   ClipboardList,
   Clock3,
   CloudUpload,
+  Copy,
   Database,
   FileBarChart,
   FileText,
@@ -35,6 +66,7 @@ import {
   Minimize2,
   MoreHorizontal,
   Network,
+  Pencil,
   Play,
   Plus,
   RefreshCw,
@@ -42,7 +74,6 @@ import {
   Search,
   Settings2,
   ShieldCheck,
-  SlidersHorizontal,
   Sparkles,
   Target,
   TestTube2,
@@ -60,7 +91,9 @@ import {
 
 const queryClient = new QueryClient();
 
-type Area = 'overview' | 'definition' | 'measurement' | 'aic';
+type Area = 'overview' | 'executive' | 'decisions' | 'definition' | 'measurement' | 'aic' | 'control';
+type PhaseProgress = { progress: number; completed: number; total: number; pending: string[]; next: string };
+type ProjectPulse = { cycleDays: number | null; cycleNote: string; indicatorValue: string; indicatorNote: string; vitalXsValue: string; vitalXsNote: string; dataConfidence: string; dataConfidenceNote: string; updatedLabel: string };
 type Tool = { id: string; title: string; subtitle: string; icon: LucideIcon; status: string; tag?: string; accent: string };
 type CharterTeamRole = 'leader' | 'sponsor' | 'teamMembers' | 'technicalSupport';
 type CharterTeamMember = { name: string; position: string; areaCompany: string };
@@ -89,7 +122,15 @@ type ProjectCharterDraft = {
 type CharterTextField = Exclude<keyof ProjectCharterDraft, 'team'>;
 type ProjectCharterContext = Omit<ProjectCharterDraft, 'team'> & { team: Array<CharterTeamMember & { role: string }> };
 type GeneratedCharterFields = Pick<ProjectCharterDraft, 'objective' | 'history' | 'goalDefinition' | 'kpis' | 'includedScope' | 'excludedScope' | 'assumptionsAndConstraints' | 'customerRequirements' | 'businessContributions' | 'businessContributionsQuantitative' | 'businessContributionsQualitative' | 'financialGainValue'>;
-type WorkspaceSaveSource = 'statement' | 'charter' | 'suggestions' | 'voc' | 'sipoc' | 'msa' | 'vitalx' | 'gut' | 'solutions' | 'control-plan' | 'what-if' | 'process-map' | 'ishikawa';
+type HypothesisStatus = 'Backlog' | 'Próximo' | 'Em teste' | 'Comprovada' | 'Rejeitada';
+type HypothesisStatusMap = Record<string, HypothesisStatus>;
+type HypothesisNotesMap = Record<string, string>;
+type HypothesisLink = { cause: string; vitalX: string; test: string; action: string; result: string };
+type HypothesisLinksMap = Record<string, HypothesisLink>;
+type AttachmentRecord = { name: string; type: string; size: number; addedAt: string };
+type ProjectDecision = { decision: string; owner: string; date: string; evidence: string; impact: string };
+type ArtifactHistoryEntry = { artifact: string; action: string; date: string; detail: string };
+type WorkspaceSaveSource = 'statement' | 'charter' | 'suggestions' | 'voc' | 'sipoc' | 'msa' | 'vitalx' | 'gut' | 'solutions' | 'control-plan' | 'what-if' | 'process-map' | 'ishikawa' | 'hypotheses';
 type WorkspaceSaveData = { projectKey?: number; problemStatement: string; projectCharterContext: ProjectCharterContext; aiCharterSuggestions: GeneratedCharterFields | null; analysisArtifacts: DmaicAnalysisArtifacts };
 type WorkspaceSaveAttempt = { source: WorkspaceSaveSource; data: WorkspaceSaveData; charterToPersist?: ProjectCharterDraft; expectedRevision?: number };
 type WorkspaceLocalDraft = {
@@ -109,6 +150,23 @@ type DiscreteAnalysis = { kind: 'discrete'; indicator: string; rows: number; cat
 type IndicatorAnalysis = ContinuousAnalysis | DiscreteAnalysis;
 type ExploratoryPoint = { period: string; value: number };
 type ExploratorySummary = { points: ExploratoryPoint[]; minimum: number; q1: number; median: number; q3: number; maximum: number; iqr: number; mean: number; standardDeviation: number; shapiroW: number | null; shapiroPValue: number | null; shapiroDetail: string };
+
+type MsaRow = { variable: string; gageRrStatus: string; recommendation: string };
+type VitalXBreakdownRow = { variable: string; hypothesis: string; testMethod: string; conclusion: string };
+type GutRow = { problem: string; g: number; u: number; t: number; score: number };
+type SolutionRow = { hypothesis: string; solution: string; action: string; owner: string };
+type ActionPlanRow = { what: string; why: string; who: string; how: string; howMuch: string; where: string; when: string; notes?: string };
+type ControlPlanRow = { processStep: string; parameter: string; target: string; controlMethod: string; reactionPlan: string };
+
+const EMPTY_MSA_ROW: MsaRow = { variable: '', gageRrStatus: '', recommendation: '' };
+const EMPTY_VITAL_X_BREAKDOWN_ROW: VitalXBreakdownRow = { variable: '', hypothesis: '', testMethod: '', conclusion: '' };
+const EMPTY_GUT_ROW: GutRow = { problem: '', g: 1, u: 1, t: 1, score: 1 };
+const EMPTY_SOLUTION_ROW: SolutionRow = { hypothesis: '', solution: '', action: '', owner: '' };
+const EMPTY_ACTION_PLAN_ROW: ActionPlanRow = { what: '', why: '', who: '', how: '', howMuch: '', where: '', when: '', notes: '' };
+const EMPTY_PROJECT_DECISION: ProjectDecision = { decision: '', owner: '', date: '', evidence: '', impact: '' };
+const EMPTY_HYPOTHESIS_LINK: HypothesisLink = { cause: '', vitalX: '', test: '', action: '', result: '' };
+const EMPTY_CONTROL_PLAN_ROW: ControlPlanRow = { processStep: '', parameter: '', target: '', controlMethod: '', reactionPlan: '' };
+
 const DIAGNOSIS_POINT_LIMIT = 240;
 const PIPELINE_CATEGORY_LIMIT = 20;
 const MAX_PERSISTED_CSV_ROWS = 10_000;
@@ -122,6 +180,7 @@ const charterTextFields = ['projectName', 'client', 'area', 'leader', 'sponsor',
 const legacyCharterTextFields = ['projectName', 'client', 'area', 'leader', 'sponsor', 'date', 'objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions'] as const;
 const generatedCharterFields = ['objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions', 'businessContributionsQuantitative', 'businessContributionsQualitative', 'financialGainValue'] as const satisfies readonly (keyof GeneratedCharterFields)[];
 const legacyGeneratedCharterFields = ['objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions'] as const;
+
 const CHARTER_FIELD_LABELS: Record<CharterTextField, string> = {
   projectName: 'Projeto',
   client: 'Cliente',
@@ -143,12 +202,14 @@ const CHARTER_FIELD_LABELS: Record<CharterTextField, string> = {
   financialGainValue: 'Valor do ganho financeiro esperado',
   financialInformation: 'Informações financeiras coletadas',
 };
+
 const CHARTER_TEAM_ROLE_LABELS: Record<CharterTeamRole, string> = {
   leader: 'Líder',
   sponsor: 'Patrocinador',
   teamMembers: 'Membros da equipe',
   technicalSupport: 'Especialistas para suporte técnico',
 };
+
 const AI_PROJECT_CHARTER_PREVIEW_LABELS: Record<keyof DmaicCharter, string> = {
   projectTitle: 'Título',
   problemStatement: 'Definição do Problema',
@@ -156,7 +217,6 @@ const AI_PROJECT_CHARTER_PREVIEW_LABELS: Record<keyof DmaicCharter, string> = {
   expectedSavings: 'Ganhos Esperados',
 };
 
-type MsaRow = { variable: string; gageRrStatus: string; recommendation: string };
 const createEmptyAnalysisArtifacts = (): DmaicAnalysisArtifacts => ({
   version: 1,
   dataset: null,
@@ -176,18 +236,41 @@ const createEmptyAnalysisArtifacts = (): DmaicAnalysisArtifacts => ({
   processMap: createInitialProcessMap(),
   ishikawa: null,
   ishikawaInputText: '',
-});
+} as any);
+function normalizeRows<T extends object>(data: unknown, fallback: T): T[] {
+  if (!Array.isArray(data) || data.length === 0) return [fallback];
+  return data as T[];
+}
 
 function parseAnalysisArtifacts(value: unknown): DmaicAnalysisArtifacts {
   if (!isObject(value) || value.version !== 1 || !('dataset' in value) || !('analysisMonths' in value) || !('selectedIndicator' in value)) return createEmptyAnalysisArtifacts();
+  const empty = createEmptyAnalysisArtifacts();
   return {
-    ...value,
+    ...empty,
+    dataset: isObject(value.dataset) ? value.dataset as unknown as DmaicCsvDataset : null,
+    measurementDataset: isObject(value.measurementDataset) ? value.measurementDataset as unknown as DmaicCsvDataset : null,
+    analysisMonths: typeof value.analysisMonths === 'number' ? value.analysisMonths : empty.analysisMonths,
+    selectedIndicator: typeof value.selectedIndicator === 'string' ? value.selectedIndicator : '',
+    indicatorAnalysis: value.indicatorAnalysis ?? null,
+    exploratorySummary: value.exploratorySummary ?? null,
+    diagnosis: typeof value.diagnosis === 'string' ? value.diagnosis : null,
+    diagnosisInput: value.diagnosisInput ?? null,
+    pipelineAnalysisContext: value.pipelineAnalysisContext ?? null,
     pipeline: normalizePipelineSnapshot(value.pipeline),
     manualVocCtq: parseManualVocRows(value.manualVocCtq),
     whatIfAnalyses: Array.isArray(value.whatIfAnalyses) ? value.whatIfAnalyses : [],
     processMap: parseProcessMapSnapshot(value.processMap, value.pipeline),
     ishikawa: isObject(value.ishikawa) ? value.ishikawa as DmaicAnalysisArtifactsIshikawa : null,
     ishikawaInputText: typeof value.ishikawaInputText === 'string' ? value.ishikawaInputText : '',
+    hypothesisStatuses: isObject((value as any).hypothesisStatuses) ? (value as any).hypothesisStatuses as HypothesisStatusMap : {},
+    hypothesisNotes: isObject((value as any).hypothesisNotes) ? (value as any).hypothesisNotes as HypothesisNotesMap : {},
+    hypothesisLinks: isObject((value as any).hypothesisLinks) ? (value as any).hypothesisLinks as HypothesisLinksMap : {},
+    attachments: Array.isArray((value as any).attachments) ? (value as any).attachments as AttachmentRecord[] : [],
+    projectDecisions: Array.isArray((value as any).projectDecisions) ? (value as any).projectDecisions as ProjectDecision[] : [],
+    artifactHistory: Array.isArray((value as any).artifactHistory) ? (value as any).artifactHistory as ArtifactHistoryEntry[] : [],
+    controlPhase: isObject((value as any).controlPhase) ? (value as any).controlPhase : null,
+    causeAndEffectMatrix: (value as any).causeAndEffectMatrix ?? null,
+    solutionPrioritizationMatrix: (value as any).solutionPrioritizationMatrix ?? null,
   } as unknown as DmaicAnalysisArtifacts;
 }
 
@@ -215,8 +298,8 @@ function analysisArtifactsSizeInBytes(artifacts: DmaicAnalysisArtifacts): number
 }
 
 function getWorkspaceConflict(error: unknown): DmaicWorkspace | null {
-  if (!error || typeof error !== 'object' || !('status' in error) || error.status !== 409 || !('data' in error)) return null;
-  const data = error.data;
+  if (!error || typeof error !== 'object' || !('status' in error) || (error as any).status !== 409 || !('data' in error)) return null;
+  const data = (error as any).data;
   if (!data || typeof data !== 'object' || !('latestWorkspace' in data)) return null;
   const latestWorkspace = data.latestWorkspace;
   if (!latestWorkspace || typeof latestWorkspace !== 'object' || !('revision' in latestWorkspace) || typeof latestWorkspace.revision !== 'number') return null;
@@ -412,7 +495,7 @@ function storeWorkspaceLocalDraft(draft: WorkspaceLocalDraft): void {
   try {
     window.localStorage.setItem(WORKSPACE_DRAFT_STORAGE_KEY, JSON.stringify(draft));
   } catch {
-    // Browsers can block local storage. The explicit Neon save remains available.
+    // Local storage indisponível
   }
 }
 
@@ -468,40 +551,47 @@ const applyGeneratedCharterFields = (charter: ProjectCharterDraft, generated: Ge
 });
 
 const areaMeta: Record<Area, { label: string; kicker: string; description: string; color: string }> = {
-  overview: { label: 'Visão geral', kicker: 'Command center', description: 'Onde o problema ganha forma, ritmo e dono.', color: 'hsl(var(--primary))' },
-  definition: { label: 'Sprint 1 · Definição', kicker: 'Frame the signal', description: 'Alinhe o problema antes de procurar respostas.', color: 'hsl(var(--accent))' },
-  measurement: { label: 'Sprint 2 · Medição', kicker: 'Trust the numbers', description: 'Transforme variação em evidência operacional.', color: 'hsl(var(--chart-3))' },
-  aic: { label: 'Sprint 3+ · A-I-C', kicker: 'Move the system', description: 'Teste, implemente e sustente a melhoria.', color: 'hsl(var(--chart-4))' },
+  overview: { label: 'Visão geral', kicker: '', description: 'Onde o problema ganha forma, ritmo e dono.', color: 'hsl(var(--primary))' },
+  executive: { label: 'Resumo executivo', kicker: '', description: 'A decisão, suas evidências e o próximo movimento.', color: 'hsl(var(--primary))' },
+  decisions: { label: 'Decisões', kicker: '', description: 'Registre escolhas, responsáveis e evidências do projeto.', color: 'hsl(var(--primary))' },
+  definition: { label: 'Definição', kicker: '', description: 'Alinhe o problema antes de procurar respostas.', color: 'hsl(var(--accent))' },
+  measurement: { label: 'Medição', kicker: '', description: 'Transforme variação em evidência operacional.', color: 'hsl(var(--chart-3))' },
+  aic: { label: 'Análise e Melhoria', kicker: '', description: 'Teste, implemente e sustente a melhoria.', color: 'hsl(var(--chart-4))' },
+  control: { label: 'Controle', kicker: '', description: 'Monitore a estabilidade e sustente o resultado.', color: 'hsl(var(--chart-3))' },
 };
 
 const navGroups = [
   {
-    label: 'Ritmo DMAIC',
+    label: 'Projeto',
     items: [
       { id: 'overview' as Area, label: 'Visão geral', icon: LayoutDashboard },
-      { id: 'definition' as Area, label: 'Sprint 1 · Definição', icon: Target },
-      { id: 'measurement' as Area, label: 'Sprint 2 · Medição', icon: Gauge },
-      { id: 'aic' as Area, label: 'Sprint 3+ · A-I-C', icon: GitBranch },
+      { id: 'executive' as Area, label: 'Resumo executivo', icon: FileBarChart },
+      { id: 'decisions' as Area, label: 'Decisões', icon: ClipboardCheck },
     ],
   },
   {
-    label: 'Biblioteca de métodos',
+    label: 'DMAIC',
     items: [
-      { id: 'charter' as const, label: 'Charter & VOC', icon: ClipboardList },
-      { id: 'analysis' as const, label: 'Análises', icon: BarChart3 },
-      { id: 'control' as const, label: 'Controle', icon: ShieldCheck },
+      { id: 'definition' as Area, label: 'Definição', icon: Target },
+      { id: 'measurement' as Area, label: 'Medição', icon: Gauge },
+      { id: 'aic' as Area, label: 'Análise e Melhoria', icon: GitBranch },
+      { id: 'control' as Area, label: 'Controle', icon: ShieldCheck },
     ],
   },
 ];
 
 const tools: Record<Area, Tool[]> = {
   overview: [],
+  executive: [],
+  decisions: [],
+  control: [],
   definition: [
     { id: 'charter', title: 'Project charter', subtitle: 'O contrato de foco do time', icon: ClipboardList, status: 'Pronto', tag: 'Exemplo', accent: 'var(--accent)' },
     { id: 'voc', title: 'VOC → CTQ', subtitle: 'Escute e traduza a demanda', icon: Network, status: '6 linhas', accent: 'var(--chart-3)' },
     { id: 'sipoc', title: 'SIPOC visual', subtitle: 'O sistema antes do detalhe', icon: Layers3, status: 'Rascunho', accent: 'var(--primary)' },
   ],
   measurement: [
+    { id: 'process-map', title: 'Mapa de processo', subtitle: 'Fluxo editável e variáveis por etapa', icon: Network, status: 'Ativo', accent: 'var(--primary)' },
     { id: 'msa', title: 'MSA validation', subtitle: 'A medida merece confiança?', icon: TestTube2, status: 'Validado', accent: 'var(--primary)' },
     { id: 'pareto', title: 'Pareto de defeitos', subtitle: 'Mostre onde está o peso', icon: BarChart3, status: 'Aguardando CSV', tag: 'Local', accent: 'var(--accent)' },
     { id: 'imr', title: 'I-MR chart', subtitle: 'Encontre sinais na sequência', icon: Activity, status: 'Aguardando CSV', tag: 'Local', accent: 'var(--chart-3)' },
@@ -509,9 +599,7 @@ const tools: Record<Area, Tool[]> = {
   ],
   aic: [
     { id: 'causes', title: '6M + matriz causa-efeito', subtitle: 'Organize o conhecimento do time', icon: GitBranch, status: '12 causas', accent: 'var(--chart-4)' },
-    { id: 'gut', title: 'Priorização GUT', subtitle: 'Decida com critério explícito', icon: ClipboardCheck, status: 'Top 5', accent: 'var(--accent)' },
-    { id: 'solutions', title: 'Solutions tree', subtitle: 'Hipótese vira experimento', icon: Sparkles, status: '4 caminhos', accent: 'var(--primary)' },
-    { id: 'control-plan', title: 'Controle & SOP', subtitle: 'Faça a melhora sobreviver', icon: ShieldCheck, status: 'Em revisão', accent: 'var(--chart-3)' },
+    { id: 'solutions', title: 'Plano de Ação', subtitle: 'Hipótese vira experimento', icon: Sparkles, status: '4 caminhos', accent: 'var(--primary)' },
   ],
 };
 
@@ -665,19 +753,19 @@ function parseDateValue(value: string): Date | null {
 }
 
 function parseInputCsv(text: string, fileName: string): InputDataset {
-  if (text.length > MAX_PERSISTED_CSV_CHARACTERS) throw new Error('Este CSV excede o limite de 1,5 MB para salvar a análise no projeto. Reduza as colunas ou filtre o período antes do upload.');
+  if (text.length > MAX_PERSISTED_CSV_CHARACTERS) throw new Error('Este CSV excede o limite de 1,5 MB para salvar a análise no projeto.');
   const delimiter = detectCsvDelimiter(text);
   const records = parseCsvRecords(text, delimiter);
   if (records.length < 2) throw new Error('O CSV precisa ter cabeçalho e pelo menos uma linha de dados.');
-  if (records.length - 1 > MAX_PERSISTED_CSV_ROWS) throw new Error(`Este CSV tem mais de ${MAX_PERSISTED_CSV_ROWS.toLocaleString('pt-BR')} linhas. Filtre ou agregue os dados antes do upload para que a análise possa ser salva.`);
+  if (records.length - 1 > MAX_PERSISTED_CSV_ROWS) throw new Error(`Este CSV tem mais de ${MAX_PERSISTED_CSV_ROWS.toLocaleString('pt-BR')} linhas.`);
   const headers = records[0].map((header, index) => header || `Coluna ${index + 1}`);
-  if (headers.length > MAX_PERSISTED_CSV_COLUMNS) throw new Error(`Este CSV tem mais de ${MAX_PERSISTED_CSV_COLUMNS} colunas. Mantenha somente os campos necessários para a análise.`);
-  if (headers.some((header) => header.length > 255)) throw new Error('Um cabeçalho do CSV excede 255 caracteres. Renomeie as colunas antes do upload.');
+  if (headers.length > MAX_PERSISTED_CSV_COLUMNS) throw new Error(`Este CSV tem mais de ${MAX_PERSISTED_CSV_COLUMNS} colunas.`);
+  if (headers.some((header) => header.length > 255)) throw new Error('Um cabeçalho do CSV excede 255 caracteres.');
   const rows = records.slice(1).map((values, index) => {
     if (values.length !== headers.length) {
-      throw new Error(`O registro ${index + 2} tem ${values.length} campos, mas o cabeçalho tem ${headers.length}. Confira o separador e as aspas do CSV.`);
+      throw new Error(`O registro ${index + 2} tem ${values.length} campos, mas o cabeçalho tem ${headers.length}.`);
     }
-    if (values.some((value) => value.length > MAX_PERSISTED_CSV_CELL_CHARACTERS)) throw new Error(`O registro ${index + 2} possui um campo muito longo para ser salvo na análise.`);
+    if (values.some((value) => value.length > MAX_PERSISTED_CSV_CELL_CHARACTERS)) throw new Error(`O registro ${index + 2} possui um campo muito longo.`);
     return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
   });
   const dateColumn = headers.find((header) => {
@@ -695,12 +783,12 @@ function parseMeasurementCsv(text: string, fileName: string): DmaicCsvDataset {
   const parsed = parseInputCsv(text, fileName);
   if (parsed.headers.length < 2) throw new Error('O CSV da Medição precisa ter a coluna X e pelo menos uma variável numérica.');
   const [xColumn, ...variableColumns] = parsed.headers;
-  if (new Set(parsed.headers).size !== parsed.headers.length) throw new Error('O CSV da Medição possui cabeçalhos duplicados. Renomeie as colunas antes do upload.');
+  if (new Set(parsed.headers).size !== parsed.headers.length) throw new Error('O CSV da Medição possui cabeçalhos duplicados.');
   parsed.rows.forEach((row, rowIndex) => {
     if (!row[xColumn]?.trim()) throw new Error(`A linha ${rowIndex + 2} não possui valor na coluna X "${xColumn}".`);
     variableColumns.forEach((column) => {
       if (parseMeasurementNumber(row[column]) === null) {
-        throw new Error(`A célula ${column}, linha ${rowIndex + 2}, não é numérica. Todas as variáveis após a primeira coluna precisam ter valores válidos.`);
+        throw new Error(`A célula ${column}, linha ${rowIndex + 2}, não é numérica.`);
       }
     });
   });
@@ -899,15 +987,38 @@ function Button({ children, onClick, variant = 'solid', className = '', disabled
     outline: 'border border-border bg-card text-foreground hover:border-primary/45 hover:bg-primary/5',
     dark: 'bg-sidebar text-sidebar-foreground hover:bg-sidebar/90',
   };
-  return <button data-testid={testId} onClick={onClick} disabled={disabled} className={`inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition-all duration-200 disabled:pointer-events-none disabled:opacity-45 ${variants[variant]} ${className}`}>{children}</button>;
+  const normalizedChildren = Children.map(children, (child) => typeof child === 'string'
+    ? child.replace('Salvar charter', 'Salvar no Repositório').replace('Salvar mudança', 'Salvar no Repositório').replace('Salvar registros', 'Salvar no Repositório').replace('Salvar análise agora', 'Salvar no Repositório').replace('Salvar plano', 'Salvar no Repositório').replace('Plano salvo', 'Salvo no Repositório').replace('Salvar indicadores', 'Salvar no Repositório').replace('Salvar SIPOC', 'Salvar no Repositório')
+    : child);
+  return <button data-testid={testId} onClick={onClick} disabled={disabled} className={`inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition-all duration-200 disabled:pointer-events-none disabled:opacity-45 ${variants[variant]} ${className}`}>{normalizedChildren}</button>;
 }
 
 function StatusPill({ children, tone = 'green' }: { children: ReactNode; tone?: 'green' | 'amber' | 'gray' | 'red' }) {
-  const tones = { green: 'bg-primary/10 text-primary', amber: 'bg-accent/15 text-foreground', gray: 'bg-muted text-muted-foreground', red: 'bg-destructive/10 text-destructive' };
-  return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 mono-label ${tones[tone]}`}><span className={`h-1.5 w-1.5 rounded-full ${tone === 'green' ? 'bg-primary' : tone === 'amber' ? 'bg-accent' : tone === 'red' ? 'bg-destructive' : 'bg-muted-foreground'}`} />{children}</span>;
+  const tones = { green: 'bg-emerald-100 text-emerald-800', amber: 'bg-amber-100 text-amber-900', gray: 'bg-slate-100 text-slate-600', red: 'bg-red-100 text-red-800' };
+  return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 mono-label ${tones[tone]}`}><span className={`h-1.5 w-1.5 rounded-full ${tone === 'green' ? 'bg-emerald-600' : tone === 'amber' ? 'bg-amber-500' : tone === 'red' ? 'bg-red-600' : 'bg-slate-400'}`} />{children}</span>;
 }
 
-function Sidebar({ area, setArea, mobileOpen, setMobileOpen, activeProjectName }: { area: Area; setArea: (area: Area) => void; mobileOpen: boolean; setMobileOpen: (open: boolean) => void; activeProjectName: string }) {
+type ArtifactStatus = 'ai' | 'edited' | 'validated' | 'approved' | 'stale';
+
+function ArtifactStatusBadge({ status }: { status: ArtifactStatus }) {
+  const labels: Record<ArtifactStatus, string> = {
+    ai: 'Sugestão da IA',
+    edited: 'Editado pelo usuário',
+    validated: 'Validado',
+    approved: 'Aprovado',
+    stale: 'Desatualizado',
+  };
+  const tones: Record<ArtifactStatus, 'green' | 'amber' | 'gray' | 'red'> = {
+    ai: 'gray',
+    edited: 'amber',
+    validated: 'green',
+    approved: 'green',
+    stale: 'red',
+  };
+  return <StatusPill tone={tones[status]}>{labels[status]}</StatusPill>;
+}
+
+function Sidebar({ area, setArea, mobileOpen, setMobileOpen, activeProjectName, progress, completedMilestones, daysInCycle }: { area: Area; setArea: (area: Area) => void; mobileOpen: boolean; setMobileOpen: (open: boolean) => void; activeProjectName: string; progress: number; completedMilestones: number; daysInCycle: number | null }) {
   return (
     <aside className={`${mobileOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-30 flex w-[264px] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-transform duration-300 lg:relative lg:translate-x-0`}>
       <div className="flex h-[76px] items-center justify-between border-b border-sidebar-border px-6">
@@ -920,12 +1031,13 @@ function Sidebar({ area, setArea, mobileOpen, setMobileOpen, activeProjectName }
       <div className="flex-1 overflow-y-auto px-3 py-6">
         <div className="mb-7 rounded-xl border border-sidebar-border bg-sidebar-accent/60 p-3.5">
           <div className="flex items-center justify-between"><span className="mono-label text-sidebar-foreground/45">Projeto ativo</span><span className="h-2 w-2 rounded-full bg-sidebar-primary pulse-dot" /></div>
-           <p className="mt-2 truncate text-sm font-bold">{activeProjectName}</p>
+          <p className="mt-2 truncate text-sm font-bold">{activeProjectName}</p>
           <p className="mt-1 text-[11px] leading-relaxed text-sidebar-foreground/55">Operação de crédito · BR-042</p>
-          <div className="mt-3 h-1 overflow-hidden rounded-full bg-sidebar-foreground/10"><div className="h-full w-[42%] rounded-full bg-sidebar-primary" /></div>
-          <div className="mt-2 flex justify-between text-[10px] text-sidebar-foreground/45"><span>42% do caminho</span><span>21 dias</span></div>
+          <div className="mt-3 h-1 overflow-hidden rounded-full bg-sidebar-foreground/10"><div className="h-full rounded-full bg-sidebar-primary transition-all" style={{ width: `${progress}%` }} /></div>
+          <div className="mt-2 flex justify-between text-[10px] text-sidebar-foreground/45"><span>{progress}% do caminho</span><span>{daysInCycle === null ? 'Data não definida' : `${daysInCycle} ${daysInCycle === 1 ? 'dia' : 'dias'}`}</span></div>
+          <p className="mt-1 text-[10px] text-sidebar-foreground/35">{completedMilestones} de 5 marcos concluídos</p>
         </div>
-        {navGroups.map((group) => <div key={group.label} className="mb-7"><p className="mono-label mb-2 px-3 text-sidebar-foreground/35">{group.label}</p><div className="space-y-1">{group.items.map((item) => { const active = item.id === area; const Icon = item.icon; return <button key={item.id} data-testid={`nav-${item.id}`} onClick={() => { const destinations: Record<string, Area> = { overview: 'overview', definition: 'definition', measurement: 'measurement', aic: 'aic', charter: 'definition', analysis: 'measurement', control: 'aic' }; setArea(destinations[item.id]); setMobileOpen(false); }} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[12px] font-semibold transition-colors ${active ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground'}`}><Icon size={16} strokeWidth={1.8} /><span>{item.label}</span>{active && <ArrowRight className="ml-auto" size={14} />}</button>; })}</div></div>)}
+        {navGroups.map((group) => <div key={group.label} className="mb-7"><p className="mono-label mb-2 px-3 text-sidebar-foreground/35">{group.label}</p><div className="space-y-1">{group.items.map((item) => { const active = item.id === area; const Icon = item.icon; return <button key={item.id} data-testid={`nav-${item.id}`} onClick={() => { const destinations: Record<string, Area> = { overview: 'overview', executive: 'executive', decisions: 'decisions', definition: 'definition', measurement: 'measurement', aic: 'aic', charter: 'definition', analysis: 'measurement', control: 'control' }; setArea(destinations[item.id] ?? 'overview'); setMobileOpen(false); }} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[12px] font-semibold transition-colors ${active ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground'}`}><Icon size={16} strokeWidth={1.8} /><span>{item.label}</span>{active && <ArrowRight className="ml-auto" size={14} />}</button>; })}</div></div>)}
       </div>
       <div className="border-t border-sidebar-border p-4">
         <button data-testid="button-help" onClick={() => setArea('overview')} className="flex w-full items-center gap-3 rounded-lg p-2 text-left text-xs text-sidebar-foreground/60 hover:bg-sidebar-accent"><CircleHelp size={16} /><span>Guia da sala de melhoria</span></button>
@@ -935,16 +1047,36 @@ function Sidebar({ area, setArea, mobileOpen, setMobileOpen, activeProjectName }
   );
 }
 
-function Topbar({ area, setMobileOpen, onStart, pipelineLoading, activeProjectName }: { area: Area; setMobileOpen: (open: boolean) => void; onStart: () => void; pipelineLoading: boolean; activeProjectName: string }) {
+function Topbar({ area, setMobileOpen, onStart, pipelineLoading, activeProjectName, searchTerm, onSearch, hasUnsavedChanges }: { area: Area; setMobileOpen: (open: boolean) => void; onStart: () => void; pipelineLoading: boolean; activeProjectName: string; searchTerm: string; onSearch: (value: string) => void; hasUnsavedChanges: boolean }) {
   const meta = areaMeta[area];
-  return <header className="flex min-h-[76px] items-center justify-between gap-4 border-b border-border bg-background/85 px-5 backdrop-blur-md sm:px-8"><div className="flex min-w-0 items-center gap-3"><button data-testid="button-open-sidebar" aria-label="Abrir menu" onClick={() => setMobileOpen(true)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted lg:hidden"><Menu size={20} /></button><div className="min-w-0"><div className="flex items-center gap-2 text-[11px] text-muted-foreground"><span>Projetos</span><span>/</span><span className="truncate text-foreground">{activeProjectName}</span></div><div className="mt-1 flex items-center gap-2"><h1 className="truncate font-serif text-lg font-bold tracking-tight">{meta.label}</h1><span className="hidden rounded bg-muted px-1.5 py-0.5 mono-label text-muted-foreground sm:inline-flex">{meta.kicker}</span></div></div></div><div className="flex shrink-0 items-center gap-2"><div className="relative hidden md:block"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><input data-testid="input-search" placeholder="Buscar no projeto" className="h-9 w-44 rounded-lg border border-border bg-card pl-9 pr-3 text-xs outline-none transition-all placeholder:text-muted-foreground/70 focus:w-56 focus:border-primary/50" /></div><Button testId="button-start-pipeline" onClick={onStart} disabled={pipelineLoading} className="hidden sm:inline-flex">{pipelineLoading ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} fill="currentColor" />}{pipelineLoading ? 'Preparando...' : 'Iniciar pipeline'}</Button><button data-testid="button-more" className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><MoreHorizontal size={19} /></button></div></header>;
+  return <header className="flex min-h-[76px] items-center justify-between gap-4 border-b border-border bg-background/85 px-5 backdrop-blur-md sm:px-8"><div className="flex min-w-0 items-center gap-3"><button data-testid="button-open-sidebar" aria-label="Abrir menu" onClick={() => setMobileOpen(true)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted lg:hidden"><Menu size={20} /></button><div className="min-w-0"><div className="flex items-center gap-2 text-[11px] text-muted-foreground"><span>Projetos</span><span>/</span><span className="truncate text-foreground">{activeProjectName}</span></div><div className="mt-1 flex items-center gap-2"><h1 className="truncate font-serif text-lg font-bold tracking-tight">{meta.label}</h1>{meta.kicker && <span className="hidden rounded bg-muted px-1.5 py-0.5 mono-label text-muted-foreground sm:inline-flex">{meta.kicker}</span>}</div></div></div><div className="flex shrink-0 items-center gap-2"><span data-testid="status-workspace-save" className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold sm:inline-flex ${hasUnsavedChanges ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}><span className={`h-1.5 w-1.5 rounded-full ${hasUnsavedChanges ? 'bg-amber-500' : 'bg-emerald-600'}`} />{hasUnsavedChanges ? 'Alterações não salvas' : 'Salvo agora'}</span><div className="relative hidden md:block"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><input data-testid="input-search" value={searchTerm} onChange={(event) => onSearch(event.target.value)} placeholder="Buscar no projeto" className="h-9 w-44 rounded-lg border border-border bg-card pl-9 pr-3 text-xs outline-none transition-all placeholder:text-muted-foreground/70 focus:w-56 focus:border-primary/50" /></div><Button testId="button-start-pipeline" onClick={onStart} disabled={pipelineLoading} className="hidden sm:inline-flex">{pipelineLoading ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} fill="currentColor" />}{pipelineLoading ? 'Preparando...' : 'Iniciar pipeline'}</Button><button data-testid="button-more" className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><MoreHorizontal size={19} /></button></div></header>;
 }
-
 function formatProjectUpdatedAt(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? 'data indisponível' : new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(date);
 }
-
+function formatPulseUpdatedAt(value: string | null): string {
+  if (!value) return 'Ainda não salvo';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Atualização indisponível';
+  const minutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60_000));
+  if (minutes < 1) return 'Atualizado agora';
+  if (minutes < 60) return `Atualizado há ${minutes} min`;
+  return `Atualizado em ${new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(date)}`;
+}
+function getApiErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') return error.message;
+  return 'Não foi possível concluir a operação.';
+}
+function DataNotes({ tool, pareto, imr, source }: { tool: Tool; pareto: { name: string; value: number }[] | null; imr: number[] | null; source: 'upload' | 'example' }): ReactNode {
+  const dataSummary = tool.id === 'pareto'
+    ? pareto ? `${pareto.length} categorias e ${pareto.reduce((total, item) => total + item.value, 0)} ocorrências.` : 'Nenhum dado de Pareto disponível.'
+    : tool.id === 'imr'
+      ? imr ? `${imr.length} observações numéricas em sequência.` : 'Nenhum dado de I-MR disponível.'
+      : source === 'upload' ? 'Conteúdo calculado a partir dos dados carregados.' : 'Conteúdo local de exemplo.';
+  return <div data-testid="panel-data-notes" className="space-y-4 text-sm"><div className="rounded-xl border border-border bg-card p-4"><p className="mono-label text-primary">Origem dos dados</p><p className="mt-2 leading-relaxed text-muted-foreground">{source === 'upload' ? 'Arquivo carregado e processado localmente no navegador.' : 'Dados de exemplo locais, sem envio externo.'}</p></div><div className="rounded-xl border border-border bg-card p-4"><p className="mono-label text-primary">Resumo</p><p className="mt-2 leading-relaxed text-muted-foreground">{dataSummary}</p></div><div className="rounded-xl border border-border bg-card p-4"><p className="mono-label text-primary">Interpretação</p><p className="mt-2 leading-relaxed text-muted-foreground">Revise o período, a qualidade da medição e a representatividade da amostra antes de tomar decisões.</p></div></div>;
+}
 function SavedProjects({ projects, selectedProjectKey, loading, error, onSelect, onLoad, onNew }: {
   projects: DmaicWorkspaceSummary[];
   selectedProjectKey: string;
@@ -956,7 +1088,7 @@ function SavedProjects({ projects, selectedProjectKey, loading, error, onSelect,
 }) {
   return <section data-testid="section-saved-projects" className="reveal mb-6 rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="flex gap-3"><span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><FolderOpen size={17} /></span><div><p className="mono-label text-primary">Projetos no Neon</p><h2 className="mt-1.5 font-serif text-lg font-bold">Continue um projeto salvo</h2><p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">Carregue um projeto existente antes de iniciar algo novo. As edições que ainda não foram salvas serão preservadas até você confirmar a troca.</p></div></div>
+      <div className="flex gap-3"><span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><FolderOpen size={17} /></span><div><p className="mono-label text-primary">Projetos no Repositório</p><h2 className="mt-1.5 font-serif text-lg font-bold">Continue um projeto salvo</h2><p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">Carregue um projeto existente antes de iniciar algo novo. As edições que ainda não foram salvas serão preservadas até você confirmar a troca.</p></div></div>
       <StatusPill tone={loading ? 'amber' : 'green'}>{loading ? 'Atualizando lista' : `${projects.length} salvo${projects.length === 1 ? '' : 's'}`}</StatusPill>
     </div>
     <div className="mt-4 flex flex-col gap-2 sm:flex-row">
@@ -981,7 +1113,7 @@ function CharterTextarea({ label, value, onChange, testId, placeholder = '', row
   return <label className="block"><span className="mb-1.5 block text-[11px] font-bold text-muted-foreground">{label}</span><textarea data-testid={testId} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} rows={rows} className="w-full resize-y rounded-lg border border-border bg-background p-3 text-xs leading-relaxed outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary/60" /></label>;
 }
 
-function ProjectCharterForm({ charter, onFieldChange, onTeamChange, onSave, hasAiSuggestions }: { charter: ProjectCharterDraft; onFieldChange: (field: CharterTextField, value: string) => void; onTeamChange: (role: CharterTeamRole, field: keyof CharterTeamMember, value: string) => void; onSave: () => void; hasAiSuggestions: boolean }) {
+function ProjectCharterForm({ charter, onFieldChange, onTeamChange, onSave, hasAiSuggestions, saved }: { charter: ProjectCharterDraft; onFieldChange: (field: CharterTextField, value: string) => void; onTeamChange: (role: CharterTeamRole, field: keyof CharterTeamMember, value: string) => void; onSave: () => void; hasAiSuggestions: boolean; saved: boolean }) {
   const teamRows: { role: CharterTeamRole; label: string; helper: string }[] = [
     { role: 'leader', label: 'Líder', helper: 'Responsável pelo projeto' },
     { role: 'sponsor', label: 'Patrocinador', helper: 'Sponsor / dono da decisão' },
@@ -989,9 +1121,10 @@ function ProjectCharterForm({ charter, onFieldChange, onTeamChange, onSave, hasA
     { role: 'technicalSupport', label: 'Especialistas para suporte técnico', helper: 'Apoio pontual ou consultivo' },
   ];
   return <section data-testid="section-project-charter" className="reveal-3 panel rounded-2xl p-5 sm:p-6">
-    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-5"><div><p className="mono-label text-primary">Contrato de projeto</p><h3 className="mt-2 font-serif text-xl font-bold">Project charter</h3><p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-muted-foreground">Registre o acordo de foco, resultado, fronteiras e pessoas antes de aprofundar a análise.</p></div><StatusPill tone={hasAiSuggestions ? 'green' : 'amber'}>{hasAiSuggestions ? 'Sugestões da IA · editáveis' : 'Preenchimento guiado'}</StatusPill></div>
-    {hasAiSuggestions && <div data-testid="status-charter-ai-suggestions" className="mt-5 flex gap-3 rounded-xl border border-primary/20 bg-primary/7 p-4 text-xs leading-relaxed"><Sparkles size={16} className="mt-0.5 shrink-0 text-primary" /><p><strong>Campos sugeridos pela IA.</strong> Objetivo, histórico, meta, KPIs, escopo, premissas, requisitos, contribuições e ganho financeiro são propostas para validação. As informações financeiras coletadas continuam sendo responsabilidade do time; revise, ajuste e salve o Charter quando estiver pronto.</p></div>}
-    <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-5"><div><p className="mono-label text-primary">Contrato de projeto</p><h3 className="mt-2 font-serif text-xl font-bold">Project charter</h3><p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-muted-foreground">Registre o acordo de foco, resultado, fronteiras e pessoas antes de aprofundar a análise.</p></div><ArtifactStatusBadge status={hasAiSuggestions ? 'ai' : saved ? 'validated' : 'edited'} /></div>
+    {hasAiSuggestions && <div data-testid="status-charter-ai-suggestions" className="mt-5 flex gap-3 rounded-xl border border-primary/20 bg-primary/7 p-4 text-xs leading-relaxed"><Sparkles size={16} className="mt-0.5 shrink-0 text-primary" /><p><strong>Campos sugeridos pela Suíte.</strong> Objetivo, histórico, meta, KPIs, escopo, premissas, requisitos, contribuições e ganho financeiro são propostas para validação. As informações financeiras coletadas continuam sendo responsabilidade do time; revise, ajuste e salve o Charter quando estiver pronto.</p></div>}
+    <nav aria-label="Etapas do Project Charter" className="mt-5 grid gap-2 sm:grid-cols-5">{['Contexto', 'Meta e escopo', 'Cliente e VOC', 'Equipe', 'Valor financeiro'].map((step, index) => <a key={step} href={`#charter-step-${index + 1}`} className={`rounded-lg border px-3 py-2 text-[10px] font-bold transition-colors hover:border-primary/50 hover:bg-primary/5 ${index === 0 ? 'border-primary/35 bg-primary/5 text-primary' : 'border-border bg-background text-muted-foreground'}`}><span className="mr-1.5 font-mono">0{index + 1}</span>{step}</a>)}</nav>
+    <details id="charter-step-1" open className="mt-5 rounded-xl border border-border bg-background/45 p-4 sm:p-5"><summary className="cursor-pointer list-inside text-sm font-bold marker:text-primary">01 · Contexto <span className="ml-2 text-[11px] font-normal text-muted-foreground">Identifique o projeto, cliente e responsáveis.</span></summary><div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <CharterInput label="Projeto" value={charter.projectName} onChange={(value) => onFieldChange('projectName', value)} testId="input-charter-project-name" placeholder="Ex.: Redução de lead time" />
       <CharterInput label="Cliente" value={charter.client} onChange={(value) => onFieldChange('client', value)} testId="input-charter-client" placeholder="Ex.: Agências parceiras" />
       <CharterInput label="Área" value={charter.area} onChange={(value) => onFieldChange('area', value)} testId="input-charter-area" placeholder="Ex.: Operação" />
@@ -1002,8 +1135,9 @@ function ProjectCharterForm({ charter, onFieldChange, onTeamChange, onSave, hasA
     <div className="mt-5 grid gap-4">
       <CharterTextarea label="Objetivo do projeto" value={charter.objective} onChange={(value) => onFieldChange('objective', value)} testId="textarea-charter-objective" rows={3} placeholder="Qual resultado deve ser alcançado, para quem e em qual prazo?" />
       <CharterTextarea label="Justificativa / histórico" value={charter.history} onChange={(value) => onFieldChange('history', value)} testId="textarea-charter-history" rows={4} placeholder="O que motivou o projeto? Quais impactos, fatos e tentativas anteriores importam?" />
-    </div>
-    <div className="mt-5 grid gap-4 lg:grid-cols-[1.55fr_.75fr]">
+    </div></details>
+    <details id="charter-step-2" className="mt-3 rounded-xl border border-border bg-background/45 p-4 sm:p-5"><summary className="cursor-pointer list-inside text-sm font-bold marker:text-primary">02 · Meta e escopo <span className="ml-2 text-[11px] font-normal text-muted-foreground">Defina resultado, indicadores e fronteiras.</span></summary><div className="mt-4">
+    <div className="grid gap-4 lg:grid-cols-[1.55fr_.75fr]">
       <CharterTextarea label="Definição da meta" value={charter.goalDefinition} onChange={(value) => onFieldChange('goalDefinition', value)} testId="textarea-charter-goal" rows={3} placeholder="Ex.: reduzir de 18,4 para 11,0 min até 30/jun." />
       <CharterTextarea label="KPIs" value={charter.kpis} onChange={(value) => onFieldChange('kpis', value)} testId="textarea-charter-kpis" rows={3} placeholder="Ex.: NS atendimento" />
     </div>
@@ -1011,34 +1145,37 @@ function ProjectCharterForm({ charter, onFieldChange, onTeamChange, onSave, hasA
       <CharterTextarea label="Limites do projeto — inclui" value={charter.includedScope} onChange={(value) => onFieldChange('includedScope', value)} testId="textarea-charter-in-scope" rows={3} placeholder="Processos, unidades ou etapas que fazem parte." />
       <CharterTextarea label="Limites do projeto — exclui" value={charter.excludedScope} onChange={(value) => onFieldChange('excludedScope', value)} testId="textarea-charter-out-scope" rows={3} placeholder="O que fica explicitamente fora desta iniciativa." />
     </div>
-    <div className="mt-5"><CharterTextarea label="Premissas e restrições do projeto" value={charter.assumptionsAndConstraints} onChange={(value) => onFieldChange('assumptionsAndConstraints', value)} testId="textarea-charter-assumptions" rows={3} placeholder="Ex.: acesso aos dados, janela de implementação, orçamento, dependências e regras que não podem mudar." /></div>
-    <div className="mt-6 overflow-x-auto rounded-xl border border-border">
+    <div className="mt-5"><CharterTextarea label="Premissas e restrições do projeto" value={charter.assumptionsAndConstraints} onChange={(value) => onFieldChange('assumptionsAndConstraints', value)} testId="textarea-charter-assumptions" rows={3} placeholder="Ex.: acesso aos dados, janela de implementação, orçamento, dependências e regras que não podem mudar." /></div></div></details>
+    <details id="charter-step-3" className="mt-3 rounded-xl border border-border bg-background/45 p-4 sm:p-5"><summary className="cursor-pointer list-inside text-sm font-bold marker:text-primary">03 · Cliente e VOC <span className="ml-2 text-[11px] font-normal text-muted-foreground">Registre necessidades e contribuição para o negócio.</span></summary><div className="mt-4 grid gap-4 lg:grid-cols-2">
+    <CharterTextarea label="Requisitos do cliente" value={charter.customerRequirements} onChange={(value) => onFieldChange('customerRequirements', value)} testId="textarea-charter-customer-requirements" rows={3} placeholder="Necessidades, critérios de aceitação e pontos inegociáveis para o cliente." />
+    <CharterTextarea label="Contribuições para o negócio — resumo" value={charter.businessContributions} onChange={(value) => onFieldChange('businessContributions', value)} testId="textarea-charter-business-contributions" rows={3} placeholder="Como o projeto apoia o negócio, sempre conectado à VOC, à meta e ao escopo." />
+    </div></details>
+    <details id="charter-step-4" className="mt-3 rounded-xl border border-border bg-background/45 p-4 sm:p-5"><summary className="cursor-pointer list-inside text-sm font-bold marker:text-primary">04 · Equipe <span className="ml-2 text-[11px] font-normal text-muted-foreground">Defina papéis, áreas e apoio técnico.</span></summary><div className="mt-4 overflow-x-auto rounded-xl border border-border">
       <div className="min-w-[720px]"><div className="grid grid-cols-[150px_1fr_1fr_1fr] border-b border-border bg-muted/55"><div className="p-3 mono-label text-muted-foreground">Equipe de trabalho</div><div className="p-3 mono-label text-muted-foreground">Nome</div><div className="p-3 mono-label text-muted-foreground">Cargo</div><div className="p-3 mono-label text-muted-foreground">Área / Empresa</div></div>{teamRows.map(({ role, label, helper }) => <div key={role} className="grid grid-cols-[150px_1fr_1fr_1fr] border-b border-border last:border-0"><div className="bg-muted/25 p-3"><p className="text-[11px] font-bold">{label}</p><p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{helper}</p></div><div className="border-l border-border p-2"><input data-testid={`input-charter-team-${role}-name`} value={charter.team[role].name} onChange={(event) => onTeamChange(role, 'name', event.target.value)} placeholder="Nome(s)" className="h-9 w-full rounded-md border border-border bg-background px-2.5 text-xs outline-none focus:border-primary/60" /></div><div className="border-l border-border p-2"><input data-testid={`input-charter-team-${role}-position`} value={charter.team[role].position} onChange={(event) => onTeamChange(role, 'position', event.target.value)} placeholder="Cargo(s)" className="h-9 w-full rounded-md border border-border bg-background px-2.5 text-xs outline-none focus:border-primary/60" /></div><div className="border-l border-border p-2"><input data-testid={`input-charter-team-${role}-area`} value={charter.team[role].areaCompany} onChange={(event) => onTeamChange(role, 'areaCompany', event.target.value)} placeholder="Área ou empresa" className="h-9 w-full rounded-md border border-border bg-background px-2.5 text-xs outline-none focus:border-primary/60" /></div></div>)}</div>
-    </div>
-    <div className="mt-5 grid gap-4 lg:grid-cols-2">
-      <CharterTextarea label="Requisitos do cliente" value={charter.customerRequirements} onChange={(value) => onFieldChange('customerRequirements', value)} testId="textarea-charter-customer-requirements" rows={3} placeholder="Necessidades, critérios de aceitação e pontos inegociáveis para o cliente." />
-      <CharterTextarea label="Contribuições para o negócio — resumo" value={charter.businessContributions} onChange={(value) => onFieldChange('businessContributions', value)} testId="textarea-charter-business-contributions" rows={3} placeholder="Como o projeto apoia o negócio, sempre conectado à VOC, à meta e ao escopo." />
-    </div>
-    <div data-testid="section-charter-business-value" className="mt-6 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
-       <div className="mb-4"><p className="mono-label text-primary">Valor para o negócio</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Registre apenas impactos relacionados à VOC e ao escopo. Ao iniciar o pipeline, a IA usará as contribuições quantitativas e as informações financeiras coletadas para calcular uma estimativa e refazer a meta do projeto. Separe fatos coletados de estimativas; valide o resultado com Financeiro. Nem sempre a meta desejada pela empresa é estatisticamente alcançável: quando a média e a mediana históricas do indicador indicarem isso, a IA sinalizará esse risco na meta e proporá uma meta intermediária compatível com a evidência, mantendo a meta ideal como visão de longo prazo a validar com a equipe.</p></div>
+    </div></details>
+    <details id="charter-step-5" className="mt-3 rounded-xl border border-border bg-background/45 p-4 sm:p-5"><summary className="cursor-pointer list-inside text-sm font-bold marker:text-primary">05 · Valor financeiro <span className="ml-2 text-[11px] font-normal text-muted-foreground">Registre impactos, ganhos e base financeira.</span></summary><div data-testid="section-charter-business-value" className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+      <div className="mb-4"><p className="mono-label text-primary">Valor para o negócio</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Registre apenas impactos relacionados à VOC e ao escopo. Ao iniciar o pipeline, a Suíte usará as contribuições quantitativas e as informações financeiras coletadas para calcular uma estimativa e refazer a meta do projeto.</p></div>
       <div className="grid gap-4 lg:grid-cols-2">
         <CharterTextarea label="Contribuições quantitativas" value={charter.businessContributionsQuantitative} onChange={(value) => onFieldChange('businessContributionsQuantitative', value)} testId="textarea-charter-business-contributions-quantitative" rows={4} placeholder="Ex.: reduzir 20% do retrabalho, liberar 80 h/mês, elevar o atendimento de 82% para 92%." />
         <CharterTextarea label="Contribuições qualitativas" value={charter.businessContributionsQualitative} onChange={(value) => onFieldChange('businessContributionsQualitative', value)} testId="textarea-charter-business-contributions-qualitative" rows={4} placeholder="Ex.: mais previsibilidade para o cliente, menor esforço operacional e decisão mais segura." />
-        <CharterTextarea label="Valor do ganho financeiro esperado" value={charter.financialGainValue} onChange={(value) => onFieldChange('financialGainValue', value)} testId="textarea-charter-financial-gain-value" rows={4} placeholder="Qual será o ganho se a meta for alcançada? Informe valor estimado, moeda e período; marque como estimativa quando aplicável." />
-        <CharterTextarea label="Informações financeiras coletadas" value={charter.financialInformation} onChange={(value) => onFieldChange('financialInformation', value)} testId="textarea-charter-financial-information" rows={4} placeholder="Base da estimativa ou valor confirmado: fonte, período, moeda, volume, custo unitário, premissas e responsável pela validação. Este campo não é preenchido pela IA." />
+        <CharterTextarea label="Valor do ganho financeiro esperado" value={charter.financialGainValue} onChange={(value) => onFieldChange('financialGainValue', value)} testId="textarea-charter-financial-gain-value" rows={4} placeholder="Qual será o ganho se a meta for alcançada? Informe valor estimado, moeda e período." />
+        <CharterTextarea label="Informações financeiras coletadas" value={charter.financialInformation} onChange={(value) => onFieldChange('financialInformation', value)} testId="textarea-charter-financial-information" rows={4} placeholder="Base da estimativa ou valor confirmado. Este campo não é preenchido pela Suíte." />
       </div>
-    </div>
-     <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><p className="text-[11px] text-muted-foreground"><Info size={13} className="mr-1 inline-block align-[-2px]" /> Ao salvar, o conteúdo fica no Neon e será enviado ao Gemini como contexto ao iniciar o pipeline.</p><Button testId="button-save-charter" onClick={onSave} variant="outline"><Save size={14} /> Salvar charter</Button></div>
+    </div></details>
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><p className="text-[11px] text-muted-foreground"><Info size={13} className="mr-1 inline-block align-[-2px]" /> Ao salvar, o conteúdo fica no Repositório e será enviado ao Gemini como contexto ao iniciar o pipeline.</p><Button testId="button-save-charter" onClick={onSave} variant="outline"><Save size={14} /> Salvar no Repositório</Button></div>
   </section>;
 }
 
-function Overview({ statement, setStatement, onSave, charter, onCharterChange, onTeamChange, onSaveCharter, pipelineDone, hasAiSuggestions, onOpenArea }: { statement: string; setStatement: (value: string) => void; onSave: () => void; charter: ProjectCharterDraft; onCharterChange: (field: CharterTextField, value: string) => void; onTeamChange: (role: CharterTeamRole, field: keyof CharterTeamMember, value: string) => void; onSaveCharter: () => void; pipelineDone: boolean; hasAiSuggestions: boolean; onOpenArea: (area: Area) => void }) {
+function Overview({ statement, setStatement, onSave, statementSaved, charter, onCharterChange, onTeamChange, onSaveCharter, charterSaved, pipelineDone, hasAiSuggestions, onOpenArea, onOpenTool, phaseProgress, pulse }: { statement: string; setStatement: (value: string) => void; onSave: () => void; statementSaved: boolean; charter: ProjectCharterDraft; onCharterChange: (field: CharterTextField, value: string) => void; onTeamChange: (role: CharterTeamRole, field: keyof CharterTeamMember, value: string) => void; onSaveCharter: () => void; charterSaved: boolean; pipelineDone: boolean; hasAiSuggestions: boolean; onOpenArea: (area: Area) => void; onOpenTool: (tool: Tool) => void; phaseProgress: Record<'definition' | 'measurement' | 'aic', PhaseProgress>; pulse: ProjectPulse }) {
+  const nextArea = phaseProgress.definition.progress < 100 ? 'definition' : phaseProgress.measurement.progress < 100 ? 'measurement' : 'aic';
+  const nextPhase = areaMeta[nextArea];
+  const pendingItems = [...new Set(Object.values(phaseProgress).flatMap((phase) => phase.pending))].slice(0, 4);
   return <div className="space-y-7">
-    <section className="reveal relative overflow-hidden rounded-2xl border border-sidebar-border bg-sidebar px-6 py-7 text-sidebar-foreground sm:px-9 sm:py-9"><div className="pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full border-[32px] border-sidebar-primary/10" /><div className="pointer-events-none absolute right-10 top-12 h-28 w-28 rounded-full border border-sidebar-primary/20" /><div className="relative max-w-3xl"><div className="flex flex-wrap items-center gap-2"><span className="mono-label text-sidebar-primary">Sala de melhoria · ciclo 04</span><StatusPill tone="green">{pipelineDone ? 'Pipeline ativo' : 'Workspace pronto'}</StatusPill></div><h2 className="mt-4 max-w-2xl font-serif text-3xl font-bold leading-[1.08] tracking-tight sm:text-[42px]">Do ruído operacional a uma decisão que <span className="text-sidebar-primary">se sustenta.</span></h2><p className="mt-4 max-w-xl text-sm leading-relaxed text-sidebar-foreground/65">O time não precisa de mais uma planilha. Precisa de um caminho claro para descobrir, testar e controlar o que realmente move o resultado.</p><div className="mt-7 flex flex-wrap gap-3"><Button testId="button-hero-start" onClick={() => onOpenArea('definition')} variant="solid">Abrir Sprint 1 <ArrowRight size={15} /></Button><Button testId="button-hero-guide" onClick={() => document.querySelector('[data-testid="textarea-problem-statement"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })} variant="outline" className="border-sidebar-foreground/20 bg-transparent text-sidebar-foreground hover:bg-sidebar-foreground/10">Ver guia rápido</Button></div></div></section>
-    <section className="reveal-2 panel rounded-2xl p-5 sm:p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="mono-label text-accent-foreground/70">Problema que guia o ciclo</p><h3 className="mt-2 font-serif text-lg font-bold">Problem statement</h3></div><StatusPill tone="amber">Editável</StatusPill></div><textarea data-testid="textarea-problem-statement" value={statement} onChange={(event) => setStatement(event.target.value)} className="mt-5 min-h-[98px] w-full resize-y rounded-xl border border-border bg-background p-4 text-sm leading-relaxed outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary/60" /><div className="mt-4 flex flex-wrap items-center justify-between gap-3"><span data-testid="text-problem-hint" className="text-[11px] text-muted-foreground"><Info size={13} className="mr-1 inline-block align-[-2px]" /> Seja específico sobre processo, impacto e janela de tempo.</span><Button testId="button-save-statement" onClick={onSave} variant="outline"><Save size={14} /> Salvar mudança</Button></div></section>
-    <ProjectCharterForm charter={charter} onFieldChange={onCharterChange} onTeamChange={onTeamChange} onSave={onSaveCharter} hasAiSuggestions={hasAiSuggestions} />
-    <section className="reveal-3"><SectionHeading eyebrow="Pulso do projeto" title="O trabalho em uma leitura" action={<button data-testid="button-refresh-pulse" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="inline-flex items-center gap-2 text-[11px] font-bold text-muted-foreground hover:text-foreground"><RefreshCw size={14} /> Atualizado há 4 min</button>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[{ label: 'Dias no ciclo', value: '21', note: 'de 45 previstos', icon: Clock3, color: 'text-chart-3' }, { label: 'Indicador Y', value: '12,8%', note: 'retrabalho atual', icon: Activity, color: 'text-accent-foreground' }, { label: 'Vital Xs', value: '03', note: '1 priorizado', icon: Zap, color: 'text-chart-4' }, { label: 'Confiança dos dados', value: 'B+', note: 'MSA validado', icon: ShieldCheck, color: 'text-primary' }].map((item) => <div key={item.label} data-testid={`metric-${item.label}`} className="panel rounded-xl p-4"><div className="flex items-start justify-between"><span className="text-xs font-semibold text-muted-foreground">{item.label}</span><item.icon size={17} className={item.color} strokeWidth={1.8} /></div><p className="mt-3 font-serif text-2xl font-bold">{item.value}</p><p className="mt-1 text-[11px] text-muted-foreground">{item.note}</p></div>)}</div></section>
-    <section className="reveal-4"><SectionHeading eyebrow="Mapa de trabalho" title="O caminho do time" description="Cada sprint fecha uma pergunta. O próximo passo só abre quando existe evidência suficiente." /><div className="grid gap-3 lg:grid-cols-3">{(['definition', 'measurement', 'aic'] as Area[]).map((id, index) => { const meta = areaMeta[id]; const progress = index === 0 ? 78 : index === 1 ? 42 : 18; return <button key={id} data-testid={`card-sprint-${id}`} onClick={() => onOpenArea(id)} className="group panel rounded-xl p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40"><div className="flex items-center justify-between"><span className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold" style={{ backgroundColor: `${meta.color}18`, color: meta.color }}>0{index + 1}</span><ArrowRight size={16} className="text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" /></div><h3 className="mt-5 font-serif text-lg font-bold">{meta.label.replace(' · ', ' / ')}</h3><p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{meta.description}</p><div className="mt-5 h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full" style={{ width: `${progress}%`, backgroundColor: meta.color }} /></div><div className="mt-2 flex justify-between text-[10px] text-muted-foreground"><span>{progress}% completo</span><span>{index === 0 ? '4 de 5' : index === 1 ? '2 de 5' : '1 de 5'} entregas</span></div></button>; })}</div></section>
+    <section className="reveal relative overflow-hidden rounded-2xl border border-sidebar-border bg-sidebar px-6 py-7 text-sidebar-foreground sm:px-9 sm:py-8"><div className="pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full border-[32px] border-sidebar-primary/10" /><div className="pointer-events-none absolute right-10 top-12 h-28 w-28 rounded-full border border-sidebar-primary/20" /><div className="relative flex flex-wrap items-end justify-between gap-6"><div className="max-w-2xl"><div className="flex flex-wrap items-center gap-2"><StatusPill tone="green">{pipelineDone ? 'Pipeline ativo' : 'Workspace pronto'}</StatusPill><span className="mono-label text-sidebar-foreground/45">Painel de decisão</span></div><h2 className="mt-4 font-serif text-3xl font-bold leading-[1.08] tracking-tight sm:text-[40px]">O que precisa acontecer agora?</h2><p className="mt-3 max-w-xl text-sm leading-relaxed text-sidebar-foreground/65">Acompanhe o avanço do projeto e continue pela próxima fase que ainda precisa de evidências.</p></div><Button testId="button-hero-start" onClick={() => onOpenArea(nextArea)} variant="solid">Continuar em {nextPhase.label} <ArrowRight size={15} /></Button></div></section>
+    <section className="reveal-2 panel rounded-2xl p-5 sm:p-6"><SectionHeading eyebrow="Progresso DMAIC" title="O caminho do time" description="Cada fase fecha uma pergunta e indica a próxima decisão." /><div className="grid gap-3 lg:grid-cols-3">{(['definition', 'measurement', 'aic'] as const).map((id, index) => { const meta = areaMeta[id]; const phase = phaseProgress[id]; return <button key={id} data-testid={`card-sprint-${id}`} onClick={() => onOpenArea(id)} className="group rounded-xl border border-border bg-background/65 p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40"><div className="flex items-center justify-between"><span className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold" style={{ backgroundColor: `${meta.color}18`, color: meta.color }}>0{index + 1}</span><ArrowRight size={16} className="text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" /></div><h3 className="mt-4 font-serif text-base font-bold">{meta.label}</h3><div className="mt-4 h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full transition-all" style={{ width: `${phase.progress}%`, backgroundColor: meta.color }} /></div><div className="mt-2 flex justify-between text-[10px] text-muted-foreground"><span>{phase.progress}% completo</span><span>{phase.completed} de {phase.total}</span></div></button>; })}</div></section>
+    <section className="reveal-3"><SectionHeading eyebrow="Pulso do projeto" title="O trabalho em uma leitura" action={<span className="inline-flex items-center gap-2 text-[11px] font-bold text-muted-foreground"><RefreshCw size={14} /> {pulse.updatedLabel}</span>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[{ label: 'Dias no ciclo', value: pulse.cycleDays === null ? '—' : String(pulse.cycleDays), note: pulse.cycleNote, icon: Clock3, color: 'text-chart-3' }, { label: 'Indicador Y', value: pulse.indicatorValue, note: pulse.indicatorNote, icon: Activity, color: 'text-accent-foreground' }, { label: 'Vital Xs', value: pulse.vitalXsValue, note: pulse.vitalXsNote, icon: Zap, color: 'text-chart-4' }, { label: 'Confiança dos dados', value: pulse.dataConfidence, note: pulse.dataConfidenceNote, icon: ShieldCheck, color: 'text-primary' }].map((item) => <div key={item.label} data-testid={`metric-${item.label}`} className="panel rounded-xl p-4"><div className="flex items-start justify-between"><span className="text-xs font-semibold text-muted-foreground">{item.label}</span><item.icon size={17} className={item.color} strokeWidth={1.8} /></div><p className="mt-3 font-serif text-2xl font-bold">{item.value}</p><p className="mt-1 text-[11px] text-muted-foreground">{item.note}</p></div>)}</div></section>
+    <section className="reveal-4 grid gap-4 lg:grid-cols-[1.15fr_.85fr]"><div className="panel rounded-2xl p-5 sm:p-6"><div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent-foreground"><Info size={17} /></span><div><p className="mono-label text-accent-foreground">Atenção necessária</p><h3 className="mt-1 font-serif text-lg font-bold">Pendências do ciclo</h3></div></div>{pendingItems.length > 0 ? <ul className="mt-4 space-y-2 text-xs leading-relaxed">{pendingItems.map((item) => <li key={item} className="flex gap-2"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />{item}</li>)}</ul> : <p className="mt-4 text-xs text-muted-foreground">Nenhuma pendência crítica identificada.</p>}</div><div className="panel rounded-2xl p-5 sm:p-6"><p className="mono-label text-primary">Próximo passo recomendado</p><h3 className="mt-2 font-serif text-lg font-bold">{nextPhase.label}</h3><p className="mt-2 text-xs leading-relaxed text-muted-foreground">{phaseProgress[nextArea].next}</p><Button testId="button-continue-project" onClick={() => onOpenArea(nextArea)} className="mt-4">Abrir fase <ArrowRight size={14} /></Button></div></section>
+    <details className="reveal-4 panel overflow-hidden rounded-2xl"><summary className="cursor-pointer list-inside px-5 py-5 text-sm font-bold marker:text-primary sm:px-6"><span className="mono-label mr-3 text-primary">Contexto do projeto</span>Problem Statement e Project Charter</summary><div className="space-y-6 border-t border-border p-5 sm:p-6"><section><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="mono-label text-accent-foreground/70">Problema que guia o ciclo</p><h3 className="mt-2 font-serif text-lg font-bold">Problem statement</h3></div><ArtifactStatusBadge status={statementSaved ? 'validated' : 'edited'} /></div><textarea data-testid="textarea-problem-statement" value={statement} onChange={(event) => setStatement(event.target.value)} className="mt-5 min-h-[98px] w-full resize-y rounded-xl border border-border bg-background p-4 text-sm leading-relaxed outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary/60" /><div className="mt-4 flex flex-wrap items-center justify-between gap-3"><span data-testid="text-problem-hint" className="text-[11px] text-muted-foreground"><Info size={13} className="mr-1 inline-block align-[-2px]" /> Seja específico sobre processo, impacto e janela de tempo.</span><Button testId="button-save-statement" onClick={onSave} variant="outline"><Save size={14} /> Salvar mudança</Button></div></section><ProjectCharterForm charter={charter} onFieldChange={onCharterChange} onTeamChange={onTeamChange} onSave={onSaveCharter} hasAiSuggestions={hasAiSuggestions} saved={charterSaved} /></div></details>
   </div>;
 }
 
@@ -1047,18 +1184,325 @@ function ToolCard({ tool, onOpen }: { tool: Tool; onOpen: (tool: Tool) => void }
   return <button data-testid={`card-tool-${tool.id}`} onClick={() => onOpen(tool)} className="group panel flex min-h-[154px] flex-col rounded-xl p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/45"><div className="flex items-start justify-between"><span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: `hsl(${tool.accent} / .12)`, color: `hsl(${tool.accent})` }}><Icon size={17} strokeWidth={1.8} /></span><span className="opacity-0 transition-opacity group-hover:opacity-100"><ArrowRight size={16} className="text-primary" /></span></div><div className="mt-auto pt-5"><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-bold">{tool.title}</h3>{tool.tag && <span className="rounded bg-muted px-1.5 py-0.5 mono-label text-muted-foreground">{tool.tag}</span>}</div><p className="mt-1 text-[11px] text-muted-foreground">{tool.subtitle}</p><p className="mt-3 mono-label text-primary">{tool.status}</p></div></button>;
 }
 
-function SprintView({ area, onOpenTool, onChangeVital, vitalId, inputDataset, inputAnalysis, inputError, analysisMonths, onAnalysisMonthsChange, selectedIndicator, onSelectedIndicatorChange, diagnosis, onDiagnosisChange, onSaveAnalysis, onUpload, inputRef, activeProjectName }: { area: 'definition' | 'measurement' | 'aic'; onOpenTool: (tool: Tool) => void; onChangeVital: (id: string) => void; vitalId: string; inputDataset: InputDataset | null; inputAnalysis: IndicatorAnalysis | null; inputError: string | null; analysisMonths: number; onAnalysisMonthsChange: (months: number) => void; selectedIndicator: string; onSelectedIndicatorChange: (indicator: string) => void; diagnosis: string | null; onDiagnosisChange: (diagnosis: string | null, input: DmaicExploratoryDiagnosisInput) => void; onSaveAnalysis: () => void; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; inputRef: { current: HTMLInputElement | null }; activeProjectName: string }) {
+const phaseGoals: Record<'definition' | 'measurement' | 'aic' | 'control', string> = {
+  definition: 'Definir o problema, o cliente e o escopo com clareza.',
+  measurement: 'Transformar dados confiáveis em prioridades de investigação.',
+  aic: 'Testar hipóteses, executar melhorias e verificar o resultado.',
+  control: 'Monitorar a estabilidade e sustentar o resultado alcançado.',
+};
+
+function PhaseSummary({ area, progress, onOpenTool }: { area: 'definition' | 'measurement' | 'aic' | 'control'; progress: PhaseProgress; onOpenTool?: () => void }) {
+  const pending = progress.pending;
+  const next = progress.next;
+  return <section data-testid={`phase-summary-${area}`} className="reveal sticky top-3 z-10 panel border-l-4 bg-card/95 p-4 shadow-lg backdrop-blur sm:p-5" style={{ borderLeftColor: areaMeta[area].color }}>
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="min-w-0"><p className="mono-label text-primary">Objetivo da fase</p><p className="mt-1 text-sm font-bold">{phaseGoals[area]}</p></div>
+      <div className="shrink-0 text-right"><p className="mono-label text-muted-foreground">Progresso real</p><p className="mt-1 font-serif text-2xl font-bold">{progress.completed}/{progress.total}</p><p className="text-[10px] text-muted-foreground">entregas concluídas</p></div>
+    </div>
+    <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full transition-all" style={{ width: `${progress.progress}%`, backgroundColor: areaMeta[area].color }} /></div>
+    <div className="mt-4 grid gap-3 text-xs sm:grid-cols-[1fr_1fr_auto]"><div><p className="mono-label text-muted-foreground">Pendência principal</p><p className="mt-1 font-semibold">{pending[0] ?? 'Nenhuma pendência crítica'}</p>{pending.length > 1 && <p className="mt-1 text-[10px] text-muted-foreground">+ {pending.length - 1} outra(s) pendência(s)</p>}</div><div><p className="mono-label text-muted-foreground">Ação recomendada</p><p className="mt-1 font-semibold text-primary">{next}</p></div>{onOpenTool && <Button testId={`button-phase-action-${area}`} onClick={onOpenTool} className="self-end whitespace-nowrap">Abrir ferramenta <ArrowRight size={14} /></Button>}</div>
+  </section>;
+}
+
+function ExecutiveSummary({ statement, charter, pipeline, ishikawa, hypothesisStatuses, hypothesisNotes, hypothesisLinks, controlPhase, attachments, searchTerm, onExport, onLinkChange, onAttachmentAdd, onDuplicate }: { statement: string; charter: ProjectCharterDraft; pipeline: DmaicPipeline | null; ishikawa: DmaicAnalysisArtifactsIshikawa | null; hypothesisStatuses: HypothesisStatusMap; hypothesisNotes: HypothesisNotesMap; hypothesisLinks: HypothesisLinksMap; controlPhase: ControlPhase; attachments: AttachmentRecord[]; searchTerm: string; onExport: () => void; onLinkChange: (key: string, field: keyof HypothesisLink, value: string) => void; onAttachmentAdd: (file: File) => void; onDuplicate: () => void }) {
+  const [statusFilter, setStatusFilter] = useState<'Todos' | HypothesisStatus>('Todos');
+  const causes = Object.entries(ishikawa ?? {}).flatMap(([category, items]) => (Array.isArray(items) ? items : []).filter(Boolean).map((cause) => ({ category, cause })));
+  const hypotheses = causes.map((item) => ({ ...item, key: `${item.category}:${item.cause}`, status: hypothesisStatuses[`${item.category}:${item.cause}`] ?? 'Backlog', note: hypothesisNotes[`${item.category}:${item.cause}`] ?? '', link: hypothesisLinks[`${item.category}:${item.cause}`] ?? EMPTY_HYPOTHESIS_LINK })).filter((item) => statusFilter === 'Todos' || item.status === statusFilter).filter((item) => !searchTerm.trim() || `${item.category} ${item.cause} ${item.note} ${item.link.vitalX} ${item.link.test}`.toLowerCase().includes(searchTerm.toLowerCase()));
+  const actions = Array.isArray((pipeline as any)?.actionPlan) ? (pipeline as any).actionPlan as Partial<ActionPlanRow>[] : [];
+  const openActions = actions.filter((action) => !action.notes?.toLowerCase().includes('conclu')).length;
+  const alerts = [
+    ...actions.filter((action) => !action.who?.trim() || !action.when?.trim()).map(() => 'Ação sem responsável ou prazo'),
+    ...causes.filter((item) => !hypothesisNotes[`${item.category}:${item.cause}`]?.trim()).map((item) => `Hipótese sem evidência: ${item.cause}`),
+    ...(!controlPhase.evaluation ? ['Revisão de controle pendente'] : []),
+  ];
+  return <div className="space-y-6">
+    <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5"><div><p className="mono-label text-primary">Decisão em uma página</p><h2 className="mt-2 font-serif text-3xl font-bold tracking-tight">Resumo executivo</h2><p className="mt-2 max-w-2xl text-sm text-muted-foreground">O que sabemos, o que está sendo testado e o que precisa acontecer agora.</p></div><div className="flex flex-wrap gap-2"><Button testId="button-duplicate-project-model" onClick={onDuplicate} variant="outline"><Copy size={14} /> Duplicar como modelo</Button><Button testId="button-export-executive-report" onClick={onExport} variant="outline"><FileText size={14} /> Exportar relatório</Button></div></div>
+    {alerts.length > 0 && <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-950"><Info size={16} className="mt-0.5 shrink-0" /><div><p className="font-bold">Atenção necessária</p><ul className="mt-2 grid gap-1 sm:grid-cols-2">{alerts.slice(0, 6).map((alert, index) => <li key={`${alert}-${index}`}>• {alert}</li>)}</ul></div></div>}
+    <section className="panel rounded-xl p-5"><div className="flex items-start justify-between gap-3"><div><p className="mono-label text-primary">Problema do projeto</p><h3 className="mt-1 font-serif text-xl font-bold">O sinal que orienta a decisão</h3></div><StatusPill tone={statement ? 'green' : 'amber'}>{statement ? 'Definido' : 'Pendente'}</StatusPill></div><div className="mt-4 max-h-40 overflow-y-auto rounded-lg border border-border bg-background p-4 text-sm leading-7 text-foreground">{statement || 'Ainda não definido.'}</div></section>
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><div className="panel rounded-xl p-4"><p className="mono-label text-muted-foreground">Y / indicador</p><p className="mt-2 text-sm font-bold">{(pipeline as any)?.indicatorsY?.primaryMetricY ?? 'Não definido'}</p></div><div className="panel rounded-xl p-4"><p className="mono-label text-muted-foreground">Baseline</p><p className="mt-2 text-sm font-bold">{(pipeline as any)?.indicatorsY?.baseline ?? 'Não registrado'}</p></div><div className="panel rounded-xl p-4"><p className="mono-label text-muted-foreground">Hipóteses</p><p className="mt-2 font-serif text-2xl font-bold">{hypotheses.length}</p><p className="text-[11px] text-muted-foreground">no filtro atual</p></div><div className="panel rounded-xl p-4"><p className="mono-label text-muted-foreground">Ações abertas</p><p className="mt-2 font-serif text-2xl font-bold">{openActions}</p><p className="text-[11px] text-muted-foreground">plano de ação</p></div></div>
+    <section className="panel rounded-xl border-l-4 border-l-chart-3 p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="mono-label text-chart-3">Resultado atual</p><h3 className="mt-1 font-serif text-xl font-bold">Evidência pós-intervenção</h3></div><StatusPill tone={controlPhase.evaluation?.success ? 'green' : 'amber'}>{controlPhase.evaluation?.success ? 'Sucesso evidenciado' : 'Em validação'}</StatusPill></div><p className="mt-4 max-w-4xl text-sm leading-7 text-muted-foreground">{controlPhase.evaluation?.summary ?? 'Ainda não há uma avaliação pós-intervenção.'}</p></section>
+    <section className="panel rounded-xl p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="mono-label text-primary">Hipóteses e causas prioritárias</p><h3 className="mt-1 font-serif text-xl font-bold">O que está em movimento</h3></div><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'Todos' | HypothesisStatus)} className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold"><option>Todos</option>{(['Backlog', 'Próximo', 'Em teste', 'Comprovada', 'Rejeitada'] as HypothesisStatus[]).map((status) => <option key={status}>{status}</option>)}</select></div><div className="mt-4 divide-y divide-border">{hypotheses.length === 0 ? <p className="rounded-lg border border-dashed border-border p-4 text-xs text-muted-foreground">Nenhuma hipótese corresponde ao filtro atual.</p> : hypotheses.map((item) => <div key={item.key} className="py-4 first:pt-0 last:pb-0"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="mono-label text-muted-foreground">{item.category}</p><p className="mt-1 text-sm font-bold">{item.cause}</p><p className="mt-1 max-w-3xl text-xs text-muted-foreground">{item.note || 'Sem evidência registrada.'}</p></div><StatusPill tone={item.status === 'Comprovada' ? 'green' : item.status === 'Rejeitada' ? 'red' : item.status === 'Em teste' ? 'amber' : 'gray'}>{item.status}</StatusPill></div><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">{(['cause', 'vitalX', 'test', 'action', 'result'] as const).map((field) => <input key={field} value={field === 'cause' ? item.category : item.link[field]} onChange={(event) => field !== 'cause' && onLinkChange(item.key, field, event.target.value)} readOnly={field === 'cause'} placeholder={field === 'cause' ? 'Causa' : field === 'vitalX' ? 'X vital' : field === 'test' ? 'Teste' : field === 'action' ? 'Ação' : 'Resultado'} className="rounded border border-border bg-background px-2.5 py-2 text-[11px] outline-none focus:border-primary/60" />)}</div></div>)}</div></section>
+    <section className="panel rounded-xl p-5"><p className="mono-label text-primary">Trilha de rastreabilidade</p><h3 className="mt-1 font-serif text-xl font-bold">Da causa ao resultado</h3><div className="mt-4 overflow-x-auto pb-2"><div className="flex min-w-[760px] items-center gap-2 text-center text-xs">{['Causa', 'Hipótese', 'Teste', 'Decisão', 'Ação', 'Resultado'].map((step, index) => <div key={step} className="flex flex-1 items-center gap-2"><div className="min-w-0 flex-1 rounded-lg border border-primary/20 bg-primary/5 p-3 font-bold">{step}<span className="mt-1 block text-[10px] font-normal text-muted-foreground">{index === 0 ? causes.length : index === 1 ? hypotheses.length : index === 4 ? openActions : index === 5 ? (controlPhase.evaluation ? 'Disponível' : 'Pendente') : 'A registrar'}</span></div>{index < 5 && <ArrowRight size={14} className="shrink-0 text-primary" />}</div>)}</div></div></section>
+    <section className="panel rounded-xl p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="mono-label text-primary">Evidências e anexos</p><p className="mt-1 text-xs text-muted-foreground">Ata, imagem, documento ou arquivo usado pela equipe.</p></div><label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs font-bold"><CloudUpload size={14} /> Adicionar anexo<input type="file" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) onAttachmentAdd(file); }} /></label></div>{attachments.length ? <ul className="mt-3 space-y-1 text-xs text-muted-foreground">{attachments.map((item, index) => <li key={`${item.name}-${index}`}>{item.name} · {Math.ceil(item.size / 1024)} KB</li>)}</ul> : <p className="mt-3 rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">Nenhum anexo nesta sessão.</p>}</section>
+  </div>;
+}
+
+function ProjectRecordsPanel({ decisions, history, onDecisionsChange, onSave }: { decisions: ProjectDecision[]; history: ArtifactHistoryEntry[]; onDecisionsChange: (value: ProjectDecision[]) => void; onSave: () => void }) {
+  const updateDecision = (index: number, field: keyof ProjectDecision, value: string) => onDecisionsChange(decisions.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item));
+  return <section data-testid="panel-project-records" className="panel space-y-5 rounded-xl p-5">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="mono-label text-primary">Governança da decisão</p><h3 className="mt-1 font-serif text-lg font-bold">Decisões e histórico</h3><p className="mt-1 text-xs text-muted-foreground">Registre por que uma decisão foi tomada e quais evidências sustentam o caminho.</p></div><div className="flex gap-2"><Button testId="button-add-decision" onClick={() => onDecisionsChange([...decisions, { ...EMPTY_PROJECT_DECISION, date: new Date().toISOString().slice(0, 10) }])}><Plus size={14} /> Registrar decisão</Button><Button testId="button-save-project-records" onClick={onSave} variant="outline"><Save size={14} /> Salvar registros</Button></div></div>
+    {decisions.length === 0 ? <div className="rounded-lg border border-dashed border-border p-4 text-xs text-muted-foreground">Ainda não há decisões registradas. Adicione a primeira decisão da equipe.</div> : <div className="space-y-3">{decisions.map((decision, index) => <div key={index} className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-2"><textarea value={decision.decision} onChange={(event) => updateDecision(index, 'decision', event.target.value)} placeholder="Decisão" rows={2} className="rounded border border-border bg-background p-2 text-xs sm:col-span-2" /><input value={decision.owner} onChange={(event) => updateDecision(index, 'owner', event.target.value)} placeholder="Responsável" className="rounded border border-border bg-background p-2 text-xs" /><input type="date" value={decision.date} onChange={(event) => updateDecision(index, 'date', event.target.value)} className="rounded border border-border bg-background p-2 text-xs" /><textarea value={decision.evidence} onChange={(event) => updateDecision(index, 'evidence', event.target.value)} placeholder="Evidência" rows={2} className="rounded border border-border bg-background p-2 text-xs" /><textarea value={decision.impact} onChange={(event) => updateDecision(index, 'impact', event.target.value)} placeholder="Impacto esperado" rows={2} className="rounded border border-border bg-background p-2 text-xs" /></div>)}</div>}
+    <div><p className="mono-label text-muted-foreground">Histórico de alterações</p>{history.length === 0 ? <p className="mt-2 text-xs text-muted-foreground">Nenhuma alteração registrada ainda.</p> : <ul className="mt-2 space-y-1 text-xs text-muted-foreground">{history.slice(-6).reverse().map((entry, index) => <li key={`${entry.date}-${index}`}><strong>{entry.artifact}</strong> · {entry.action} · {new Intl.DateTimeFormat('pt-BR').format(new Date(entry.date))} · {entry.detail}</li>)}</ul>}</div>
+  </section>;
+}
+
+function SprintView({
+  area,
+  onOpenTool,
+  ishikawa,
+  hypothesisStatuses,
+  hypothesisNotes,
+  onHypothesisNoteChange,
+  hypothesisValidationError,
+  projectDecisions,
+  artifactHistory,
+  onProjectDecisionsChange,
+  onSaveProjectRecords,
+  onHypothesisStatusChange,
+  onSaveHypotheses,
+  hypothesesDirty,
+  hypothesesSaved,
+  phaseProgress,
+  onChangeVital,
+  vitalId,
+  inputDataset,
+  inputAnalysis,
+  inputError,
+  analysisMonths,
+  onAnalysisMonthsChange,
+  selectedIndicator,
+  onSelectedIndicatorChange,
+  diagnosis,
+  diagnosisInput,
+  onDiagnosisChange,
+  onSaveAnalysis,
+  onUpload,
+  inputRef,
+  activeProjectName,
+  pipeline,
+  causeAndEffectMatrix,
+  solutionPrioritizationMatrix,
+  setCauseAndEffectMatrix,
+  setSolutionPrioritizationMatrix,
+  onSaveMatrices,
+  onExportMeasurementPdf,
+}: {
+  area: 'definition' | 'measurement' | 'aic' | 'control';
+  onOpenTool: (tool: Tool) => void;
+  ishikawa: DmaicAnalysisArtifactsIshikawa | null;
+  hypothesisStatuses: HypothesisStatusMap;
+  hypothesisNotes: HypothesisNotesMap;
+  onHypothesisNoteChange: (key: string, note: string) => void;
+  hypothesisValidationError: string | null;
+  projectDecisions: ProjectDecision[];
+  artifactHistory: ArtifactHistoryEntry[];
+  onProjectDecisionsChange: (value: ProjectDecision[]) => void;
+  onSaveProjectRecords: () => void;
+  onHypothesisStatusChange: (key: string, status: HypothesisStatus) => void;
+  onSaveHypotheses: () => void;
+  hypothesesDirty: boolean;
+  hypothesesSaved: boolean;
+  phaseProgress: PhaseProgress;
+  onChangeVital: (id: string) => void;
+  vitalId: string;
+  inputDataset: InputDataset | null;
+  inputAnalysis: IndicatorAnalysis | null;
+  inputError: string | null;
+  analysisMonths: number;
+  onAnalysisMonthsChange: (months: number) => void;
+  selectedIndicator: string;
+  onSelectedIndicatorChange: (indicator: string) => void;
+  diagnosis: string | null;
+  diagnosisInput: DmaicExploratoryDiagnosisInput | null;
+  onDiagnosisChange: (diagnosis: string | null, input: DmaicExploratoryDiagnosisInput) => void;
+  onSaveAnalysis: () => void;
+  onUpload: (event: ChangeEvent<HTMLInputElement>) => void;
+  inputRef: { current: HTMLInputElement | null };
+  activeProjectName: string;
+  pipeline: DmaicPipeline | null;
+  causeAndEffectMatrix: any;
+  solutionPrioritizationMatrix: any;
+  setCauseAndEffectMatrix: (val: any) => void;
+  setSolutionPrioritizationMatrix: (val: any) => void;
+  onSaveMatrices: (causeData?: any, solData?: any) => void;
+  onExportMeasurementPdf: () => void;
+}) {
   const meta = areaMeta[area];
   const selectedVital = vitalXs.find((vital) => vital.id === vitalId) ?? vitalXs[0];
-  return <div className="space-y-7">
-    <div className="reveal flex flex-wrap items-end justify-between gap-4"><div><p className="mono-label mb-2" style={{ color: meta.color }}>{meta.kicker}</p><h2 className="font-serif text-3xl font-bold tracking-tight sm:text-4xl">{meta.label}</h2><p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">{meta.description}</p></div><div className="flex items-center gap-2"><StatusPill tone="green">Em andamento</StatusPill><button data-testid="button-sprint-options" onClick={() => onOpenTool(tools[area][0])} className="rounded-lg border border-border bg-card p-2 text-muted-foreground hover:text-foreground"><MoreHorizontal size={17} /></button></div></div>
-    {area === 'measurement' && <div className="reveal-2 panel flex flex-wrap items-center justify-between gap-4 rounded-xl border-l-4 border-l-chart-3 p-4"><div className="flex items-center gap-3"><IconBadge icon={Gauge} tone="chart-3" /><div><p className="text-sm font-bold">Indicador Y em foco</p><p className="mt-0.5 text-xs text-muted-foreground">Tempo total até aprovação · <span className="font-bold text-foreground">12,8 min</span> mediana</p></div></div><div className="flex items-center gap-2"><label htmlFor="vital-select" className="mono-label text-muted-foreground">Vital X</label><select id="vital-select" data-testid="select-vital-x" value={vitalId} onChange={(event) => onChangeVital(event.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold outline-none focus:border-primary/50">{vitalXs.map((vital) => <option key={vital.id} value={vital.id}>{vital.label}</option>)}</select></div></div>}
-    {area === 'measurement' && <div className="reveal-3 panel rounded-xl p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="mono-label text-chart-3">Vital X selecionado</p><h3 className="mt-2 font-serif text-xl font-bold">{selectedVital.label}</h3><p className="mt-1 text-xs text-muted-foreground">{selectedVital.note} · janela de 30 dias</p></div><div className="text-right"><p className="font-serif text-2xl font-bold">{selectedVital.value}</p><p className="mt-1 text-[11px] font-bold text-primary">{selectedVital.delta} vs. baseline</p></div></div><div className="mt-5 grid h-14 grid-cols-12 items-end gap-1.5 border-b border-border pb-0 sm:grid-cols-24">{[30,36,34,42,38,45,40,49,46,54,51,48,58,53,56,62,59,64,57,68,61,65,72,66].map((height, index) => <div key={index} className="rounded-t-sm bg-chart-3/60 transition-all hover:bg-chart-3" style={{ height: `${height}%` }} />)}</div><div className="mt-2 flex justify-between mono-label text-muted-foreground"><span>01 mai</span><span>30 mai</span></div></div>}
-     {area === 'definition' && <InputDataPanel dataset={inputDataset} analysis={inputAnalysis} error={inputError} months={analysisMonths} onMonthsChange={onAnalysisMonthsChange} selectedIndicator={selectedIndicator} onIndicatorChange={onSelectedIndicatorChange} diagnosis={diagnosis} onDiagnosisChange={onDiagnosisChange} onSaveAnalysis={onSaveAnalysis} onUpload={onUpload} inputRef={inputRef} activeProjectName={activeProjectName} />}
-    <div className="reveal-2"><SectionHeading eyebrow={area === 'definition' ? 'Entregáveis de enquadramento' : area === 'measurement' ? 'Entregáveis de evidência' : 'Entregáveis de mudança'} title={area === 'definition' ? 'Dê nome ao problema certo' : area === 'measurement' ? 'Meça sem adivinhar' : 'Faça a solução pegar'} /></div>
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{tools[area].map((tool) => <ToolCard key={tool.id} tool={tool} onOpen={onOpenTool} />)}</div>
-    {area === 'aic' && <div className="reveal-4 grid gap-4 lg:grid-cols-[1.1fr_.9fr]"><div className="panel rounded-xl p-5"><div className="flex items-center justify-between"><div><p className="mono-label text-chart-4">Hipóteses em teste</p><h3 className="mt-2 font-serif text-lg font-bold">Do provável ao comprovado</h3></div><TestTube2 size={18} className="text-chart-4" /></div><div className="mt-5 space-y-4">{[{ name: 'H1 · Padronização da triagem', status: 'Em teste', pct: 68 }, { name: 'H2 · Regra de aprovação automática', status: 'Próximo', pct: 32 }, { name: 'H3 · Balanceamento da célula', status: 'Backlog', pct: 12 }].map((item) => <div key={item.name}><div className="flex justify-between gap-3 text-xs"><span className="font-semibold">{item.name}</span><span className="mono-label text-muted-foreground">{item.status}</span></div><div className="mt-2 h-1.5 rounded-full bg-muted"><div className="h-full rounded-full bg-chart-4" style={{ width: `${item.pct}%` }} /></div></div>)}</div></div><div className="panel rounded-xl bg-accent/10 p-5"><p className="mono-label text-accent-foreground">Próximo checkpoint</p><h3 className="mt-2 font-serif text-lg font-bold">Review de controle</h3><p className="mt-2 text-xs leading-relaxed text-muted-foreground">Quinta, 06 jun · 14:30<br />Validar plano de reação e dono do SOP.</p><Button testId="button-schedule-review" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} variant="dark" className="mt-5">Abrir agenda <ArrowRight size={14} /></Button></div></div>}
-  </div>;
+  const hypotheses = ishikawa
+    ? Object.entries(ishikawa).flatMap(([category, causes]) =>
+        (Array.isArray(causes) ? causes : [])
+          .map((cause) => cause.trim())
+          .filter(Boolean)
+            .map((cause) => ({ key: `${category}:${cause}`, name: `${category} · ${cause}` }))
+      )
+    : [];
+  return (
+    <div className="space-y-7">
+      <div className="reveal flex flex-wrap items-end justify-between gap-4">
+        <div>
+          {meta.kicker && <p className="mono-label mb-2" style={{ color: meta.color }}>{meta.kicker}</p>}
+          <h2 className="font-serif text-3xl font-bold tracking-tight sm:text-4xl">{meta.label}</h2>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">{meta.description}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <StatusPill tone="green">Em andamento</StatusPill>
+          <button data-testid="button-sprint-options" onClick={() => onOpenTool(tools[area][0])} className="rounded-lg border border-border bg-card p-2 text-muted-foreground hover:text-foreground">
+            <MoreHorizontal size={17} />
+          </button>
+        </div>
+      </div>
+
+      <PhaseSummary area={area} progress={phaseProgress} onOpenTool={() => onOpenTool(tools[area][0])} />
+      {area === 'measurement' && <div className="reveal-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4"><div><p className="mono-label text-primary">Relatório da Medição</p><p className="mt-1 text-xs text-muted-foreground">Exporte todos os artefatos dinâmicos da fase, incluindo o mapa de processos.</p></div><Button testId="button-export-measurement-pdf" onClick={onExportMeasurementPdf} variant="outline"><FileText size={14} /> Exportar Medição em PDF</Button></div>}
+
+      {area === 'measurement' && (
+        <div className="reveal-2 panel flex flex-wrap items-center justify-between gap-4 rounded-xl border-l-4 border-l-chart-3 p-4">
+          <div className="flex items-center gap-3">
+            <IconBadge icon={Gauge} tone="chart-3" />
+            <div>
+              <p className="text-sm font-bold">Indicador Y em foco</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Tempo total até aprovação · <span className="font-bold text-foreground">12,8 min</span> mediana</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <label htmlFor="vital-select" className="mono-label text-muted-foreground">Vital X</label>
+            <select id="vital-select" data-testid="select-vital-x" value={vitalId} onChange={(event) => onChangeVital(event.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold outline-none focus:border-primary/50">
+              {vitalXs.map((vital) => <option key={vital.id} value={vital.id}>{vital.label}</option>)}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {area === 'measurement' && (
+        <div className="reveal-3 panel rounded-xl p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="mono-label text-chart-3">Vital X selecionado</p>
+              <h3 className="mt-2 font-serif text-xl font-bold">{selectedVital.label}</h3>
+              <p className="mt-1 text-xs text-muted-foreground">{selectedVital.note} · janela de 30 dias</p>
+            </div>
+            <div className="text-right">
+              <p className="font-serif text-2xl font-bold">{selectedVital.value}</p>
+              <p className="mt-1 text-[11px] font-bold text-primary">{selectedVital.delta} vs. baseline</p>
+            </div>
+          </div>
+          <div className="mt-5 grid h-14 grid-cols-12 items-end gap-1.5 border-b border-border pb-0 sm:grid-cols-24">
+            {[30, 36, 34, 42, 38, 45, 40, 49, 46, 54, 51, 48, 58, 53, 56, 62, 59, 64, 57, 68, 61, 65, 72, 66].map((height, index) => (
+              <div key={index} className="rounded-t-sm bg-chart-3/60 transition-all hover:bg-chart-3" style={{ height: `${height}%` }} />
+            ))}
+          </div>
+          <div className="mt-2 flex justify-between mono-label text-muted-foreground">
+            <span>01 mai</span>
+            <span>30 mai</span>
+          </div>
+        </div>
+      )}
+
+      {area === 'definition' && (
+        <InputDataPanel
+          dataset={inputDataset}
+          analysis={inputAnalysis}
+          error={inputError}
+          months={analysisMonths}
+          onMonthsChange={onAnalysisMonthsChange}
+          selectedIndicator={selectedIndicator}
+          onIndicatorChange={onSelectedIndicatorChange}
+          diagnosis={diagnosis}
+          diagnosisInput={diagnosisInput}
+          onDiagnosisChange={onDiagnosisChange}
+          onSaveAnalysis={onSaveAnalysis}
+          onUpload={onUpload}
+          inputRef={inputRef}
+          activeProjectName={activeProjectName}
+        />
+      )}
+
+      <div className="reveal-2">
+        <SectionHeading
+          eyebrow={area === 'definition' ? 'Entregáveis de enquadramento' : area === 'measurement' ? 'Entregáveis de evidência' : 'Entregáveis de mudança'}
+          title={area === 'definition' ? 'Dê nome ao problema certo' : area === 'measurement' ? 'Meça sem adivinhar' : 'Faça a solução pegar'}
+        />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {tools[area].map((tool) => <ToolCard key={tool.id} tool={tool} onOpen={onOpenTool} />)}
+      </div>
+
+      {area === 'aic' && (
+  <div className="reveal-3 mt-6">
+    <Sprint3Matrices
+      initialCauseAndEffect={causeAndEffectMatrix ?? (pipeline as any)?.causeAndEffectMatrix}
+      initialEffortImpact={(pipeline as any)?.effortImpactMatrix}
+      initialSolutions={solutionPrioritizationMatrix ?? (pipeline as any)?.solutionPrioritizationMatrix}
+      onChangeCauseAndEffect={(data) => {
+        // Atualiza o estado global imediatamente a cada alteração ou inclusão de linha
+        setCauseAndEffectMatrix(data);
+      }}
+      onChangeSolutions={(data) => {
+        setSolutionPrioritizationMatrix(data);
+      }}
+      onSave={(causeData, solData) => {
+        const finalCauseData = causeData ?? causeAndEffectMatrix;
+        const finalSolData = solData ?? solutionPrioritizationMatrix;
+
+        if (finalCauseData) setCauseAndEffectMatrix(finalCauseData);
+        if (finalSolData) setSolutionPrioritizationMatrix(finalSolData);
+        
+        // Dispara o salvamento para a BD enviando as causas atualizadas
+        onSaveMatrices(finalCauseData, finalSolData);
+      }}
+    />
+  </div>
+)}
+
+      {area === 'aic' && (
+        <div className="reveal-4 grid gap-4 lg:grid-cols-[1.1fr_.9fr]">
+          <div className="panel rounded-xl p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="mono-label text-chart-4">Hipóteses em teste</p>
+                <h3 className="mt-2 font-serif text-lg font-bold">Do provável ao comprovado</h3>
+              </div>
+              <div className="flex items-center gap-1">
+                <ArtifactStatusBadge status={hypothesesDirty ? 'edited' : hypothesesSaved ? 'validated' : hypotheses.length ? 'ai' : 'edited'} />
+                {hypothesesDirty || hypothesesSaved ? <button type="button" data-testid="button-save-hypotheses" onClick={onSaveHypotheses} disabled={!hypothesesDirty} className="rounded-lg border border-border px-2 py-1.5 text-[10px] font-bold text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50">{hypothesesSaved && !hypothesesDirty ? 'Salvo' : 'Salvar'}</button> : null}
+                <button
+                  type="button"
+                  data-testid="button-edit-hypotheses"
+                  aria-label="Editar hipóteses"
+                  title="Editar hipóteses"
+                  onClick={() => onOpenTool(tools.aic[0])}
+                  className="rounded-lg p-2 text-chart-4 transition-colors hover:bg-chart-4/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chart-4/50"
+                >
+                  <Pencil size={18} />
+                </button>
+              </div>
+            </div>
+            <div className="mt-5 space-y-4">
+              {(hypotheses.length ? hypotheses : [{ key: 'empty', name: 'Nenhuma causa registrada na matriz Ishikawa' }]).map((item, index) => {
+                const status = hypothesisStatuses[item.key] ?? 'Backlog';
+                const progress = { Backlog: 12, 'Próximo': 32, 'Em teste': 68, Comprovada: 100, Rejeitada: 0 }[status];
+                return <div key={item.key}>
+                  <div className="flex justify-between gap-3 text-xs">
+                    <span className="font-semibold">{hypotheses.length ? `H${index + 1} · ${item.name}` : item.name}</span>
+                    {hypotheses.length && <div className="flex items-center gap-2">{status === 'Comprovada' && <ArtifactStatusBadge status="approved" />}<select aria-label={`Status de H${index + 1}`} data-testid={`select-hypothesis-status-${index}`} value={status} onChange={(event) => onHypothesisStatusChange(item.key, event.target.value as HypothesisStatus)} className="rounded border border-border bg-background px-1.5 py-1 mono-label text-muted-foreground outline-none focus:border-primary/60">
+                      {(['Backlog', 'Próximo', 'Em teste', 'Comprovada', 'Rejeitada'] as HypothesisStatus[]).map((status) => <option key={status} value={status}>{status}</option>)}
+                    </select></div>}
+                  </div>
+                  <div className="mt-2 h-1.5 rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-chart-4" style={{ width: `${hypotheses.length ? progress : 0}%` }} />
+                  </div>
+                  {hypotheses.length > 0 && <textarea aria-label={`Evidência de H${index + 1}`} value={hypothesisNotes[item.key] ?? ''} onChange={(event) => onHypothesisNoteChange(item.key, event.target.value)} placeholder="Evidência ou nota da equipe" rows={2} className="mt-2 w-full resize-y rounded-lg border border-border bg-background px-2.5 py-2 text-[11px] outline-none focus:border-primary/60" />}
+                </div>;
+              })}
+            </div>
+                {hypothesisValidationError && <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">{hypothesisValidationError}</p>}
+          </div>
+          <div className="panel rounded-xl bg-accent/10 p-5">
+            <p className="mono-label text-accent-foreground">Próximo checkpoint</p>
+            <h3 className="mt-2 font-serif text-lg font-bold">Review de controle</h3>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              Quinta, 06 jun · 14:30<br />Validar plano de reação e dono do SOP.
+            </p>
+            <Button testId="button-checkpoint-actions" onClick={() => onOpenTool(tools.aic.find((tool) => tool.id === 'solutions') ?? tools.aic[0])} variant="dark" className="mt-5">
+              Abrir ações do checkpoint <ClipboardCheck size={14} />
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ExploratoryLineChart({ summary, indicator }: { summary: ExploratorySummary; indicator: string }) {
@@ -1118,11 +1562,14 @@ function ExploratoryBoxPlot({ summary, indicator }: { summary: ExploratorySummar
   </div>;
 }
 
-function ExploratoryAnalysisPanel({ dataset, analysis, months, diagnosis, onDiagnosisChange, activeProjectName }: { dataset: InputDataset; analysis: IndicatorAnalysis; months: number; diagnosis: string | null; onDiagnosisChange: (diagnosis: string | null, input: DmaicExploratoryDiagnosisInput) => void; activeProjectName: string }) {
+function ExploratoryAnalysisPanel({ dataset, analysis, months, diagnosis, diagnosisInput, onDiagnosisChange, activeProjectName }: { dataset: InputDataset; analysis: IndicatorAnalysis; months: number; diagnosis: string | null; diagnosisInput: DmaicExploratoryDiagnosisInput | null; onDiagnosisChange: (diagnosis: string | null, input: DmaicExploratoryDiagnosisInput) => void; activeProjectName: string }) {
   const summary = buildExploratorySummary(dataset, analysis, months);
   const diagnosisMutation = useRunDmaicExploratoryDiagnosis();
   const diagnosisPoints = summary ? samplePointsForDiagnosis(summary.points) : [];
   const diagnosisIsSampled = diagnosisPoints.length < (summary?.points.length ?? 0);
+  const diagnosisStatus: ArtifactStatus | null = diagnosis
+    ? diagnosisMatchesCurrentAnalysis(diagnosis, diagnosisInput, analysis.indicator, summary) ? 'ai' : 'stale'
+    : null;
   const analysisKey = `${dataset.fileName}:${analysis.indicator}:${months}:${summary?.points.map((point) => `${point.period}:${point.value}`).join('|') ?? ''}`;
   useEffect(() => {
     diagnosisMutation.reset();
@@ -1158,8 +1605,8 @@ function ExploratoryAnalysisPanel({ dataset, analysis, months, diagnosis, onDiag
   });
   return <section data-testid="panel-exploratory-analysis" className="mt-5 rounded-xl border border-primary/15 bg-primary/5 p-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><p className="mono-label text-primary">Análise exploratória</p><h3 className="mt-1 font-serif text-xl font-bold">Análise Exploratória & Estatística Descritiva</h3><p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-muted-foreground">Leitura da série atual, calculada localmente a partir de {summary.points.length} observações de <strong>{analysis.indicator}</strong>.</p></div>
-      <div className="flex items-center gap-2"><StatusPill tone="green">Dados do CSV · local</StatusPill><Button testId="button-export-exploratory-analysis" variant="outline" onClick={() => exportExploratoryPdf(summary, analysis.indicator, diagnosisMutation.data?.diagnosis ?? diagnosis, activeProjectName)}><FileText size={14} /> Exportar visão</Button></div>
+    <div><p className="mono-label text-primary">Análise exploratória</p><h3 className="mt-1 font-serif text-xl font-bold">Análise Exploratória & Estatística Descritiva</h3><p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-muted-foreground">Leitura da série atual, calculada localmente a partir de {summary.points.length} observações de <strong>{analysis.indicator}</strong>.</p></div>
+    <div className="flex items-center gap-2">{diagnosisStatus && <ArtifactStatusBadge status={diagnosisStatus} />}<StatusPill tone="green">Dados do CSV · local</StatusPill><Button testId="button-export-exploratory-analysis" variant="outline" onClick={() => exportExploratoryPdf(summary, analysis.indicator, diagnosisMutation.data?.diagnosis ?? diagnosis, activeProjectName)}><FileText size={14} /> Exportar visão</Button></div>
     </div>
     <div className="mt-5 grid gap-3 xl:grid-cols-[1.35fr_.85fr]"><ExploratoryLineChart summary={summary} indicator={analysis.indicator} /><ExploratoryBoxPlot summary={summary} indicator={analysis.indicator} /></div>
     <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
@@ -1180,40 +1627,40 @@ function ExploratoryAnalysisPanel({ dataset, analysis, months, diagnosis, onDiag
     </div>
     <div data-testid="text-exploratory-shapiro-detail" className="mt-3 rounded-xl border border-border bg-background p-4"><p className="text-xs font-bold">Teste de normalidade</p><p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{summary.shapiroDetail}{summary.shapiroPValue !== null && ` · ${summary.shapiroPValue >= 0.05 ? 'Não há evidência suficiente para rejeitar normalidade.' : 'Há evidência de desvio da normalidade.'}`}</p></div>
     <div className="mt-4 rounded-xl border border-primary/20 bg-background p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="mono-label text-primary">Diagnóstico detalhado com IA</p><p className="mt-1 text-xs text-muted-foreground">Peça ao Gemini uma leitura completa de tendência, estabilidade, distribuição, normalidade e próximos passos do DMAIC.</p>{diagnosisIsSampled && <p className="mt-1 text-[11px] text-muted-foreground">Para manter a leitura focada, o Gemini recebe uma amostra cronológica de {DIAGNOSIS_POINT_LIMIT} pontos; os gráficos e estatísticas usam todas as {summary.points.length} observações.</p>}</div><Button testId="button-generate-exploratory-diagnosis" onClick={runDiagnosis} disabled={diagnosisMutation.isPending || diagnosisPoints.length < 2} variant="outline">{diagnosisMutation.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}{diagnosisMutation.isPending ? 'Analisando...' : 'Gerar diagnóstico detalhado'}</Button></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="mono-label text-primary">Diagnóstico detalhado da Suíte</p><p className="mt-1 text-xs text-muted-foreground">Peça ao Gemini uma leitura completa de tendência, estabilidade, distribuição, normalidade e próximos passos do DMAIC.</p>{diagnosisIsSampled && <p className="mt-1 text-[11px] text-muted-foreground">Para manter a leitura focada, o Gemini recebe uma amostra cronológica de {DIAGNOSIS_POINT_LIMIT} pontos; os gráficos e estatísticas usam todas as {summary.points.length} observações.</p>}</div><Button testId="button-generate-exploratory-diagnosis" onClick={runDiagnosis} disabled={diagnosisMutation.isPending || diagnosisPoints.length < 2} variant="outline">{diagnosisMutation.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}{diagnosisMutation.isPending ? 'Analisando...' : 'Gerar diagnóstico detalhado'}</Button></div>
       {diagnosisMutation.isError && <p data-testid="status-exploratory-diagnosis-error" className="mt-3 rounded-lg bg-destructive/5 p-3 text-xs text-destructive">{diagnosisMutation.error instanceof Error ? diagnosisMutation.error.message.replace(/^HTTP \d+ [^:]+:\s*/, '') : 'Não foi possível obter o diagnóstico textual agora. A análise estatística local continua disponível.'}</p>}
       {(diagnosisMutation.data?.diagnosis ?? diagnosis) && <div data-testid="text-exploratory-diagnosis" className="mt-4 max-w-none overflow-visible whitespace-pre-wrap break-words border-t border-border pt-4 text-sm leading-relaxed text-muted-foreground"><p className="mb-3 text-xs font-bold text-foreground">Leitura detalhada do comportamento da série</p>{(diagnosisMutation.data?.diagnosis ?? diagnosis)?.split(/\n{2,}/).map((paragraph, index) => <p key={index} className="mb-3 last:mb-0">{paragraph.trim()}</p>)}</div>}
     </div>
   </section>;
 }
 
-function InputDataPanel({ dataset, analysis, error, months, onMonthsChange, selectedIndicator, onIndicatorChange, diagnosis, onDiagnosisChange, onSaveAnalysis, onUpload, inputRef, activeProjectName }: { dataset: InputDataset | null; analysis: IndicatorAnalysis | null; error: string | null; months: number; onMonthsChange: (months: number) => void; selectedIndicator: string; onIndicatorChange: (indicator: string) => void; diagnosis: string | null; onDiagnosisChange: (diagnosis: string | null, input: DmaicExploratoryDiagnosisInput) => void; onSaveAnalysis: () => void; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; inputRef: { current: HTMLInputElement | null }; activeProjectName: string }) {
+function InputDataPanel({ dataset, analysis, error, months, onMonthsChange, selectedIndicator, onIndicatorChange, diagnosis, diagnosisInput, onDiagnosisChange, onSaveAnalysis, onUpload, inputRef, activeProjectName }: { dataset: InputDataset | null; analysis: IndicatorAnalysis | null; error: string | null; months: number; onMonthsChange: (months: number) => void; selectedIndicator: string; onIndicatorChange: (indicator: string) => void; diagnosis: string | null; diagnosisInput: DmaicExploratoryDiagnosisInput | null; onDiagnosisChange: (diagnosis: string | null, input: DmaicExploratoryDiagnosisInput) => void; onSaveAnalysis: () => void; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; inputRef: { current: HTMLInputElement | null }; activeProjectName: string }) {
   return <section data-testid="panel-input-data" className="reveal-4 panel rounded-xl border-dashed p-5">
     <div className="flex flex-wrap items-start justify-between gap-4">
-      <div className="flex items-start gap-3"><IconBadge icon={CloudUpload} tone="accent" /><div><p className="mono-label text-accent-foreground">Entrada da Sprint 1</p><h3 className="mt-1.5 text-sm font-bold">Dados para análise</h3><p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">{dataset ? `${dataset.fileName} · ${dataset.rows.length} linhas · ${dataset.headers.length} colunas` : 'Carregue um CSV para selecionar o indicador e medir o comportamento do processo.'}</p></div></div>
+      <div className="flex items-start gap-3"><IconBadge icon={CloudUpload} tone="accent" /><div><p className="mono-label text-accent-foreground">Entrada da Definição</p><h3 className="mt-1.5 text-sm font-bold">Dados para análise</h3><p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">{dataset ? `${dataset.fileName} · ${dataset.rows.length} linhas · ${dataset.headers.length} colunas` : 'Ainda não há dados. Comece carregando um CSV para selecionar o indicador e medir o comportamento do processo.'}</p></div></div>
       <div className="flex flex-wrap items-center gap-2">
         {dataset && <Button testId="button-export-input-data" variant="outline" onClick={() => exportInputDataPdf(dataset, analysis, months, diagnosis, activeProjectName)}><FileText size={14} /> Exportar visão</Button>}
         <label data-testid="button-upload-csv" className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-bold transition-colors hover:border-primary/45 hover:bg-primary/5"><Upload size={14} /> {dataset ? 'Trocar CSV' : 'Carregar CSV'}<input ref={inputRef} data-testid="input-upload-csv" type="file" accept=".csv,text/csv" onChange={onUpload} className="sr-only" /></label>
       </div>
     </div>
-    {dataset && <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/15 bg-primary/5 px-3.5 py-3"><p className="text-[11px] leading-relaxed text-muted-foreground"><Check size={13} className="mr-1.5 inline-block align-[-2px] text-primary" /> Esta análise é salva automaticamente no Neon após o upload e as alterações dos parâmetros.</p><Button testId="button-save-analysis" onClick={onSaveAnalysis} variant="outline"><Save size={14} /> Salvar análise agora</Button></div>}
+    {dataset && <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/15 bg-primary/5 px-3.5 py-3"><p className="text-[11px] leading-relaxed text-muted-foreground"><Check size={13} className="mr-1.5 inline-block align-[-2px] text-primary" /> Esta análise é salva automaticamente no Repositório após o upload e as alterações dos parâmetros.</p><Button testId="button-save-analysis" onClick={onSaveAnalysis} variant="outline"><Save size={14} /> Salvar análise agora</Button></div>}
     {error && <div data-testid="status-input-data-error" className="mt-4 flex gap-3 rounded-xl border border-destructive/25 bg-destructive/5 p-4 text-xs text-destructive"><Info size={16} className="mt-0.5 shrink-0" /><p>{error}</p></div>}
     {dataset && <div className="mt-5 grid gap-3 rounded-xl border border-border bg-background/60 p-4 md:grid-cols-[1fr_150px]">
       <label className="block"><span className="mb-1.5 block text-[11px] font-bold text-muted-foreground">Indicador a analisar</span><select data-testid="select-analysis-indicator" value={selectedIndicator} onChange={(event) => onIndicatorChange(event.target.value)} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-xs font-bold outline-none focus:border-primary/60">{dataset.indicatorColumns.map((indicator) => <option key={indicator} value={indicator}>{indicator}</option>)}</select></label>
       <label className="block"><span className="mb-1.5 block text-[11px] font-bold text-muted-foreground">Últimos N meses</span><input data-testid="input-analysis-months" type="number" min="1" max="120" value={months} onChange={(event) => onMonthsChange(Math.min(120, Math.max(1, Number(event.target.value) || 1)))} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-xs font-bold outline-none focus:border-primary/60" /></label>
-     </div>}
+    </div>}
     {dataset && analysis && <div data-testid="panel-analysis-summary" className="mt-4 rounded-xl border border-primary/15 bg-primary/5 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="mono-label text-primary">Resumo do indicador</p><h4 className="mt-1 text-sm font-bold">{analysis.indicator}</h4></div><div className="flex items-center gap-2"><StatusPill tone="green">{analysis.kind === 'continuous' ? 'Contínuo' : 'Discreto'}</StatusPill><span data-testid="text-analysis-rows" className="mono-label text-muted-foreground">{analysis.rows} observações · {dataset.dateColumn ? `últimos ${months} meses` : 'sem coluna de período'}</span></div></div>
       {analysis.kind === 'continuous' ? <><div className="mt-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">{[['Média', analysis.mean, 'stat-analysis-mean'], ['Mediana', analysis.median, 'stat-analysis-median'], ['Mínimo', analysis.minimum, 'stat-analysis-min'], ['Máximo', analysis.maximum, 'stat-analysis-max'], ['Desvio-padrão', analysis.standardDeviation, 'stat-analysis-standard-deviation']].map(([label, value, testId]) => <div key={String(label)} data-testid={String(testId)} className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">{label}</p><p className="mt-1 font-mono text-sm font-bold">{formatMetric(Number(value))}</p></div>)}<div data-testid="stat-analysis-normality" className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Normalidade</p><p className={`mt-1 text-xs font-bold ${analysis.normality === 'Não normal' ? 'text-destructive' : 'text-primary'}`}>{analysis.normality}</p></div></div><p data-testid="text-analysis-normality-detail" className="mt-3 text-[11px] text-muted-foreground">{analysis.normalityDetail}</p></> : <><div className="mt-4 grid gap-2 sm:grid-cols-3"><div data-testid="stat-analysis-top-category" className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Categoria dominante</p><p className="mt-1 truncate text-sm font-bold">{analysis.topCategory}</p></div><div className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Ocorrências</p><p className="mt-1 font-mono text-sm font-bold">{analysis.topCategoryCount}</p></div><div className="rounded-lg border border-border bg-background p-3"><p className="mono-label text-muted-foreground">Categorias</p><p className="mt-1 font-mono text-sm font-bold">{analysis.categoryCount}</p></div></div><div className="mt-4 space-y-2">{analysis.distribution.map((item) => <div key={item.label} className="grid grid-cols-[minmax(0,1fr)_48px] items-center gap-3 text-[11px]"><div><div className="mb-1 flex justify-between gap-2"><span className="truncate font-semibold">{item.label}</span><span className="mono-label text-muted-foreground">{item.percentage.toFixed(1)}%</span></div><div className="h-2 overflow-hidden rounded-r bg-muted"><div className="h-full rounded-r bg-accent" style={{ width: `${item.percentage}%` }} /></div></div><span className="text-right font-mono font-bold">{item.count}</span></div>)}</div><p className="mt-3 text-[11px] text-muted-foreground">Média, mediana, mínimo, máximo, desvio-padrão e normalidade não se aplicam a este indicador categórico.</p></>}
     </div>}
-     {dataset && analysis && <ExploratoryAnalysisPanel dataset={dataset} analysis={analysis} months={months} diagnosis={diagnosis} onDiagnosisChange={onDiagnosisChange} activeProjectName={activeProjectName} />}
+    {dataset && analysis && <ExploratoryAnalysisPanel dataset={dataset} analysis={analysis} months={months} diagnosis={diagnosis} diagnosisInput={diagnosisInput} onDiagnosisChange={onDiagnosisChange} activeProjectName={activeProjectName} />}
     <p className="mt-4 text-[11px] text-muted-foreground"><Info size={13} className="mr-1 inline-block align-[-2px]" /> O arquivo é processado localmente no navegador. A coluna de data, quando identificada, define o recorte dos últimos N meses.</p>
   </section>;
 }
 
 function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDataset, csvError, onRetry, pipeline, hasDiagnosis = false, manualRows, hasManualChanges, manualSaveConfirmed, onManualRowsChange, onSaveManualRows, charter, activeProjectName, sipocDirty = false, sipocSaved = false, onSipocChange, onSaveSipoc, msaDirty = false, msaSaved = false, onMsaChange, onSaveMsa, vitalXDirty = false, vitalXSaved = false, onVitalXChange, onSaveVitalX, gutDirty = false, gutSaved = false, onGutChange, onSaveGut, solutionsDirty = false, solutionsSaved = false, onSolutionsChange, onSaveSolutions, controlPlanDirty = false, controlPlanSaved = false, onControlPlanChange, onSaveControlPlan, ishikawa, ishikawaInputText = '', ishikawaDirty = false, ishikawaSaved = false, ishikawaGenerating = false, ishikawaError = null, onIshikawaInputTextChange, onGenerateIshikawa, onIshikawaChange, onSaveIshikawa }: { tool: Tool; onClose: () => void; pareto: { name: string; value: number }[] | null; imr: number[] | null; inputAnalysis?: IndicatorAnalysis | null; hasInputDataset: boolean; csvError: string | null; onRetry: () => void; pipeline: DmaicPipeline | null; hasDiagnosis?: boolean; manualRows: DmaicVocCqt[]; hasManualChanges: boolean; manualSaveConfirmed: boolean; onManualRowsChange: (rows: DmaicVocCqt[]) => void; onSaveManualRows: () => void; charter?: ProjectCharterDraft; activeProjectName?: string; sipocDirty?: boolean; sipocSaved?: boolean; onSipocChange?: (next: DmaicSipoc) => void; onSaveSipoc?: () => void; msaDirty?: boolean; msaSaved?: boolean; onMsaChange?: (next: MsaRow[]) => void; onSaveMsa?: () => void; vitalXDirty?: boolean; vitalXSaved?: boolean; onVitalXChange?: (next: VitalXBreakdownRow[]) => void; onSaveVitalX?: () => void; gutDirty?: boolean; gutSaved?: boolean; onGutChange?: (next: GutRow[]) => void; onSaveGut?: () => void; solutionsDirty?: boolean; solutionsSaved?: boolean; onSolutionsChange?: (next: SolutionRow[]) => void; onSaveSolutions?: () => void; controlPlanDirty?: boolean; controlPlanSaved?: boolean; onControlPlanChange?: (next: ControlPlanRow[]) => void; onSaveControlPlan?: () => void; ishikawa?: DmaicAnalysisArtifactsIshikawa; ishikawaInputText?: string; ishikawaDirty?: boolean; ishikawaSaved?: boolean; ishikawaGenerating?: boolean; ishikawaError?: string | null; onIshikawaInputTextChange?: (value: string) => void; onGenerateIshikawa?: () => void; onIshikawaChange?: (value: Record<string, string[]>) => void; onSaveIshikawa?: () => void }) {
   const [tab, setTab] = useState<'preview' | 'data'>('preview');
-  const [maximized, setMaximized] = useState(false);
+  const [maximized, setMaximized] = useState(() => ['process-map', 'causes', 'solutions'].includes(tool.id));
   const isPareto = tool.id === 'pareto';
   const isImr = tool.id === 'imr';
   const isAnalysisTool = isPareto || isImr;
@@ -1228,18 +1675,122 @@ function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDatas
       : inputAnalysis.kind === 'continuous' && inputAnalysis.values.length < 2
         ? 'O I-MR precisa de pelo menos duas observações sequenciais no recorte selecionado.'
         : 'O I-MR é aplicável somente a indicadores contínuos. Selecione um indicador numérico compatível.';
+  const detailDirty = hasManualChanges || sipocDirty || msaDirty || vitalXDirty || gutDirty || controlPlanDirty;
+  const detailSaved = manualSaveConfirmed || sipocSaved || msaSaved || vitalXSaved || gutSaved || controlPlanSaved;
+  const detailStatus: ArtifactStatus = detailDirty ? 'edited' : detailSaved ? 'validated' : pipeline ? 'ai' : 'edited';
+  if (tool.id === 'solutions') {
+    return <SolutionsActionPlanDrawer tool={tool} onClose={onClose} pipeline={pipeline} dirty={solutionsDirty} saved={solutionsSaved} onChange={(rows) => onSolutionsChange?.(rows as unknown as SolutionRow[])} onSave={() => onSaveSolutions?.()} />;
+  }
   if (tool.id === 'causes') {
     return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}>
       <section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className={`flex h-full w-full flex-col overflow-y-auto border-l border-border bg-background shadow-2xl transition-[max-width] duration-200 ${maximized ? 'max-w-full' : 'max-w-[960px]'}`}>
         <div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur">
-          <div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">Hipóteses geradas com IA e validadas pela equipe</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div>
+          <div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">Hipóteses geradas pela Suíte e validadas pela equipe</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div>
           <div className="flex items-center gap-1"><button data-testid="button-maximize-tool" aria-label={maximized ? 'Restaurar tamanho' : 'Maximizar painel'} aria-pressed={maximized} onClick={() => setMaximized((value) => !value)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted">{maximized ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div>
         </div>
         <div className="flex-1 p-5"><IshikawaDiagramEditor sourceText={ishikawaInputText} value={ishikawa ?? null} dirty={ishikawaDirty} saved={ishikawaSaved} generating={ishikawaGenerating} error={ishikawaError} onSourceTextChange={(value) => onIshikawaInputTextChange?.(value)} onGenerate={() => onGenerateIshikawa?.()} onChange={(value) => onIshikawaChange?.(value)} onSave={() => onSaveIshikawa?.()} /></div>
       </section>
     </div>;
+
   }
-  return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}><section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className={`flex h-full w-full flex-col overflow-y-auto border-l border-border bg-background shadow-2xl transition-[max-width] duration-200 ${maximized ? 'max-w-full' : 'max-w-[560px]'}`}><div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur"><div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">{pipeline ? 'Gerado com IA' : manualRows.length > 0 ? 'Editado pela equipe' : tool.tag ?? 'Entregável gerado'}</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div><div className="flex items-center gap-1"><button data-testid="button-maximize-tool" aria-label={maximized ? 'Restaurar tamanho' : 'Maximizar painel'} aria-pressed={maximized} onClick={() => setMaximized((value) => !value)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted">{maximized ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div></div><div className="border-b border-border px-5 pt-4"><div className="flex gap-5"><button data-testid="tab-preview" onClick={() => setTab('preview')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'preview' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Visualização</button><button data-testid="tab-data" onClick={() => setTab('data')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'data' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Dados & notas</button></div></div><div className="flex-1 p-5">{csvError && isAnalysisTool ? <div data-testid="status-tool-csv-error" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-destructive" /><div><p className="text-sm font-bold text-destructive">Não foi possível ler o arquivo</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{csvError}</p><Button testId="button-retry-upload" onClick={onRetry} variant="outline" className="mt-3"><RefreshCw size={13} /> Tentar com outro arquivo</Button></div></div></div> : isAnalysisTool && !hasCompatibleData ? <div data-testid="status-tool-no-data" className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold">Visualização indisponível</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{unavailableMessage}</p></div></div></div> : tab === 'preview' ? <>{isPareto && pareto ? <ParetoChart data={pareto} cumulative={cumulative} source={source} /> : isImr && imr ? <ImrChart data={imr} source={source} /> : tool.id === 'voc' ? <VocCqtMap rows={pipeline?.vocCtq ?? []} hasPipeline={Boolean(pipeline)} hasDiagnosis={hasDiagnosis} manualRows={manualRows} hasManualChanges={hasManualChanges} hasManualSaveConfirmation={manualSaveConfirmed} onManualRowsChange={onManualRowsChange} onSaveManualRows={onSaveManualRows} /> : tool.id === 'sipoc' ? <SipocMap sipoc={pipeline?.sipoc ?? null} hasPipeline={Boolean(pipeline)} dirty={sipocDirty} saved={sipocSaved} onChange={(next) => onSipocChange?.(next)} onSave={() => onSaveSipoc?.()} /> : tool.id === 'msa' ? <MsaValidationMap rows={normalizeRows(pipeline?.msaValidation, EMPTY_MSA_ROW)} hasPipeline={Boolean(pipeline)} dirty={msaDirty} saved={msaSaved} onChange={(next) => onMsaChange?.(next)} onSave={() => onSaveMsa?.()} /> : tool.id === 'vitalx' ? <VitalXBreakdownMap rows={normalizeRows(pipeline?.vitalXs, EMPTY_VITAL_X_BREAKDOWN_ROW)} hasPipeline={Boolean(pipeline)} dirty={vitalXDirty} saved={vitalXSaved} onChange={(next) => onVitalXChange?.(next)} onSave={() => onSaveVitalX?.()} /> : tool.id === 'gut' ? <GutPrioritizationMap rows={normalizeRows(pipeline?.gutPrioritization, EMPTY_GUT_ROW)} hasPipeline={Boolean(pipeline)} dirty={gutDirty} saved={gutSaved} onChange={(next) => onGutChange?.(next)} onSave={() => onSaveGut?.()} /> : tool.id === 'solutions' ? <SolutionsTreeMap rows={normalizeRows(pipeline?.actionPlan, EMPTY_SOLUTION_ROW)} hasPipeline={Boolean(pipeline)} dirty={solutionsDirty} saved={solutionsSaved} onChange={(next) => onSolutionsChange?.(next)} onSave={() => onSaveSolutions?.()} /> : tool.id === 'control-plan' ? <ControlPlanMap rows={normalizeRows(pipeline?.controlPlan, EMPTY_CONTROL_PLAN_ROW)} hasPipeline={Boolean(pipeline)} dirty={controlPlanDirty} saved={controlPlanSaved} onChange={(next) => onControlPlanChange?.(next)} onSave={() => onSaveControlPlan?.()} /> : <GenericPreview tool={tool} pipeline={pipeline} />}</> : <DataNotes tool={tool} pareto={pareto} imr={imr} source={source} />}</div><div className="border-t border-border bg-card px-5 py-4"><div className="flex items-center justify-between gap-3"><span className="mono-label text-muted-foreground">{pipeline ? 'Conteúdo gerado por Gemini' : manualRows.length > 0 ? 'Indicadores manuais · equipe' : hasInputDataset && isAnalysisTool ? hasCompatibleData ? 'Dados do CSV · local' : 'Sem dados compatíveis' : 'Conteúdo de exemplo · local'}</span><Button testId="button-export-tool" variant="outline" onClick={tool.id === 'charter' && charter ? () => exportProjectCharterPdf(charter, activeProjectName?.trim() || 'Novo projeto') : tool.id === 'sipoc' ? () => exportSipocPdf(pipeline?.sipoc?.length ? pipeline.sipoc : exampleSipoc, activeProjectName?.trim() || 'Novo projeto') : tool.id === 'voc' ? () => exportVocPdf((pipeline?.vocCtq?.length ? pipeline.vocCtq : manualRows.length ? manualRows : exampleVocRows), activeProjectName?.trim() || 'Novo projeto') : undefined}><FileText size={14} /> Exportar visão</Button></div></div></section></div>;
+  return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}><section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className={`flex h-full w-full flex-col overflow-y-auto border-l border-border bg-background shadow-2xl transition-[max-width] duration-200 ${maximized ? 'max-w-full' : 'max-w-[560px]'}`}><div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur"><div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">{pipeline ? 'Gerado pela Suíte' : manualRows.length > 0 ? 'Editado pela equipe' : tool.tag ?? 'Entregável gerado'}</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div><div className="flex items-center gap-1"><button data-testid="button-maximize-tool" aria-label={maximized ? 'Restaurar tamanho' : 'Maximizar painel'} aria-pressed={maximized} onClick={() => setMaximized((value) => !value)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted">{maximized ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button><button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button></div></div><div className="border-b border-border px-5 pt-4"><div className="flex gap-5"><button data-testid="tab-preview" onClick={() => setTab('preview')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'preview' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Visualização</button><button data-testid="tab-data" onClick={() => setTab('data')} className={`border-b-2 pb-3 text-xs font-bold ${tab === 'data' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Dados & notas</button></div></div><div className="flex-1 p-5">{csvError && isAnalysisTool ? <div data-testid="status-tool-csv-error" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-destructive" /><div><p className="text-sm font-bold text-destructive">Não foi possível ler o arquivo</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{csvError}</p><Button testId="button-retry-upload" onClick={onRetry} variant="outline" className="mt-3"><RefreshCw size={13} /> Tentar com outro arquivo</Button></div></div></div> : isAnalysisTool && !hasCompatibleData ? <div data-testid="status-tool-no-data" className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4"><div className="flex gap-3"><Info size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold">Visualização indisponível</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{unavailableMessage}</p></div></div></div> : tab === 'preview' ? <>{isPareto && pareto ? <ParetoChart data={pareto} cumulative={cumulative} source={source} /> : isImr && imr ? <ImrChart data={imr} source={source} /> : tool.id === 'voc' ? <VocCqtMap rows={pipeline?.vocCtq ?? []} hasPipeline={Boolean(pipeline)} hasDiagnosis={hasDiagnosis} manualRows={manualRows} hasManualChanges={hasManualChanges} hasManualSaveConfirmation={manualSaveConfirmed} onManualRowsChange={onManualRowsChange} onSaveManualRows={onSaveManualRows} /> : tool.id === 'sipoc' ? <SipocMap sipoc={pipeline?.sipoc ?? null} hasPipeline={Boolean(pipeline)} dirty={sipocDirty} saved={sipocSaved} onChange={(next) => onSipocChange?.(next)} onSave={() => onSaveSipoc?.()} /> : tool.id === 'msa' ? <GenericPreview tool={tool} pipeline={pipeline} /> : tool.id === 'vitalx' ? <GenericPreview tool={tool} pipeline={pipeline} /> : tool.id === 'gut' ? <GenericPreview tool={tool} pipeline={pipeline} /> : tool.id === 'solutions' ? <GenericPreview tool={tool} pipeline={pipeline} /> : tool.id === 'control-plan' ? <GenericPreview tool={tool} pipeline={pipeline} /> : <GenericPreview tool={tool} pipeline={pipeline} />}</> : <DataNotes tool={tool} pareto={pareto} imr={imr} source={source} />}</div><div className="border-t border-border bg-card px-5 py-4"><div className="flex items-center justify-between gap-3"><span className="mono-label text-muted-foreground">{pipeline ? 'Conteúdo gerado por Gemini' : manualRows.length > 0 ? 'Indicadores manuais · equipe' : hasInputDataset && isAnalysisTool ? hasCompatibleData ? 'Dados do CSV · local' : 'Sem dados compatíveis' : 'Conteúdo de exemplo · local'}</span><Button testId="button-export-tool" variant="outline" onClick={tool.id === 'charter' && charter ? () => exportProjectCharterPdf(charter, activeProjectName?.trim() || 'Novo projeto') : tool.id === 'sipoc' ? () => exportSipocPdf(pipeline?.sipoc?.length ? pipeline.sipoc : exampleSipoc, activeProjectName?.trim() || 'Novo projeto') : tool.id === 'voc' ? () => exportVocPdf((pipeline?.vocCtq?.length ? pipeline.vocCtq : manualRows.length ? manualRows : exampleVocRows), activeProjectName?.trim() || 'Novo projeto') : undefined}><FileText size={14} /> Exportar visão</Button></div></div></section></div>;
+}
+
+function ActionPlanGrid({ rows, dirty, saved, onChange, onSave }: { rows: ActionPlanRow[]; dirty: boolean; saved: boolean; onChange: (rows: ActionPlanRow[]) => void; onSave: () => void }) {
+  const columns: { key: keyof ActionPlanRow; label: string; tone: string }[] = [
+    { key: 'what', label: 'O Que', tone: 'bg-muted' },
+    { key: 'why', label: 'Porque', tone: 'bg-primary/15' },
+    { key: 'who', label: 'Quem', tone: 'bg-muted' },
+    { key: 'how', label: 'Como', tone: 'bg-primary/15' },
+    { key: 'howMuch', label: 'Quanto', tone: 'bg-muted' },
+    { key: 'where', label: 'Onde', tone: 'bg-primary/15' },
+    { key: 'when', label: 'Quando', tone: 'bg-muted' },
+    { key: 'notes', label: 'Notas', tone: 'bg-primary/15' },
+  ];
+  const updateCell = (rowIndex: number, key: keyof ActionPlanRow, value: string) => {
+    onChange(rows.map((row, index) => index === rowIndex ? { ...row, [key]: value } : row));
+  };
+
+  return <div data-testid="grid-action-plan" className="space-y-4">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <p className="mono-label text-primary">Plano de ação</p>
+        <h3 className="mt-2 font-serif text-lg font-bold">Transforme a solução em execução</h3>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Registre o que será feito, por que, por quem, como, quanto, onde e quando.</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <ArtifactStatusBadge status={dirty ? 'edited' : saved ? 'validated' : rows.length ? 'ai' : 'edited'} />
+        <Button testId="button-add-action-plan-row" onClick={() => onChange([...rows, { ...EMPTY_ACTION_PLAN_ROW }])}><Plus size={14} /> Adicionar linha</Button>
+        {(dirty || saved) && <Button testId="button-save-action-plan" onClick={onSave} variant="outline" disabled={!dirty}><Save size={14} /> {saved && !dirty ? 'Plano salvo' : 'Salvar plano'}</Button>}
+      </div>
+    </div>
+    <p className="text-[11px] text-muted-foreground sm:hidden">Deslize horizontalmente para editar todas as colunas do plano.</p>
+    <div className="overflow-x-auto rounded-xl border border-border">
+      <table className="w-full min-w-[1180px] border-collapse text-xs">
+        <thead><tr>{columns.map((column) => <th key={column.key} className={`border-b border-border px-3 py-2 text-left ${column.tone}`}><span className="block text-[11px] font-bold">{column.label}</span><span className="mt-0.5 block text-[10px] font-normal text-muted-foreground">{column.key === 'what' ? 'What' : column.key === 'why' ? 'Why' : column.key === 'who' ? 'Who' : column.key === 'how' ? 'How' : column.key === 'howMuch' ? 'How Much' : column.key === 'where' ? 'Where' : column.key === 'when' ? 'When' : 'Notes'}</span></th>)}<th className="w-10 border-b border-border" aria-hidden="true" /></tr></thead>
+        <tbody>
+          {rows.length === 0 && <tr><td colSpan={columns.length + 1} className="p-5 text-center text-muted-foreground">Ainda não há ações. Adicione a primeira ação do plano para definir responsável e prazo.</td></tr>}
+          {rows.map((row, rowIndex) => <tr key={rowIndex} className="border-b border-border last:border-b-0 align-top">
+            {columns.map((column) => <td key={column.key} className="p-2"><textarea data-testid={`input-action-plan-${column.key}-${rowIndex}`} value={row[column.key]} onChange={(event) => updateCell(rowIndex, column.key, event.target.value)} rows={3} className="min-h-[76px] w-full resize-y rounded-lg border border-border bg-background px-2.5 py-2 text-[11px] leading-relaxed outline-none focus:border-primary/60" /></td>)}
+            <td className="p-2"><button type="button" data-testid={`button-remove-action-plan-row-${rowIndex}`} onClick={() => onChange(rows.filter((_, index) => index !== rowIndex))} aria-label={`Excluir linha ${rowIndex + 1}`} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive"><X size={14} /></button></td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    {saved && !dirty && <p data-testid="status-action-plan-saved" className="text-xs text-primary"><Check size={14} className="mr-1 inline" /> Plano de ação salvo no Repositório.</p>}
+  </div>;
+}
+
+function SolutionsActionPlanDrawer({ tool, onClose, pipeline, dirty, saved, onChange, onSave }: { tool: Tool; onClose: () => void; pipeline: DmaicPipeline | null; dirty: boolean; saved: boolean; onChange: (rows: ActionPlanRow[]) => void; onSave: () => void }) {
+  const rows = Array.isArray(pipeline?.actionPlan)
+    ? pipeline.actionPlan.map((row) => ({ ...EMPTY_ACTION_PLAN_ROW, ...(row as Partial<ActionPlanRow>) }))
+    : [];
+  return <div className="fixed inset-0 z-40 flex justify-end bg-sidebar/25 backdrop-blur-[2px]" onClick={onClose}>
+    <section role="dialog" aria-modal="true" data-testid="panel-tool-detail" onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-full flex-col overflow-y-auto border-l border-border bg-background shadow-2xl">
+      <div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-background/95 px-5 py-5 backdrop-blur">
+        <div className="flex gap-3"><IconBadge icon={tool.icon} tone="primary" /><div><p className="mono-label text-primary">Plano de ação · editável</p><h2 className="mt-1 font-serif text-xl font-bold">{tool.title}</h2><p className="mt-1 text-xs text-muted-foreground">{tool.subtitle}</p></div></div>
+        <button data-testid="button-close-tool" aria-label="Fechar detalhe" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={18} /></button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-5"><ActionPlanGrid rows={rows} dirty={dirty} saved={saved} onChange={onChange} onSave={onSave} /></div>
+    </section>
+  </div>;
+}
+
+function GenericPreview({ tool, pipeline, solutionsDirty = false, solutionsSaved = false, onSolutionsChange, onSaveSolutions }: { tool: Tool; pipeline: DmaicPipeline | null; solutionsDirty?: boolean; solutionsSaved?: boolean; onSolutionsChange?: (rows: ActionPlanRow[]) => void; onSaveSolutions?: () => void }) {
+  if (tool.id === 'solutions') {
+    const actionPlan = Array.isArray(pipeline?.actionPlan) ? pipeline.actionPlan : [];
+    const rows = actionPlan.map((row) => ({ ...EMPTY_ACTION_PLAN_ROW, ...(row as Partial<ActionPlanRow>) }));
+    return <ActionPlanGrid rows={rows} dirty={solutionsDirty} saved={solutionsSaved} onChange={(next) => onSolutionsChange?.(next)} onSave={() => onSaveSolutions?.()} />;
+  }
+  const rowsByTool: Record<string, unknown> = {
+    msa: pipeline?.msaValidation,
+    vitalx: pipeline?.vitalXs,
+    gut: pipeline?.gutPrioritization,
+    solutions: pipeline?.actionPlan,
+    'control-plan': pipeline?.controlPlan,
+  };
+  const rows = Array.isArray(rowsByTool[tool.id]) ? rowsByTool[tool.id] as Record<string, unknown>[] : [];
+
+  return <div data-testid={`preview-${tool.id}`} className="space-y-4">
+    <div>
+      <p className="mono-label text-primary">{pipeline ? 'Artefato do pipeline' : 'Aguardando dados'}</p>
+      <h3 className="mt-2 font-serif text-lg font-bold">{tool.title}</h3>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{tool.subtitle}</p>
+    </div>
+    {rows.length === 0
+      ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-950">Ainda não há dados para este artefato. Gere o pipeline ou carregue as informações necessárias para começar.</div>
+      : <div className="space-y-2">
+        {rows.map((row, index) => <div key={index} className="rounded-xl border border-border bg-card p-4">
+          <p className="mono-label text-muted-foreground">Linha {index + 1}</p>
+          <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+            {Object.entries(row).map(([key, value]) => <div key={key}>
+              <dt className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{key}</dt>
+              <dd className="mt-1 whitespace-pre-wrap text-xs leading-relaxed">{Array.isArray(value) ? value.join(', ') : String(value ?? '')}</dd>
+            </div>)}
+          </dl>
+        </div>)}
+      </div>}
+  </div>;
 }
 
 function ParetoChart({ data, cumulative, source }: { data: { name: string; value: number }[]; cumulative: { name: string; value: number; pct: number }[]; source: 'example' | 'upload' }) {
@@ -1262,7 +1813,7 @@ function ImrChart({ data, source }: { data: number[]; source: 'example' | 'uploa
   const yFor = (value: number) => height - ((value - (domainMin - domainPadding)) / (domainMax - domainMin + domainPadding * 2)) * height;
   const points = data.map((value, index) => `${(index / (data.length - 1)) * width},${yFor(value)}`).join(' ');
   const signals = data.filter((value) => value > upperControl || value < lowerControl).length;
-  return <div><div className="mb-5 flex items-start justify-between"><div><p className="mono-label text-chart-3">{source === 'upload' ? 'Dados do CSV' : 'Exemplo gerado'}</p><h3 className="mt-2 font-serif text-lg font-bold">A variação está respirando?</h3><p className="mt-1 text-xs text-muted-foreground">I-MR · sequência de {data.length} medições</p></div><Activity size={20} className="text-chart-3" /></div><div className="rounded-xl border border-border bg-card p-3"><svg viewBox={`0 0 ${width} ${height + 25}`} className="h-auto w-full overflow-visible"><line x1="0" x2={width} y1={yFor(mean)} y2={yFor(mean)} stroke="hsl(var(--primary) / .35)" strokeDasharray="4 4" /><line x1="0" x2={width} y1={yFor(upperControl)} y2={yFor(upperControl)} stroke="hsl(var(--chart-3) / .45)" strokeDasharray="4 4" /><line x1="0" x2={width} y1={yFor(lowerControl)} y2={yFor(lowerControl)} stroke="hsl(var(--destructive) / .45)" strokeDasharray="4 4" /><polyline fill="none" stroke="hsl(var(--chart-3))" strokeWidth="2.5" points={points} />{data.map((value, index) => <circle key={index} cx={(index / (data.length - 1)) * width} cy={yFor(value)} r="3.5" fill="hsl(var(--chart-3))" />)}</svg><div data-testid="text-imr-limits" className="mt-2 flex justify-between mono-label text-muted-foreground"><span>LSC · {formatMetric(upperControl)}</span><span>média · {formatMetric(mean)}</span><span>LIC · {formatMetric(lowerControl)}</span></div></div><div className="mt-4 grid grid-cols-3 gap-2"><div className="rounded-lg bg-muted p-3"><p className="mono-label text-muted-foreground">Média</p><p className="mt-1 font-mono text-sm font-bold">{formatMetric(mean)}</p></div><div className="rounded-lg bg-primary/8 p-3"><p className="mono-label text-primary">Sinais</p><p className="mt-1 font-mono text-sm font-bold text-primary">{signals}</p></div><div className="rounded-lg bg-accent/12 p-3"><p className="mono-label text-accent-foreground">MR médio</p><p className="mt-1 font-mono text-sm font-bold">{formatMetric(meanMovingRange)}</p></div></div></div>;
+  return <div><div className="mb-5 flex items-start justify-between"><div><p className="mono-label text-chart-3">{source === 'upload' ? 'Dados do CSV' : 'Exemplo gerado'}</p><h3 className="mt-2 font-serif text-lg font-bold">A variação está respirando?</h3><p className="mt-1 text-xs text-muted-foreground">I-MR · sequência de {data.length} medições</p></div><Activity size={20} className="text-chart-3" /></div><div className="rounded-xl border border-border bg-card p-3"><svg viewBox={`0 0 ${width} ${height + 25}`} className="h-auto w-full overflow-visible"><line x1="0" x2={width} y1={yFor(mean)} y2={yFor(mean)} stroke="hsl(var(--primary) / .35)" strokeDasharray="4 4" /><line x1="0" x2={width} y1={yFor(upperControl)} y2={yFor(upperControl)} stroke="hsl(var(--chart-3) / .45)" strokeDasharray="4 4" /><line x1="0" x2={width} y1={yFor(lowerControl)} y2={yFor(lowerControl)} stroke="hsl(var(--destructive) / .45)" strokeDasharray="4 4" /><polyline fill="none" stroke="hsl(var(--chart-3))" strokeWidth="2.5" points={points} /><circle cx={0} cy={0} r={0} /></svg><div data-testid="text-imr-limits" className="mt-2 flex justify-between mono-label text-muted-foreground"><span>LSC · {formatMetric(upperControl)}</span><span>média · {formatMetric(mean)}</span><span>LIC · {formatMetric(lowerControl)}</span></div></div><div className="mt-4 grid grid-cols-3 gap-2"><div className="rounded-lg bg-muted p-3"><p className="mono-label text-muted-foreground">Média</p><p className="mt-1 font-mono text-sm font-bold">{formatMetric(mean)}</p></div><div className="rounded-lg bg-primary/8 p-3"><p className="mono-label text-primary">Sinais</p><p className="mt-1 font-mono text-sm font-bold text-primary">{signals}</p></div><div className="rounded-lg bg-accent/12 p-3"><p className="mono-label text-accent-foreground">MR médio</p><p className="mt-1 font-mono text-sm font-bold">{formatMetric(meanMovingRange)}</p></div></div></div>;
 }
 
 const exampleVocRows: DmaicVocCqt[] = [
@@ -1343,7 +1894,7 @@ function VocCqtMap({ rows, hasPipeline, hasDiagnosis, manualRows, hasManualChang
       <div><p className="text-xs font-bold">Complemente o mapa com o conhecimento do time</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Adicione indicadores identificados em entrevistas, reuniões ou registros do processo.</p></div>
       <div className="flex flex-wrap gap-2"><Button testId="button-add-voc-manual" onClick={addManualRow}><Plus size={14} /> Adicionar indicador</Button>{(hasManualRows || hasManualChanges) && <Button testId="button-save-voc-manual" onClick={onSaveManualRows} variant="outline" disabled={invalidManualRows}><Save size={14} /> Salvar indicadores</Button>}</div>
     </div>
-    {hasManualSaveConfirmation && <div data-testid="status-voc-manual-saved" className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Indicadores VOC/CTQ salvos no Neon.</strong> As linhas manuais continuarão disponíveis ao reabrir este workspace.</span></div>}
+    {hasManualSaveConfirmation && <div data-testid="status-voc-manual-saved" className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Indicadores VOC/CTQ salvos no Repositório.</strong> As linhas manuais continuarão disponíveis ao reabrir este workspace.</span></div>}
 
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -1368,26 +1919,9 @@ function VocCqtMap({ rows, hasPipeline, hasDiagnosis, manualRows, hasManualChang
       </div>
     </div>
 
-    <div className="grid gap-3 sm:grid-cols-2">
-      <div data-testid="guide-voc-clients" className="rounded-xl border border-border p-4">
-        <div className="flex items-center gap-2"><Layers3 size={15} className="text-primary" /><p className="text-xs font-bold">Quem é o cliente?</p></div>
-        <div className="mt-3 space-y-2 text-[11px] leading-relaxed">
-          <p><strong>Interno · Voz do Negócio:</strong> áreas, equipes e parceiros internos que recebem ou entregam o processo.</p>
-          <p><strong>Externo · Voz do Consumidor:</strong> quem usa, recebe ou é impactado pelo produto ou serviço.</p>
-        </div>
-      </div>
-      <div data-testid="guide-voc-sources" className="rounded-xl border border-border p-4">
-        <div className="flex items-center gap-2"><ClipboardList size={15} className="text-chart-3" /><p className="text-xs font-bold">De onde vem a voz?</p></div>
-        <div className="mt-3 space-y-2 text-[11px] leading-relaxed">
-          <p><strong>Reativa:</strong> reclamações, chamados, devoluções, relatórios e outros registros já existentes.</p>
-          <p><strong>Ativa:</strong> pesquisa, entrevista, grupo focal ou observação planejada para investigar a necessidade.</p>
-        </div>
-      </div>
-    </div>
-
-    {showExample && <div data-testid="status-voc-no-pipeline" className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><p className="leading-relaxed"><strong>O mapa ainda é um exemplo.</strong> Preencha o Problem Statement e o Project Charter, salve o projeto e gere o pipeline — ou adicione uma linha manual para registrar o conhecimento da equipe.</p></div>}
-    {!hasGeneratedMap && hasManualRows && <div data-testid="status-voc-manual-only" className="flex items-start gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-primary" /><p className="leading-relaxed"><strong>Este mapa foi iniciado manualmente.</strong> Salve os indicadores preenchidos para protegê-los no workspace. A geração do pipeline pode ser feita depois.</p></div>}
-    {hasGeneratedMap && !hasDiagnosis && <div data-testid="status-voc-no-diagnosis" className="flex items-start gap-3 rounded-xl border border-chart-3/25 bg-chart-3/5 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-chart-3" /><p className="leading-relaxed"><strong>Diagnóstico detalhado não anexado.</strong> As necessidades foram contextualizadas com o Charter e o problema informado; recomendações e inferências ainda precisam ser validadas com clientes.</p></div>}
+    {showExample && <div data-testid="status-voc-no-pipeline" className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><p className="leading-relaxed"><strong>O mapa ainda é um exemplo.</strong> Preencha o Problem Statement e o Project Charter, salve o projeto e gere o pipeline.</p></div>}
+    {!hasGeneratedMap && hasManualRows && <div data-testid="status-voc-manual-only" className="flex items-start gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-primary" /><p className="leading-relaxed"><strong>Este mapa foi iniciado manualmente.</strong> Salve os indicadores preenchidos para protegê-los no workspace.</p></div>}
+    {hasGeneratedMap && !hasDiagnosis && <div data-testid="status-voc-no-diagnosis" className="flex items-start gap-3 rounded-xl border border-chart-3/25 bg-chart-3/5 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-chart-3" /><p className="leading-relaxed"><strong>Diagnóstico detalhado não anexado.</strong> As necessidades foram contextualizadas com o Charter e o problema informado.</p></div>}
 
     {hasManualRows && <div className="overflow-hidden rounded-xl border border-primary/25" data-testid="section-voc-manual-rows">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-primary/20 bg-primary/5 px-4 py-3"><div><p className="text-xs font-bold">Indicadores adicionados pela equipe</p><p className="mt-1 text-[11px] text-muted-foreground">Conteúdo manual · não gerado pelo Gemini</p></div><span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-bold text-primary">{manualRows.length} {manualRows.length === 1 ? 'linha' : 'linhas'}</span></div>
@@ -1423,9 +1957,8 @@ function VocCqtMap({ rows, hasPipeline, hasDiagnosis, manualRows, hasManualChang
             <div className="mt-3 rounded-lg bg-muted/70 p-2.5"><p className="mono-label text-muted-foreground">Medida / aceitação</p><p data-testid={`text-voc-measure-${index}`} className="mt-1 text-[11px] font-semibold leading-relaxed">{row.measure}</p><p className="mt-2 mono-label text-muted-foreground">Métrica de referência</p><p data-testid={`text-voc-ctq-metric-${index}`} className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{row.ctqMetric}</p></div>
           </div>
         </div>)}
-     </div>
+      </div>
     </div>
-    <p className="text-[10px] leading-relaxed text-muted-foreground">As fontes, necessidades inferidas e recomendações devem ser confirmadas por entrevistas, pesquisas, registros ou observação do processo. O mapa não substitui a coleta real de VOC.</p>
   </div>;
 }
 
@@ -1522,7 +2055,7 @@ function SipocMap({ sipoc, hasPipeline, dirty, saved, onChange, onSave }: { sipo
       <div><p className="text-xs font-bold">Ajuste a grade com o conhecimento do time</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Adicione, edite ou remova etapas antes de tratá-las como fluxo validado. Use uma linha por item dentro de cada célula.</p></div>
       {(dirty || saved) && <Button testId="button-save-sipoc" onClick={onSave} variant="outline" disabled={!dirty}><Save size={14} /> Salvar SIPOC</Button>}
     </div>}
-    {saved && !dirty && <div data-testid="status-sipoc-saved" className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>SIPOC salvo no Neon.</strong> As alterações continuarão disponíveis ao reabrir este workspace.</span></div>}
+    {saved && !dirty && <div data-testid="status-sipoc-saved" className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>SIPOC salvo no Repositório.</strong> As alterações continuarão disponíveis ao reabrir este workspace.</span></div>}
 
     <SipocGrid rows={displaySipoc} readOnly={readOnly} onUpdateCell={updateCell} onAddRow={addRow} onRemoveRow={removeRow} />
 
@@ -1539,6 +2072,109 @@ const exampleMsaRows: MsaRow[] = [
 ];
 function escapeCharterHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function markdownToPrintHtml(value: string): string {
+  const lines = value.replace(/\r/g, '').split('\n');
+  const output: string[] = [];
+  let paragraph: string[] = [];
+  let listType: 'ul' | 'ol' | null = null;
+  const inline = (text: string) => escapeCharterHtml(text)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.+?)__/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>');
+  const closeList = () => { if (listType) { output.push(`</${listType}>`); listType = null; } };
+  const flushParagraph = () => { if (paragraph.length > 0) { output.push(`<p>${paragraph.map(inline).join(' ')}</p>`); paragraph = []; } };
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    const heading = line.match(/^#{1,4}\s+(.+)$/);
+    const bullet = line.match(/^[-*]\s+(.+)$/);
+    const numbered = line.match(/^\d+[.)]\s+(.+)$/);
+    if (!line) { flushParagraph(); closeList(); continue; }
+    if (heading) { flushParagraph(); closeList(); output.push(`<h4>${inline(heading[1])}</h4>`); continue; }
+    if (bullet || numbered) {
+      flushParagraph();
+      const nextType = bullet ? 'ul' : 'ol';
+      if (listType !== nextType) { closeList(); output.push(`<${nextType}>`); listType = nextType; }
+      output.push(`<li>${inline((bullet ?? numbered)![1])}</li>`);
+      continue;
+    }
+    closeList();
+    paragraph.push(line);
+  }
+  flushParagraph();
+  closeList();
+  return output.join('');
+}
+
+function openPrintDocument(title: string, body: string, width = 1000, height = 850) {
+  const printWindow = window.open('', '_blank', `width=${width},height=${height}`);
+  if (!printWindow) return;
+  printWindow.document.open();
+  printWindow.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8" /><title>${escapeCharterHtml(title)}</title><style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#1c1917;margin:0;padding:34px 44px}h1{font-family:Georgia,serif;font-size:23px;margin:0 0 5px}h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:#57534e;margin:25px 0 10px;border-bottom:1px solid #d6d3d1;padding-bottom:6px}h3{font-size:13px;margin:0 0 6px}h4{font-size:13px;margin:18px 0 8px;color:#1c1917}p{font-size:12px;line-height:1.5;margin:5px 0}.subtitle{color:#78716c}.print-bar{display:flex;justify-content:flex-end;margin:-34px -44px 24px;padding:10px 44px;background:#fafaf9;border-bottom:1px solid #e7e5e4}.print-bar button{padding:8px 14px;background:#1c1917;color:#fff;border:0;border-radius:6px;font-weight:700;cursor:pointer}table{width:100%;border-collapse:collapse;margin-top:6px;font-size:11px}th,td{border:1px solid #d6d3d1;padding:7px;text-align:left;vertical-align:top}th{background:#f5f5f4;font-size:10px;text-transform:uppercase;color:#57534e}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.chart-grid{display:grid;grid-template-columns:1.4fr .8fr;gap:12px;align-items:start}.metric{border:1px solid #d6d3d1;padding:9px}.metric strong{display:block;font-size:10px;color:#78716c;text-transform:uppercase}.metric span{display:block;margin-top:4px;font-weight:700}.diagnosis{white-space:pre-wrap;border:1px solid #d6d3d1;padding:12px;font-size:12px;line-height:1.55}.whatif-list{display:grid;gap:14px}.whatif-card{break-inside:avoid;border:1px solid #cbd5e1;border-left:4px solid #398f78;border-radius:8px;padding:13px 15px;margin:0 0 14px;background:#f8fafc}.whatif-header{display:flex;gap:10px;align-items:flex-start}.whatif-number{display:flex;align-items:center;justify-content:center;flex:0 0 24px;height:24px;border-radius:50%;background:#398f78;color:#fff;font-size:11px;font-weight:700}.whatif-label{margin:0 0 4px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b}.whatif-answer{margin-top:12px;border-top:1px solid #e2e8f0;padding-top:10px}.markdown-answer{font-size:12px;line-height:1.6}.markdown-answer p{margin:0 0 11px}.markdown-answer h4{margin:16px 0 7px;font-size:12px;color:#334155}.markdown-answer ul,.markdown-answer ol{margin:6px 0 13px;padding-left:22px;font-size:12px;line-height:1.6}.markdown-answer li{margin:3px 0}.whatif-context{margin-top:12px;padding-top:8px;border-top:1px solid #e2e8f0;color:#64748b;font-size:10px}.empty{color:#a8a29e;font-style:italic}@page{margin:14mm}@media print{.print-bar{display:none}body{padding:0}.chart-grid{grid-template-columns:1fr}}
+</style></head><body><div class="print-bar"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div>${body}</body></html>`);
+  printWindow.document.close();
+  printWindow.focus();
+}
+
+function buildExploratoryLineSvg(summary: ExploratorySummary): string {
+  const width = 900;
+  const height = 280;
+  const left = 48;
+  const right = 34;
+  const top = 22;
+  const bottom = 34;
+  const range = Math.max(summary.maximum - summary.minimum, 1);
+  const x = (index: number) => left + (index / Math.max(summary.points.length - 1, 1)) * (width - left - right);
+  const y = (value: number) => top + (1 - (value - summary.minimum) / range) * (height - top - bottom);
+  const points = summary.points.map((point, index) => `${x(index).toFixed(1)},${y(point.value).toFixed(1)}`).join(' ');
+  const circles = summary.points.map((point, index) => `<circle cx="${x(index).toFixed(1)}" cy="${y(point.value).toFixed(1)}" r="3.5" fill="#2f8fa3"/>`).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" style="width:100%;height:auto;border:1px solid #e7e5e4;border-radius:6px;background:#fff"><line x1="${left}" x2="${width - right}" y1="${y(summary.mean)}" y2="${y(summary.mean)}" stroke="#398f78" stroke-dasharray="7 5"/><text x="${width - right}" y="${y(summary.mean) - 7}" text-anchor="end" fill="#398f78" font-size="12">Média ${formatMetric(summary.mean)}</text><polyline points="${points}" fill="none" stroke="#2f8fa3" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>${circles}</svg>`;
+}
+
+function buildExploratoryBoxplotSvg(summary: ExploratorySummary): string {
+  const width = 460;
+  const height = 280;
+  const top = 24;
+  const bottom = 238;
+  const x = 160;
+  const range = Math.max(summary.maximum - summary.minimum, 1);
+  const y = (value: number) => bottom - ((value - summary.minimum) / range) * (bottom - top);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" style="width:100%;height:auto;border:1px solid #e7e5e4;border-radius:6px;background:#fff"><line x1="${x}" x2="${x}" y1="${y(summary.minimum)}" y2="${y(summary.maximum)}" stroke="#398f78" stroke-width="2"/><line x1="${x - 28}" x2="${x + 28}" y1="${y(summary.minimum)}" y2="${y(summary.minimum)}" stroke="#398f78" stroke-width="2"/><line x1="${x - 28}" x2="${x + 28}" y1="${y(summary.maximum)}" y2="${y(summary.maximum)}" stroke="#398f78" stroke-width="2"/><rect x="${x - 44}" y="${y(summary.q3)}" width="88" height="${Math.max(y(summary.q1) - y(summary.q3), 4)}" fill="#398f7833" stroke="#398f78" stroke-width="2"/><line x1="${x - 44}" x2="${x + 44}" y1="${y(summary.median)}" y2="${y(summary.median)}" stroke="#d17b32" stroke-width="3"/><text x="${x + 62}" y="${y(summary.maximum) + 4}" fill="#57534e" font-size="12">Máximo ${formatMetric(summary.maximum)}</text><text x="${x + 62}" y="${y(summary.q3) + 4}" fill="#57534e" font-size="12">Q3 ${formatMetric(summary.q3)}</text><text x="${x + 62}" y="${y(summary.median) + 4}" fill="#57534e" font-size="12">Mediana ${formatMetric(summary.median)}</text><text x="${x + 62}" y="${y(summary.q1) + 4}" fill="#57534e" font-size="12">Q1 ${formatMetric(summary.q1)}</text><text x="${x + 62}" y="${y(summary.minimum) + 4}" fill="#57534e" font-size="12">Mínimo ${formatMetric(summary.minimum)}</text></svg>`;
+}
+
+function buildDiscreteBarSvg(analysis: Extract<IndicatorAnalysis, { kind: 'discrete' }>): string {
+  const width = 900;
+  const height = Math.max(220, analysis.distribution.length * 34 + 42);
+  const maxCount = Math.max(...analysis.distribution.map((item) => item.count), 1);
+  const bars = analysis.distribution.map((item, index) => { const barWidth = (item.count / maxCount) * 620; const y = 24 + index * 34; return `<text x="8" y="${y + 15}" fill="#57534e" font-size="12">${escapeCharterHtml(item.label)}</text><rect x="190" y="${y + 3}" width="${barWidth.toFixed(1)}" height="20" rx="3" fill="#2f8fa3"/><text x="${200 + barWidth}" y="${y + 18}" fill="#57534e" font-size="12">${item.count} (${item.percentage.toFixed(1)}%)</text>`; }).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" style="width:100%;height:auto;border:1px solid #e7e5e4;border-radius:6px;background:#fff">${bars}</svg>`;
+}
+
+function exportInputDataPdf(dataset: InputDataset, analysis: IndicatorAnalysis | null, months: number, diagnosis: string | null, projectName: string) {
+  const rows = dataset.rows.slice(0, 250).map((row) => `<tr>${dataset.headers.map((header) => `<td>${escapeCharterHtml(row[header] ?? '') || '—'}</td>`).join('')}</tr>`).join('');
+  const chartHtml = analysis?.kind === 'continuous' ? (() => { const summary = buildExploratorySummary(dataset, analysis, months); return summary ? `<h2>Gráficos</h2><div class="chart-grid"><div><h3>Série temporal</h3>${buildExploratoryLineSvg(summary)}</div><div><h3>Boxplot</h3>${buildExploratoryBoxplotSvg(summary)}</div></div>` : ''; })() : analysis?.kind === 'discrete' ? `<h2>Gráfico de distribuição</h2>${buildDiscreteBarSvg(analysis)}` : '';
+  const analysisHtml = analysis?.kind === 'continuous'
+    ? `<div class="grid"><div class="metric"><strong>Média</strong><span>${formatMetric(analysis.mean)}</span></div><div class="metric"><strong>Mediana</strong><span>${formatMetric(analysis.median)}</span></div><div class="metric"><strong>Mínimo</strong><span>${formatMetric(analysis.minimum)}</span></div><div class="metric"><strong>Máximo</strong><span>${formatMetric(analysis.maximum)}</span></div><div class="metric"><strong>Desvio padrão</strong><span>${formatMetric(analysis.standardDeviation)}</span></div></div>`
+    : analysis ? `<p><strong>Categoria dominante:</strong> ${escapeCharterHtml(analysis.topCategory)} · <strong>Ocorrências:</strong> ${analysis.topCategoryCount} · <strong>Categorias:</strong> ${analysis.categoryCount}</p>`
+      : '<p class="empty">Nenhuma análise selecionada.</p>';
+  openPrintDocument(`Dados para análise - ${projectName}`, `<h1>Dados para análise</h1><p class="subtitle">${escapeCharterHtml(projectName)} · ${escapeCharterHtml(dataset.fileName)} · gerado em ${new Date().toLocaleDateString('pt-BR')}</p><p><strong>Linhas:</strong> ${dataset.rows.length} · <strong>Colunas:</strong> ${dataset.headers.length} · <strong>Período:</strong> últimos ${months} meses</p><h2>Resumo do indicador</h2>${analysisHtml}${chartHtml}<h2>Dados do CSV</h2><table><thead><tr>${dataset.headers.map((header) => `<th>${escapeCharterHtml(header)}</th>`).join('')}</tr></thead><tbody>${rows || '<tr><td>Nenhum registro.</td></tr>'}</tbody></table>${dataset.rows.length > 250 ? '<p class="subtitle">Exibidas as primeiras 250 linhas do CSV.</p>' : ''}${diagnosis ? `<h2>Diagnóstico</h2><div class="diagnosis">${escapeCharterHtml(diagnosis)}</div>` : ''}`);
+}
+
+function exportExploratoryPdf(summary: ExploratorySummary, indicator: string, diagnosis: string | null, projectName: string) {
+  const rows = summary.points.map((point) => `<tr><td>${escapeCharterHtml(point.period)}</td><td>${formatMetric(point.value)}</td></tr>`).join('');
+  openPrintDocument(`Análise exploratória - ${projectName}`, `<h1>Análise Exploratória</h1><p class="subtitle">${escapeCharterHtml(projectName)} · indicador ${escapeCharterHtml(indicator)} · gerado em ${new Date().toLocaleDateString('pt-BR')}</p><h2>Estatística descritiva</h2><div class="grid"><div class="metric"><strong>Média</strong><span>${formatMetric(summary.mean)}</span></div><div class="metric"><strong>Mediana</strong><span>${formatMetric(summary.median)}</span></div><div class="metric"><strong>Mínimo</strong><span>${formatMetric(summary.minimum)}</span></div><div class="metric"><strong>Máximo</strong><span>${formatMetric(summary.maximum)}</span></div><div class="metric"><strong>Q1</strong><span>${formatMetric(summary.q1)}</span></div><div class="metric"><strong>Q3</strong><span>${formatMetric(summary.q3)}</span></div><div class="metric"><strong>IQR</strong><span>${formatMetric(summary.iqr)}</span></div><div class="metric"><strong>Desvio padrão</strong><span>${formatMetric(summary.standardDeviation)}</span></div></div><h2>Gráficos</h2><div class="chart-grid"><div><h3>Série temporal</h3>${buildExploratoryLineSvg(summary)}</div><div><h3>Boxplot</h3>${buildExploratoryBoxplotSvg(summary)}</div></div><h2>Valores da série</h2><table><thead><tr><th>Período</th><th>Valor</th></tr></thead><tbody>${rows}</tbody></table>${diagnosis ? `<h2>Diagnóstico da Suíte</h2><div class="diagnosis">${escapeCharterHtml(diagnosis)}</div>` : ''}`);
+}
+
+function exportMeasurementPdf(dataset: DmaicCsvDataset | null, analysis: MeasurementAnalysis | null, processMap: DmaicProcessMap, whatIfAnalyses: DmaicMeasurementWhatIfRecord[], projectName: string) {
+  const formatProbability = (value: number | null) => value === null ? '—' : value < 0.001 ? '< 0,001' : value.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+  const stats = analysis?.variables.map((variable) => `<tr><th>${escapeCharterHtml(variable.name)}</th><td>${variable.count}</td><td>${formatMetric(variable.mean)}</td><td>${formatMetric(variable.median)}</td><td>${formatMetric(variable.standardDeviation)}</td><td>${variable.normality}</td><td>${variable.outlierCount}</td></tr>`).join('') ?? '';
+  const pairwise = analysis?.pairwise.map((comparison) => `<tr><td>${escapeCharterHtml(comparison.left)} × ${escapeCharterHtml(comparison.right)}</td><td>${formatMetric(comparison.meanDifference)}</td><td>${formatProbability(comparison.adjustedPValue)}</td><td>${escapeCharterHtml(comparison.conclusion)}</td></tr>`).join('') ?? '';
+  const priorities = analysis?.priorities.map((priority, index) => `<tr><td>${index + 1}</td><th>${escapeCharterHtml(priority.name)}</th><td>${priority.score.toFixed(2)}</td><td>${escapeCharterHtml(priority.explanation)}</td></tr>`).join('') ?? '';
+  const whatIf = whatIfAnalyses.map((item, index) => `<article class="whatif-card"><div class="whatif-header"><span class="whatif-number">${index + 1}</span><div><p class="whatif-label">Pergunta de cenário</p><h3>${escapeCharterHtml(item.question)}</h3></div></div><div class="whatif-answer"><p class="whatif-label">Resposta da análise</p><div class="markdown-answer">${markdownToPrintHtml(item.answer)}</div></div><p class="whatif-context">${item.context.variables.length} variáveis · ${item.context.rowCount} observações pareadas · meta: ${escapeCharterHtml(item.context.projectGoal || 'não informada')}</p></article>`).join('');
+  const csvRows = dataset?.rows.slice(0, 250).map((row) => `<tr>${dataset.headers.map((header) => `<td>${escapeCharterHtml(row[header] ?? '')}</td>`).join('')}</tr>`).join('') ?? '';
+  const map = processMapSvg(processMap);
+  openPrintDocument(`Fase de Medição - ${projectName}`, `<h1>Fase de Medição</h1><p class="subtitle">${escapeCharterHtml(projectName)} · relatório completo · ${new Date().toLocaleDateString('pt-BR')}</p><h2>Dados carregados</h2><p><strong>Arquivo:</strong> ${escapeCharterHtml(dataset?.fileName ?? 'Não carregado')} · <strong>Linhas pareadas:</strong> ${dataset?.rows.length ?? 0} · <strong>Colunas:</strong> ${dataset?.headers.length ?? 0}</p>${analysis ? `<h2>Estatísticas descritivas e normalidade</h2><table><thead><tr><th>Unidade</th><th>n</th><th>Média</th><th>Mediana</th><th>Desvio padrão</th><th>Normalidade</th><th>Outliers</th></tr></thead><tbody>${stats}</tbody></table><h2>Comparação global</h2><p>${escapeCharterHtml(analysis.anova.conclusion)}</p><p><strong>F:</strong> ${analysis.anova.fStatistic?.toFixed(3) ?? '—'} · <strong>p:</strong> ${formatProbability(analysis.anova.pValue)} · <strong>epsilon:</strong> ${analysis.anova.epsilon?.toFixed(3) ?? '—'}</p><h2>Comparações par a par</h2><table><thead><tr><th>Par</th><th>Diferença média</th><th>p ajustado</th><th>Conclusão</th></tr></thead><tbody>${pairwise || '<tr><td colspan="4">Nenhuma comparação disponível.</td></tr>'}</tbody></table><h2>Prioridades de investigação</h2><table><thead><tr><th>#</th><th>Variável</th><th>Score</th><th>Explicação</th></tr></thead><tbody>${priorities || '<tr><td colspan="4">Nenhuma prioridade disponível.</td></tr>'}</tbody></table>` : '<p class="empty">A análise estatística ainda não foi gerada.</p>'}<h2>Mapa de processos</h2><div class="map">${map}</div>${whatIf ? `<h2>Análises What If</h2><div class="whatif-list">${whatIf}</div>` : ''}${dataset ? `<h2>Dados do CSV</h2><table><thead><tr>${dataset.headers.map((header) => `<th>${escapeCharterHtml(header)}</th>`).join('')}</tr></thead><tbody>${csvRows}</tbody></table>${dataset.rows.length > 250 ? '<p class="subtitle">Exibidas as primeiras 250 linhas do CSV.</p>' : ''}` : ''}`);
 }
 
 function buildProjectCharterPrintDocument(charter: ProjectCharterDraft, projectName: string): string {
@@ -1609,6 +2245,87 @@ function exportProjectCharterPdf(charter: ProjectCharterDraft, projectName: stri
   printWindow.focus();
 }
 
+function renderManualMarkdown(markdown: string): string {
+  const lines = markdown.replace(/\r\n/g, '\n').split('\n');
+  const output: string[] = [];
+  let index = 0;
+  const inline = (value: string) => escapeCharterHtml(value)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+  while (index < lines.length) {
+    const line = lines[index];
+    if (!line.trim()) { index += 1; continue; }
+    if (line.startsWith('```')) {
+      const language = line.slice(3).trim();
+      const code: string[] = [];
+      index += 1;
+      while (index < lines.length && !lines[index].startsWith('```')) { code.push(lines[index]); index += 1; }
+      index += 1;
+      output.push(`<pre class="code-block ${language === 'mermaid' ? 'diagram-block' : ''}">${escapeCharterHtml(code.join('\n'))}</pre>`);
+      continue;
+    }
+    if (/^\|/.test(line) && index + 1 < lines.length && /^\|?\s*[-:]+/.test(lines[index + 1])) {
+      const tableRows: string[] = [];
+      const cells = (value: string) => value.replace(/^\||\|$/g, '').split('|').map((cell) => cell.trim());
+      tableRows.push(`<thead><tr>${cells(line).map((cell) => `<th>${inline(cell)}</th>`).join('')}</tr></thead>`);
+      index += 2;
+      while (index < lines.length && /^\|/.test(lines[index])) { tableRows.push(`<tr>${cells(lines[index]).map((cell) => `<td>${inline(cell)}</td>`).join('')}</tr>`); index += 1; }
+      output.push(`<div class="table-wrap"><table>${tableRows.join('').replace('<thead>', '<thead>').replace('</thead>', '</thead><tbody>').concat('</tbody>')}</table></div>`);
+      continue;
+    }
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      const level = heading[1].length;
+      const className = level === 1 ? 'section-title' : level === 2 ? 'subsection-title' : 'minor-title';
+      output.push(`<h${level} class="${className}">${inline(heading[2])}</h${level}>`);
+      index += 1;
+      continue;
+    }
+    if (line.startsWith('> ')) {
+      output.push(`<blockquote>${inline(line.slice(2))}</blockquote>`);
+      index += 1;
+      continue;
+    }
+    if (/^- /.test(line)) {
+      const items: string[] = [];
+      while (index < lines.length && /^- /.test(lines[index])) { items.push(`<li>${inline(lines[index].slice(2))}</li>`); index += 1; }
+      output.push(`<ul>${items.join('')}</ul>`);
+      continue;
+    }
+    if (/^\d+\. /.test(line)) {
+      const items: string[] = [];
+      while (index < lines.length && /^\d+\. /.test(lines[index])) { items.push(`<li>${inline(lines[index].replace(/^\d+\. /, ''))}</li>`); index += 1; }
+      output.push(`<ol>${items.join('')}</ol>`);
+      continue;
+    }
+    const paragraph: string[] = [line];
+    index += 1;
+    while (index < lines.length && lines[index].trim() && !/^(#{1,3})\s|^```|^> |^- |^\d+\. |^\|/.test(lines[index])) { paragraph.push(lines[index]); index += 1; }
+    output.push(`<p>${inline(paragraph.join(' '))}</p>`);
+  }
+  return output.join('\n');
+}
+
+function exportManualPdf(markdown: string, manualLabel: string, coverTitle: string, coverLead: string) {
+  const printWindow = window.open('', '_blank', 'width=1000,height=900');
+  if (!printWindow) return;
+  const renderedManual = renderManualMarkdown(markdown);
+  printWindow.document.open();
+  printWindow.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8" /><title>${escapeCharterHtml(manualLabel)} - DMAIC Ágil Suite</title><style>
+  *{box-sizing:border-box} :root{--ink:#17383a;--muted:#607b7d;--teal:#2fae8a;--teal-dark:#087f70;--line:#d7e3df;--paper:#f6f8f5;--card:#fff;--orange:#e8922c} body{margin:0;background:var(--paper);color:var(--ink);font-family:Arial,'Helvetica Neue',sans-serif;font-size:11.5pt;line-height:1.58} .print-bar{position:sticky;top:0;z-index:3;display:flex;justify-content:flex-end;padding:12px 7vw;background:rgba(246,248,245,.94);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)} .print-bar button{border:0;border-radius:7px;padding:10px 16px;background:var(--ink);color:#fff;font-weight:700;cursor:pointer}.manual-shell{max-width:900px;margin:0 auto;padding:0 34px 70px;background:#fff;box-shadow:0 0 38px rgba(23,56,58,.08)}.cover{min-height:470px;display:flex;flex-direction:column;justify-content:flex-end;padding:70px 0 56px;border-bottom:1px solid var(--line);position:relative;overflow:hidden}.cover:before{content:'';position:absolute;right:-120px;top:-130px;width:430px;height:430px;border:34px solid rgba(47,174,138,.16);border-radius:50%}.cover:after{content:'';position:absolute;right:75px;top:95px;width:120px;height:120px;border:1px solid rgba(232,146,44,.45);border-radius:50%}.brand{position:relative;z-index:1;color:var(--teal-dark);font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}.cover h1{position:relative;z-index:1;max-width:650px;margin:18px 0 12px;font-size:43px;line-height:1.04;letter-spacing:-.04em}.cover .lead{position:relative;z-index:1;max-width:570px;margin:0;color:var(--muted);font-size:16px;line-height:1.5}.meta{position:relative;z-index:1;display:flex;gap:24px;margin-top:34px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em}.manual{padding-top:38px}.section-title{margin:42px 0 18px;padding:15px 0 10px;border-top:3px solid var(--teal);color:var(--ink);font-size:24px;line-height:1.15;break-after:avoid}.manual>.section-title:first-child{margin-top:0}.subsection-title{margin:30px 0 10px;color:var(--teal-dark);font-size:17px;break-after:avoid}.minor-title{margin:20px 0 7px;color:var(--ink);font-size:13px;break-after:avoid}.manual p{margin:0 0 13px;color:#425c5e}.manual ul,.manual ol{margin:7px 0 18px;padding-left:23px;color:#425c5e}.manual li{margin:5px 0;padding-left:3px}.manual strong{color:var(--ink)}blockquote{margin:22px 0;padding:17px 20px;border-left:4px solid var(--orange);border-radius:0 8px 8px 0;background:#fff8ed;color:#6e5327;font-weight:700;break-inside:avoid}.table-wrap{margin:18px 0 24px;overflow:hidden;border:1px solid var(--line);border-radius:8px;break-inside:avoid}table{width:100%;border-collapse:collapse;background:var(--card);font-size:10.5pt}th{padding:11px 12px;text-align:left;background:#e9f4ef;color:var(--teal-dark);font-size:9px;text-transform:uppercase;letter-spacing:.08em}td{padding:10px 12px;border-top:1px solid var(--line);vertical-align:top;color:#425c5e}.code-block{margin:18px 0;padding:17px 19px;overflow:auto;border-radius:8px;background:#17383a;color:#e2f2ed;font:10px/1.5 Consolas,monospace;white-space:pre-wrap;break-inside:avoid}.diagram-block{border:1px dashed rgba(47,174,138,.7);background:#102d2f;color:#9de2c8}.manual code{padding:2px 5px;border-radius:4px;background:#e8f2ee;color:var(--teal-dark);font:inherit}.manual hr{border:0;border-top:1px solid var(--line);margin:30px 0}.manual h1:first-of-type{display:none}@page{size:A4;margin:13mm}@media print{body{background:#fff}.print-bar{display:none}.manual-shell{max-width:none;padding:0;box-shadow:none}.cover{min-height:245mm}.section-title{break-before:auto}.table-wrap{overflow:visible}a{color:inherit;text-decoration:none}}@media(max-width:700px){.manual-shell{padding:0 20px 45px}.cover{min-height:480px;padding-top:55px}.cover h1{font-size:34px}.meta{flex-direction:column;gap:6px}}
+  </style></head><body><div class="print-bar"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div><main class="manual-shell"><header class="cover"><div class="brand">DMAIC ÁGIL SUITE · ${escapeCharterHtml(manualLabel).toUpperCase()}</div><h1>${escapeCharterHtml(coverTitle)}</h1><p class="lead">${escapeCharterHtml(coverLead)}</p><div class="meta"><span>Versão 2.0</span><span>Português do Brasil</span><span>Exportado em ${new Date().toLocaleDateString('pt-BR')}</span></div></header><article class="manual">${renderedManual}</article></main></body></html>`);
+  printWindow.document.close();
+  printWindow.focus();
+}
+
+function exportExecutiveManualPdf() {
+  exportManualPdf(executiveManualMarkdown, 'MANUAL EXECUTIVO', 'Decisões melhores. Melhorias que permanecem.', 'Guia executivo para transformar problemas, dados e evidências em decisões sustentáveis.');
+}
+
+function exportUsageManualPdf() {
+  exportManualPdf(usageManualMarkdown, 'MANUAL DE UTILIZAÇÃO', 'Use a Suíte com clareza.', 'Manual completo para conduzir o projeto DMAIC Ágil, revisar artefatos e sustentar resultados.');
+}
+
 function buildSipocPrintDocument(sipoc: DmaicSipoc, projectName: string): string {
   const cell = (value: string) => {
     const lines = sipocCellLines(value);
@@ -1669,7 +2386,7 @@ const VOC_CLIENT_TYPE_LABELS: Record<DmaicVocCqt['clientType'], string> = { exte
 const VOC_SOURCE_TYPE_LABELS: Record<DmaicVocCqt['sourceType'], string> = { active: 'Fonte ativa', reactive: 'Fonte reativa' };
 
 function buildVocPrintDocument(rows: DmaicVocCqt[], projectName: string): string {
-  const rowHtml = rows.map((row, index) => `<tr>
+  const rowHtml = rows.map((row) => `<tr>
     <td>${escapeCharterHtml(row.vocNeed) || '—'}</td>
     <td><span class="tag">${escapeCharterHtml(VOC_CLIENT_TYPE_LABELS[row.clientType])}</span><br />${escapeCharterHtml(row.client) || '—'}</td>
     <td><span class="tag muted">${escapeCharterHtml(VOC_SOURCE_TYPE_LABELS[row.sourceType])}</span><br />${escapeCharterHtml(row.source) || '—'}</td>
@@ -1716,217 +2433,18 @@ function exportVocPdf(rows: DmaicVocCqt[], projectName: string) {
   printWindow.focus();
 }
 
-const PRINT_DOCUMENT_STYLES = `
-  * { box-sizing: border-box; }
-  body { font-family: Georgia, 'Times New Roman', serif; color: #1c1917; margin: 0; padding: 36px 44px; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #78716c; margin: 28px 0 12px; border-bottom: 1px solid #e7e5e4; padding-bottom: 6px; }
-  p { font-size: 12.5px; line-height: 1.5; margin: 0; }
-  .subtitle { font-size: 12px; color: #78716c; margin: 0 0 16px; }
-  .empty { color: #a8a29e; font-style: italic; }
-  table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-top: 4px; }
-  th, td { border: 1px solid #e7e5e4; padding: 6px 8px; text-align: left; vertical-align: top; }
-  th { background: #f5f5f4; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #78716c; }
-  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 4px; }
-  .stat { border: 1px solid #e7e5e4; border-radius: 8px; padding: 10px 12px; break-inside: avoid; }
-  .stat .label { font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; color: #78716c; }
-  .stat .value { font-size: 15px; font-weight: 700; margin-top: 3px; font-family: 'Courier New', monospace; }
-  .note { margin-top: 10px; }
-  .chart-grid { display: grid; grid-template-columns: 1.35fr .85fr; gap: 14px; margin-top: 4px; }
-  .chart-card { border: 1px solid #e7e5e4; border-radius: 10px; padding: 12px; break-inside: avoid; }
-  .chart-card h4 { font-size: 12px; font-weight: 700; margin: 0 0 8px; }
-  .chart-card svg { width: 100%; height: auto; display: block; }
-  .bar-row { display: grid; grid-template-columns: minmax(0,1fr) 52px; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 11px; }
-  .bar-track { grid-column: 1 / 2; height: 9px; border-radius: 5px; background: #f0ece4; overflow: hidden; margin-top: 3px; }
-  .bar-fill { height: 100%; border-radius: 5px; background: #f5a029; }
-  .bar-count { text-align: right; font-weight: 700; font-family: 'Courier New', monospace; }
-  @media print { .chart-grid { grid-template-columns: 1.35fr .85fr; } }
-  .print-bar { position: sticky; top: 0; display: flex; justify-content: flex-end; margin: -36px -44px 24px; padding: 12px 44px; background: #fafaf9; border-bottom: 1px solid #e7e5e4; }
-  .print-bar button { font-family: inherit; font-size: 12px; font-weight: 700; padding: 8px 16px; border-radius: 8px; border: 1px solid #1c1917; background: #1c1917; color: #fff; cursor: pointer; }
-  @page { margin: 16mm; }
-  @media print { .print-bar { display: none; } body { padding: 0 8mm; } }
-`;
-
-function buildExploratoryLineChartSvg(summary: ExploratorySummary, indicator: string): string {
-  const width = 700;
-  const height = 230;
-  const padding = { top: 18, right: 18, bottom: 40, left: 64 };
-  const values = summary.points.map((point) => point.value);
-  const minimum = Math.min(...values, summary.mean);
-  const maximum = Math.max(...values, summary.mean);
-  const range = Math.max(maximum - minimum, 1);
-  const xFor = (index: number) => padding.left + (index / Math.max(values.length - 1, 1)) * (width - padding.left - padding.right);
-  const yFor = (value: number) => padding.top + (1 - (value - minimum) / range) * (height - padding.top - padding.bottom);
-  const points = values.map((value, index) => `${xFor(index)},${yFor(value)}`).join(' ');
-  const labels = [0, Math.floor((values.length - 1) / 2), values.length - 1].filter((value, index, list) => list.indexOf(value) === index);
-  const yTickCount = 4;
-  const yTicks = Array.from({ length: yTickCount + 1 }, (_, tickIndex) => minimum + (range * tickIndex) / yTickCount);
-  const baselineY = height - padding.bottom;
-  const yTicksSvg = yTicks.map((tick) => `<line x1="${padding.left}" x2="${width - padding.right}" y1="${yFor(tick)}" y2="${yFor(tick)}" stroke="#e7e5e4" stroke-width="1" /><text x="${padding.left - 8}" y="${yFor(tick) + 3}" text-anchor="end" font-size="10" fill="#78716c">${escapeCharterHtml(formatMetric(tick))}</text>`).join('');
-  const pointsSvg = summary.points.map((point, index) => `<circle cx="${xFor(index)}" cy="${yFor(point.value)}" r="3.8" fill="#3e99a8"><title>${escapeCharterHtml(`${point.period}: ${formatMetric(point.value)}`)}</title></circle>`).join('');
-  const labelsSvg = labels.map((index) => `<line x1="${xFor(index)}" x2="${xFor(index)}" y1="${baselineY}" y2="${baselineY + 4}" stroke="#e7e5e4" stroke-width="1" /><text x="${xFor(index)}" y="${height - 10}" text-anchor="${index === 0 ? 'start' : index === values.length - 1 ? 'end' : 'middle'}" font-size="10" fill="#78716c">${escapeCharterHtml(summary.points[index].period)}</text>`).join('');
-  return `<div class="chart-card"><h4>${escapeCharterHtml(indicator)} ao longo do período &middot; ${summary.points.length} pontos</h4><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeCharterHtml(`Série temporal de ${indicator}`)}">
-    ${yTicksSvg}
-    <line x1="${padding.left}" x2="${padding.left}" y1="${padding.top}" y2="${baselineY}" stroke="#e7e5e4" stroke-width="1" />
-    <line x1="${padding.left}" x2="${width - padding.right}" y1="${baselineY}" y2="${baselineY}" stroke="#e7e5e4" stroke-width="1" />
-    <line x1="${padding.left}" x2="${width - padding.right}" y1="${yFor(summary.mean)}" y2="${yFor(summary.mean)}" stroke="#f5a029" stroke-dasharray="5 5" />
-    <polyline fill="none" stroke="#3e99a8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" points="${points}" />
-    ${pointsSvg}
-    <text x="${width - padding.right}" y="${yFor(summary.mean) - 7}" text-anchor="end" font-size="10" fill="#b3781f">média ${escapeCharterHtml(formatMetric(summary.mean))}</text>
-    ${labelsSvg}
-  </svg></div>`;
-}
-
-function buildExploratoryBoxPlotSvg(summary: ExploratorySummary, indicator: string): string {
-  const width = 420;
-  const height = 250;
-  const plotTop = 22;
-  const plotBottom = 220;
-  const range = Math.max(summary.maximum - summary.minimum, 1);
-  const yFor = (value: number) => plotBottom - ((value - summary.minimum) / range) * (plotBottom - plotTop);
-  const x = 150;
-  const labelsSvg = ([['Máximo', summary.maximum], ['Q3', summary.q3], ['Mediana', summary.median], ['Q1', summary.q1], ['Mínimo', summary.minimum]] as [string, number][]).map(([label, value]) => `<text x="${x + 58}" y="${yFor(value) + 4}" font-size="10" fill="#78716c">${escapeCharterHtml(label)} &middot; ${escapeCharterHtml(formatMetric(value))}</text>`).join('');
-  return `<div class="chart-card"><h4>Boxplot de ${escapeCharterHtml(indicator)}</h4><svg viewBox="0 0 ${width} ${height + 26}" role="img" aria-label="${escapeCharterHtml(`Boxplot de ${indicator}`)}">
-    <line x1="${x}" x2="${x}" y1="${yFor(summary.minimum)}" y2="${yFor(summary.maximum)}" stroke="#329a77" stroke-width="2" />
-    <line x1="${x - 25}" x2="${x + 25}" y1="${yFor(summary.minimum)}" y2="${yFor(summary.minimum)}" stroke="#329a77" stroke-width="2" />
-    <line x1="${x - 25}" x2="${x + 25}" y1="${yFor(summary.maximum)}" y2="${yFor(summary.maximum)}" stroke="#329a77" stroke-width="2" />
-    <rect x="${x - 42}" y="${yFor(summary.q3)}" width="84" height="${Math.max(yFor(summary.q1) - yFor(summary.q3), 3)}" rx="6" fill="#329a7730" stroke="#329a77" stroke-width="2" />
-    <line x1="${x - 42}" x2="${x + 42}" y1="${yFor(summary.median)}" y2="${yFor(summary.median)}" stroke="#f5a029" stroke-width="3" />
-    ${labelsSvg}
-  </svg></div>`;
-}
-
-function buildInputDataPrintDocument(dataset: InputDataset, analysis: IndicatorAnalysis | null, months: number, diagnosis: string | null, projectName: string): string {
-  const stat = (label: string, value: string) => `<div class="stat"><p class="label">${escapeCharterHtml(label)}</p><p class="value">${escapeCharterHtml(value)}</p></div>`;
-  const overviewStats = [
-    stat('Arquivo', dataset.fileName),
-    stat('Linhas', String(dataset.rows.length)),
-    stat('Colunas', String(dataset.headers.length)),
-    stat('Coluna de data', dataset.dateColumn ?? 'Não identificada'),
-  ].join('');
-  const exploratorySummary = analysis && analysis.kind === 'continuous' ? buildExploratorySummary(dataset, analysis, months) : null;
-  const analysisSection = !analysis
-    ? '<p class="empty">Nenhum indicador selecionado.</p>'
-    : analysis.kind === 'continuous'
-      ? `<div class="stat-grid">${[
-          stat('Média', formatMetric(analysis.mean)),
-          stat('Mediana', formatMetric(analysis.median)),
-          stat('Mínimo', formatMetric(analysis.minimum)),
-          stat('Máximo', formatMetric(analysis.maximum)),
-          stat('Desvio-padrão', formatMetric(analysis.standardDeviation)),
-          stat('Normalidade', analysis.normality),
-        ].join('')}</div><p class="note">${escapeCharterHtml(analysis.normalityDetail)}</p>${exploratorySummary ? `<div class="chart-grid" style="margin-top:14px">${buildExploratoryLineChartSvg(exploratorySummary, analysis.indicator)}${buildExploratoryBoxPlotSvg(exploratorySummary, analysis.indicator)}</div>` : ''}`
-      : `<div class="stat-grid">${[
-          stat('Categoria dominante', analysis.topCategory),
-          stat('Ocorrências', String(analysis.topCategoryCount)),
-          stat('Categorias', String(analysis.categoryCount)),
-        ].join('')}</div><div class="chart-card" style="margin-top:10px"><h4>Distribuição por categoria</h4>${analysis.distribution.map((item) => `<div class="bar-row"><div><div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:2px"><strong>${escapeCharterHtml(item.label)}</strong><span>${item.percentage.toFixed(1)}%</span></div><div class="bar-track"><div class="bar-fill" style="width:${item.percentage}%"></div></div></div><span class="bar-count">${item.count}</span></div>`).join('')}</div>`;
-  return `<!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8" /><title>Dados para análise - ${escapeCharterHtml(projectName)}</title>
-<style>${PRINT_DOCUMENT_STYLES}</style></head>
-<body>
-  <div class="print-bar"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div>
-  <h1>Dados para análise</h1>
-  <p class="subtitle">${escapeCharterHtml(projectName)} &middot; gerado em ${new Date().toLocaleDateString('pt-BR')}</p>
-
-  <h2>Conjunto de dados carregado</h2>
-  <div class="stat-grid">${overviewStats}</div>
-  <p class="note"><strong>Indicadores disponíveis:</strong> ${dataset.indicatorColumns.map(escapeCharterHtml).join(', ') || '—'}</p>
-
-  <h2>Resumo do indicador${analysis ? ` &middot; ${escapeCharterHtml(analysis.indicator)}` : ''}</h2>
-  <p class="note">${analysis ? `${analysis.rows} observações &middot; ${dataset.dateColumn ? `últimos ${months} meses` : 'sem coluna de período'} &middot; indicador ${analysis.kind === 'continuous' ? 'contínuo' : 'discreto'}` : ''}</p>
-  <div style="margin-top:10px">${analysisSection}</div>
-  ${exploratorySummary ? `<h2>Diagnóstico detalhado com IA</h2>${diagnosis
-      ? diagnosis.split(/\n{2,}/).map((paragraph) => `<p class="note">${escapeCharterHtml(paragraph.trim())}</p>`).join('')
-      : '<p class="empty">Nenhum diagnóstico detalhado foi gerado com IA para esta leitura.</p>'}` : ''}
-</body></html>`;
-}
-
-function exportInputDataPdf(dataset: InputDataset, analysis: IndicatorAnalysis | null, months: number, diagnosis: string | null, projectName: string) {
-  const printWindow = window.open('', '_blank', 'width=1000,height=900');
-  if (!printWindow) return;
-  printWindow.document.open();
-  printWindow.document.write(buildInputDataPrintDocument(dataset, analysis, months, diagnosis, projectName));
-  printWindow.document.close();
-  printWindow.focus();
-}
-
-function buildExploratoryPrintDocument(summary: ExploratorySummary, indicator: string, diagnosis: string | null, projectName: string): string {
-  const stat = (label: string, value: string) => `<div class="stat"><p class="label">${escapeCharterHtml(label)}</p><p class="value">${escapeCharterHtml(value)}</p></div>`;
-  const statGrid = [
-    stat('Mínimo', formatMetric(summary.minimum)),
-    stat('Q1 · 25%', formatMetric(summary.q1)),
-    stat('Mediana', formatMetric(summary.median)),
-    stat('Q3 · 75%', formatMetric(summary.q3)),
-    stat('Máximo', formatMetric(summary.maximum)),
-    stat('IQR', formatMetric(summary.iqr)),
-    stat('Desvio-padrão', formatMetric(summary.standardDeviation)),
-    stat('p Shapiro–Wilk', summary.shapiroPValue === null ? 'Indisponível' : formatMetric(summary.shapiroPValue)),
-  ].join('');
-  const diagnosisHtml = diagnosis
-    ? diagnosis.split(/\n{2,}/).map((paragraph) => `<p class="note">${escapeCharterHtml(paragraph.trim())}</p>`).join('')
-    : '<p class="empty">Nenhum diagnóstico detalhado foi gerado com IA para esta leitura.</p>';
-  return `<!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8" /><title>Análise Exploratória & Estatística Descritiva - ${escapeCharterHtml(projectName)}</title>
-<style>${PRINT_DOCUMENT_STYLES}</style></head>
-<body>
-  <div class="print-bar"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div>
-  <h1>Análise Exploratória & Estatística Descritiva</h1>
-  <p class="subtitle">${escapeCharterHtml(projectName)} &middot; ${escapeCharterHtml(indicator)} &middot; ${summary.points.length} observações &middot; gerado em ${new Date().toLocaleDateString('pt-BR')}</p>
-
-  <h2>Gráficos</h2>
-  <div class="chart-grid">${buildExploratoryLineChartSvg(summary, indicator)}${buildExploratoryBoxPlotSvg(summary, indicator)}</div>
-
-  <h2>Estatística descritiva</h2>
-  <div class="stat-grid">${statGrid}</div>
-
-  <h2>Leitura da distribuição</h2>
-  <p class="note"><strong>25% inferiores:</strong> a região entre ${formatMetric(summary.minimum)} e ${formatMetric(summary.q1)} representa aproximadamente o quarto inferior das observações.</p>
-  <p class="note"><strong>25% superiores:</strong> a região entre ${formatMetric(summary.q3)} e ${formatMetric(summary.maximum)} representa aproximadamente o quarto superior das observações.</p>
-  <p class="note"><strong>Teste de normalidade:</strong> ${escapeCharterHtml(summary.shapiroDetail)}${summary.shapiroPValue !== null ? ` &middot; ${summary.shapiroPValue >= 0.05 ? 'Não há evidência suficiente para rejeitar normalidade.' : 'Há evidência de desvio da normalidade.'}` : ''}</p>
-
-  <h2>Diagnóstico detalhado com IA</h2>
-  ${diagnosisHtml}
-</body></html>`;
-}
-
-function exportExploratoryPdf(summary: ExploratorySummary, indicator: string, diagnosis: string | null, projectName: string) {
-  const printWindow = window.open('', '_blank', 'width=1000,height=900');
-  if (!printWindow) return;
-  printWindow.document.open();
-  printWindow.document.write(buildExploratoryPrintDocument(summary, indicator, diagnosis, projectName));
-  printWindow.document.close();
-  printWindow.focus();
-}
-
-function GenericPreview({ tool, pipeline }: { tool: Tool; pipeline: DmaicPipeline | null }) {
-  const first = (items: Record<string, string>[]) => Object.entries(items[0] ?? {}).map(([label, value]) => [label, value] as [string, string]);
-  const generatedRows = pipeline ? tool.id === 'charter' ? Object.entries(pipeline.projectCharter).map(([field, value]) => [AI_PROJECT_CHARTER_PREVIEW_LABELS[field as keyof DmaicCharter] ?? field, value] as [string, string]) : tool.id === 'voc' ? Object.entries(pipeline.vocCtq[0] ?? {}) : tool.id === 'msa' ? first(pipeline.msaValidation) : tool.id === 'vitalx' ? first(pipeline.vitalXs) : tool.id === 'gut' ? first(pipeline.gutPrioritization) : tool.id === 'solutions' ? first(pipeline.actionPlan) : tool.id === 'control-plan' ? first(pipeline.controlPlan) : Object.entries(pipeline.indicatorsY) : null;
-  const rows = generatedRows?.length ? generatedRows : tool.id === 'charter' ? [['Objetivo', 'Reduzir o lead time total'], ['Meta', 'De 18,4 para 11,0 min'], ['Dono do processo', 'Operações de crédito'], ['Prazo', '30 jun 2024']] : tool.id === 'voc' ? [['Cliente', 'Solicitante interno'], ['Necessidade', 'Resposta previsível'], ['CTQ', 'Tempo de aprovação'], ['Limite', '≤ 11 min']] : tool.id === 'msa' ? [['Método', 'Gage R&R simplificado'], ['Repetibilidade', '2,1%'], ['Reprodutibilidade', '3,4%'], ['Veredito', 'Sistema aceitável']] : [['Critério', 'Definição inicial'], ['Responsável', 'Time do projeto'], ['Evidência', 'Registro operacional'], ['Próxima revisão', '06 jun 2024']];
-   return <div><div className="mb-5 flex items-start justify-between"><div><p className="mono-label text-primary">{pipeline ? 'Saída do pipeline' : 'Snapshot de trabalho'}</p><h3 className="mt-2 font-serif text-lg font-bold">{tool.title} / leitura rápida</h3><p className="mt-1 text-xs text-muted-foreground">{pipeline ? 'Artefato estruturado a partir do problema informado.' : 'Exemplo preenchido para orientar o time.'}</p></div><Check size={20} className="text-primary" /></div><div className="overflow-hidden rounded-xl border border-border">{rows.map(([label, value]) => <div key={label} className="grid grid-cols-[42%_58%] border-b border-border last:border-0"><div className="break-words bg-muted/55 p-3 text-[11px] font-bold text-muted-foreground">{label}</div><div className="break-words p-3 text-xs font-semibold">{value}</div></div>)}</div><div className="mt-5 rounded-xl bg-primary/7 p-4"><div className="flex gap-3"><Sparkles size={16} className="shrink-0 text-primary" /><p className="text-xs leading-relaxed"><strong>Leitura do facilitador:</strong> {pipeline ? 'revise e valide os artefatos com o time antes de tratar as hipóteses como evidência.' : 'a estrutura está suficientemente clara para a próxima conversa do time.'}</p></div></div></div>;
-}
-
-function DataNotes({ tool, pareto, imr, source }: { tool: Tool; pareto: { name: string; value: number }[] | null; imr: number[] | null; source: 'example' | 'upload' }) {
-  const sourceDetail = tool.id === 'pareto' ? `${pareto?.length ?? 0} categorias · ${pareto?.reduce((sum, item) => sum + item.value, 0) ?? 0} ocorrências` : tool.id === 'imr' ? `${imr?.length ?? 0} observações sequenciais · coluna numérica` : 'Artefato orientativo do workspace';
-  return <div><p className="mono-label text-primary">Notas do método</p><h3 className="mt-2 font-serif text-lg font-bold">Como ler este resultado</h3><p className="mt-3 text-sm leading-relaxed text-muted-foreground">{source === 'upload' ? 'Esta visualização usa o indicador selecionado do CSV e é calculada localmente no navegador.' : 'Esta visualização usa dados de exemplo e cálculos executados localmente. Troque o arquivo no bloco de upload para explorar seu próprio processo sem enviar dados para um servidor.'}</p><div className="mt-5 space-y-3"><div className="rounded-xl border border-border p-4"><div className="flex gap-3"><Database size={16} className="mt-0.5 text-primary" /><div><p className="text-xs font-bold">Fonte</p><p className="mt-1 text-[11px] text-muted-foreground">{sourceDetail}</p></div></div></div><div className="rounded-xl border border-border p-4"><div className="flex gap-3"><ClipboardCheck size={16} className="mt-0.5 text-chart-3" /><div><p className="text-xs font-bold">Próxima pergunta</p><p className="mt-1 text-[11px] text-muted-foreground">O padrão se mantém quando o time muda o turno ou o volume de entrada?</p></div></div></div></div></div>;
-}
-
-function getApiErrorMessage(error: unknown): string {
-  return error instanceof Error
-    ? error.message.replace(/^HTTP \d+ [^:]+:\s*/, '')
-    : 'Não foi possível gerar o Diagrama de Causa e Efeito agora.';
-}
-
-// hint: Structural and logic conflict. Both design and behavior differ.
 function Workspace() {
   const pipelineMutation = useRunDmaicPipeline();
   const whatIfMutation = useRunDmaicMeasurementWhatIf();
   const ishikawaMutation = useRunDmaicIshikawa();
+  const [controlEvaluationLoading, setControlEvaluationLoading] = useState(false);
+  const [controlEvaluationError, setControlEvaluationError] = useState<string | null>(null);
   const [initialLocalDraft] = useState<WorkspaceLocalDraft | null>(() => readWorkspaceLocalDraft());
   const workspaceQuery = useGetDmaicWorkspace(initialLocalDraft?.projectKey ? { projectKey: initialLocalDraft.projectKey } : undefined);
   const workspacesQuery = useListDmaicWorkspaces();
   const workspaceMutation = useSaveDmaicWorkspace();
   const [area, setArea] = useState<Area>('overview');
+  const [searchTerm, setSearchTerm] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [statement, setStatement] = useState(() => initialLocalDraft?.statement ?? DEFAULT_PROBLEM_STATEMENT);
   const [projectKey, setProjectKey] = useState<number | null>(() => initialLocalDraft?.projectKey ?? null);
@@ -1934,6 +2452,7 @@ function Workspace() {
   const [projectLoading, setProjectLoading] = useState(false);
   const [projectLoadedMessage, setProjectLoadedMessage] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [workspaceDirty, setWorkspaceDirty] = useState(false);
   const [charter, setCharter] = useState<ProjectCharterDraft>(() => initialLocalDraft?.charter ?? createProjectCharterDraft());
   const [charterSaved, setCharterSaved] = useState(false);
   const [manualVocSaved, setManualVocSaved] = useState(false);
@@ -1967,11 +2486,21 @@ function Workspace() {
   const [inputDataset, setInputDataset] = useState<InputDataset | null>(() => initialLocalDraft?.analysisArtifacts.dataset ?? null);
   const [measurementDataset, setMeasurementDataset] = useState<DmaicCsvDataset | null>(() => initialLocalDraft?.analysisArtifacts.measurementDataset ?? null);
   const [whatIfAnalyses, setWhatIfAnalyses] = useState<DmaicMeasurementWhatIfRecord[]>(() => initialLocalDraft?.analysisArtifacts.whatIfAnalyses ?? []);
+  const [controlPhase, setControlPhase] = useState<ControlPhase>(() => (initialLocalDraft?.analysisArtifacts as any)?.controlPhase ?? { dataset: null, months: 12, selectedIndicators: [], statistics: [], evaluation: null });
   const [whatIfSaved, setWhatIfSaved] = useState(false);
   const [processMap, setProcessMap] = useState<DmaicProcessMap>(() => cloneProcessMap(initialLocalDraft?.analysisArtifacts.processMap ?? createInitialProcessMap()));
   const [processMapDirty, setProcessMapDirty] = useState(false);
   const [processMapSaved, setProcessMapSaved] = useState(false);
   const [ishikawa, setIshikawa] = useState<DmaicAnalysisArtifactsIshikawa>(() => initialLocalDraft?.analysisArtifacts.ishikawa ?? initialLocalDraft?.analysisArtifacts.pipeline?.ishikawa ?? null);
+  const [hypothesisStatuses, setHypothesisStatuses] = useState<HypothesisStatusMap>(() => (initialLocalDraft?.analysisArtifacts as any)?.hypothesisStatuses ?? {});
+  const [hypothesisNotes, setHypothesisNotes] = useState<HypothesisNotesMap>(() => (initialLocalDraft?.analysisArtifacts as any)?.hypothesisNotes ?? {});
+  const [hypothesisLinks, setHypothesisLinks] = useState<HypothesisLinksMap>(() => (initialLocalDraft?.analysisArtifacts as any)?.hypothesisLinks ?? {});
+  const [attachments, setAttachments] = useState<AttachmentRecord[]>(() => (initialLocalDraft?.analysisArtifacts as any)?.attachments ?? []);
+  const [projectDecisions, setProjectDecisions] = useState<ProjectDecision[]>(() => (initialLocalDraft?.analysisArtifacts as any)?.projectDecisions ?? []);
+  const [artifactHistory, setArtifactHistory] = useState<ArtifactHistoryEntry[]>(() => (initialLocalDraft?.analysisArtifacts as any)?.artifactHistory ?? []);
+  const [hypothesisValidationError, setHypothesisValidationError] = useState<string | null>(null);
+  const [hypothesesDirty, setHypothesesDirty] = useState(false);
+  const [hypothesesSaved, setHypothesesSaved] = useState(false);
   const [ishikawaInputText, setIshikawaInputText] = useState(() => initialLocalDraft?.analysisArtifacts.ishikawaInputText ?? '');
   const [ishikawaDirty, setIshikawaDirty] = useState(false);
   const [ishikawaSaved, setIshikawaSaved] = useState(false);
@@ -1982,10 +2511,19 @@ function Workspace() {
   const [pipelineAnalysisContext, setPipelineAnalysisContext] = useState<DmaicPipelineAnalysisContext | null>(() => initialLocalDraft?.analysisArtifacts.pipelineAnalysisContext ?? null);
   const [csvError, setCsvError] = useState<string | null>(null);
   const [measurementCsvError, setMeasurementCsvError] = useState<string | null>(null);
+
+  const [causeAndEffectMatrix, setCauseAndEffectMatrix] = useState<any>(() => 
+    (initialLocalDraft?.analysisArtifacts as any)?.causeAndEffectMatrix ?? null
+  );
+  const [solutionPrioritizationMatrix, setSolutionPrioritizationMatrix] = useState<any>(() => 
+    (initialLocalDraft?.analysisArtifacts as any)?.solutionPrioritizationMatrix ?? null
+  );
+
   const fileRef = useRef<HTMLInputElement | null>(null);
   const measurementFileRef = useRef<HTMLInputElement | null>(null);
   const uploadVersionRef = useRef(0);
   const measurementUploadVersionRef = useRef(0);
+  const controlUploadVersionRef = useRef(0);
   const charterReviewVersionRef = useRef(0);
   const workspaceSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const workspaceSessionRef = useRef(0);
@@ -2002,6 +2540,83 @@ function Workspace() {
   const pareto = useMemo(() => !inputDataset ? initialPareto : inputAnalysis?.kind === 'discrete' ? inputAnalysis.distribution.map((item) => ({ name: item.label, value: item.count })) : null, [inputAnalysis, inputDataset]);
   const imr = useMemo(() => !inputDataset ? initialImr : inputAnalysis?.kind === 'continuous' && inputAnalysis.values.length >= 2 ? inputAnalysis.values : null, [inputAnalysis, inputDataset]);
   const activeProjectName = projectKey ? (workspacesQuery.data?.find((project) => project.projectKey === projectKey)?.projectName ?? (charter.projectName.trim() || `Projeto #${projectKey}`)) : (charter.projectName.trim() || 'Novo projeto');
+  const projectMilestones = [
+    statement.trim().length >= 10,
+    Boolean(charter.projectName.trim() && charter.objective.trim() && charter.goalDefinition.trim()),
+    Boolean((manualVocCtq.length || pipelineData?.vocCtq?.length) && pipelineData?.sipoc?.length),
+    Boolean(inputDataset || measurementDataset),
+    Boolean(controlPhase.evaluation),
+  ];
+  const completedMilestones = projectMilestones.filter(Boolean).length;
+  const projectProgress = Math.round((completedMilestones / projectMilestones.length) * 100);
+  const validatedHypothesis = Object.entries(hypothesisStatuses).some(([key, status]) => (status === 'Comprovada' || status === 'Rejeitada') && Boolean(hypothesisNotes[key]?.trim()));
+  const validatedActionPlan = Array.isArray((pipelineData as any)?.actionPlan) && (pipelineData as any).actionPlan.length > 0 && (pipelineData as any).actionPlan.every((row: Partial<ActionPlanRow>) => Boolean(row.who?.trim() && row.when?.trim()));
+  const phaseProgress = {
+    definition: [
+      statement.trim().length >= 10,
+      Boolean(charter.projectName.trim() && charter.objective.trim() && charter.goalDefinition.trim()),
+      Boolean(pipelineData),
+      Boolean(manualVocCtq.length || pipelineData?.vocCtq?.length),
+      Boolean(pipelineData?.sipoc?.length),
+    ],
+    measurement: [
+      Boolean(inputDataset || measurementDataset),
+      Boolean(inputAnalysis || measurementAnalysis),
+      Boolean(pipelineData?.msaValidation?.length),
+      Boolean(pipelineData?.vitalXs?.length),
+      Boolean(pipelineData?.gutPrioritization?.length),
+    ],
+    aic: [
+      validatedHypothesis,
+      validatedActionPlan,
+      Boolean(controlPhase.dataset || controlPhase.evaluation),
+    ],
+  } satisfies Record<'definition' | 'measurement' | 'aic', boolean[]>;
+  const phaseMilestoneLabels = {
+    definition: ['Problem statement', 'Project Charter', 'Pipeline gerado', 'VOC → CTQ', 'SIPOC'],
+    measurement: ['Dados carregados', 'Análise calculada', 'MSA validado', 'Xs vitais', 'Causas priorizadas'],
+    aic: ['Hipóteses', 'Plano de ação', 'Controle'],
+  } satisfies Record<'definition' | 'measurement' | 'aic', string[]>;
+  const calculatedPhaseProgress = Object.fromEntries(Object.entries(phaseProgress).map(([id, milestones]) => {
+    const completed = milestones.filter(Boolean).length;
+    const phaseId = id as 'definition' | 'measurement' | 'aic';
+    const pending = milestones.flatMap((done, index) => done ? [] : [phaseMilestoneLabels[phaseId][index]]);
+    return [id, { progress: Math.round((completed / milestones.length) * 100), completed, total: milestones.length, pending, next: pending[0] ?? 'Revisar e sustentar os resultados' }];
+  })) as Record<'definition' | 'measurement' | 'aic', PhaseProgress>;
+  const controlPhaseProgress: PhaseProgress = (() => {
+    const milestones = [Boolean(controlPhase.dataset), Boolean(controlPhase.evaluation)];
+    const labels = ['Dados pós-intervenção', 'Avaliação de sustentabilidade'];
+    const completed = milestones.filter(Boolean).length;
+    const pending = milestones.flatMap((done, index) => done ? [] : [labels[index]]);
+    return { progress: Math.round((completed / milestones.length) * 100), completed, total: milestones.length, pending, next: pending[0] ?? 'Revisar a estabilidade periodicamente' };
+  })();
+  const daysInCycle = (() => {
+    if (!charter.date) return null;
+    const startDate = new Date(`${charter.date}T00:00:00`);
+    if (Number.isNaN(startDate.getTime())) return null;
+    return Math.max(0, Math.floor((Date.now() - startDate.getTime()) / 86_400_000) + 1);
+  })();
+  const meaningfulRows = (rows: DmaicRow[] | undefined) => rows?.filter((row) => Object.values(row).some((value) => String(value).trim())).length ?? 0;
+  const vitalXsCount = meaningfulRows(pipelineData?.vitalXs);
+  const indicatorValue = pipelineData?.indicatorsY?.baseline?.trim()
+    || (inputAnalysis?.kind === 'continuous' ? inputAnalysis.mean.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : '')
+    || '—';
+  const indicatorNote = pipelineData?.indicatorsY?.primaryMetricY?.trim() || selectedIndicator || 'Indicador Y pendente';
+  const msaStatus = pipelineData?.msaValidation?.find((row) => String(row.gageRrStatus ?? '').trim())?.gageRrStatus?.trim() || '—';
+  const pulse: ProjectPulse = {
+    cycleDays: daysInCycle,
+    cycleNote: charter.date ? `desde ${new Intl.DateTimeFormat('pt-BR').format(new Date(`${charter.date}T00:00:00`))}` : 'Defina a data no Charter',
+    indicatorValue,
+    indicatorNote,
+    vitalXsValue: String(vitalXsCount).padStart(2, '0'),
+    vitalXsNote: vitalXsCount > 0 ? `${vitalXsCount} registrado(s)` : 'Nenhum X registrado',
+    dataConfidence: msaStatus,
+    dataConfidenceNote: msaStatus === '—' ? 'MSA ainda não validado' : 'Status informado no MSA',
+    updatedLabel: formatPulseUpdatedAt(workspaceLocalDraftRef.current?.savedAt ?? null),
+  };
+
+  const hasUnsavedChanges = workspaceDirty || analysisDirtyRef.current || manualVocCtqDirty || sipocDirty || msaDirty || vitalXDirty || gutDirty || solutionsDirty || controlPlanDirty || processMapDirty || hypothesesDirty || ishikawaDirty;
+
   const createAnalysisArtifacts = (): DmaicAnalysisArtifacts => {
     const exploratorySummary = inputDataset && inputAnalysis ? buildExploratorySummary(inputDataset, inputAnalysis, analysisMonths) : null;
     return {
@@ -2023,7 +2638,16 @@ function Workspace() {
       processMap,
       ishikawa,
       ishikawaInputText,
-    };
+      hypothesisStatuses,
+      hypothesisNotes,
+      hypothesisLinks,
+      attachments,
+      projectDecisions,
+      artifactHistory,
+      causeAndEffectMatrix,
+      solutionPrioritizationMatrix,
+      controlPhase,
+    } as any;
   };
   createAnalysisArtifactsRef.current = createAnalysisArtifacts;
 
@@ -2043,9 +2667,11 @@ function Workspace() {
     workspaceLocalDraftRef.current = draft;
     storeWorkspaceLocalDraft(draft);
   };
+
   const applyWorkspaceSnapshot = (workspace: DmaicWorkspace) => {
     const draft = workspaceToLocalDraft(workspace);
     analysisDirtyRef.current = false;
+    setWorkspaceDirty(false);
     setProjectKey(draft.projectKey);
     workspaceProjectKeyRef.current = draft.projectKey;
     setStatement(draft.statement);
@@ -2060,6 +2686,14 @@ function Workspace() {
     setProcessMapDirty(false);
     setProcessMapSaved(false);
     setIshikawa(draft.analysisArtifacts.ishikawa ?? draft.analysisArtifacts.pipeline?.ishikawa ?? null);
+    setHypothesisStatuses((draft.analysisArtifacts as any)?.hypothesisStatuses ?? {});
+    setHypothesisNotes((draft.analysisArtifacts as any)?.hypothesisNotes ?? {});
+    setHypothesisLinks((draft.analysisArtifacts as any)?.hypothesisLinks ?? {});
+    setAttachments((draft.analysisArtifacts as any)?.attachments ?? []);
+    setProjectDecisions((draft.analysisArtifacts as any)?.projectDecisions ?? []);
+    setArtifactHistory((draft.analysisArtifacts as any)?.artifactHistory ?? []);
+    setHypothesesDirty(false);
+    setHypothesesSaved(false);
     setIshikawaInputText(draft.analysisArtifacts.ishikawaInputText ?? '');
     setIshikawaDirty(false);
     setIshikawaSaved(false);
@@ -2084,10 +2718,15 @@ function Workspace() {
     setSolutionsSaved(false);
     setControlPlanDirty(false);
     setControlPlanSaved(false);
+    setControlPhase({ dataset: null, months: 12, selectedIndicators: [], statistics: [], evaluation: null });
+    setCauseAndEffectMatrix((draft.analysisArtifacts as any)?.causeAndEffectMatrix ?? null);
+    setSolutionPrioritizationMatrix((draft.analysisArtifacts as any)?.solutionPrioritizationMatrix ?? null);
+    setControlPhase((draft.analysisArtifacts as any)?.controlPhase ?? { dataset: null, months: 12, selectedIndicators: [], statistics: [], evaluation: null });
     setPipelineDone(Boolean(draft.analysisArtifacts.pipeline));
     setCsvError(null);
     setMeasurementCsvError(null);
     workspaceRevisionRef.current = workspace.revision;
+          setWorkspaceDirty(false);
   };
 
   useEffect(() => {
@@ -2118,7 +2757,7 @@ function Workspace() {
   useEffect(() => {
     if (localDraftConflict || !draftWriteEnabledRef.current) return;
     writeCurrentLocalDraft();
-  }, [aiCharterSuggestions, analysisMonths, charter, confirmedCharter, exploratoryDiagnosis, exploratoryDiagnosisInput, inputDataset, ishikawa, ishikawaInputText, localDraftConflict, manualVocCtq, measurementDataset, pipelineAnalysisContext, pipelineData, processMap, selectedIndicator, statement, whatIfAnalyses]);
+  }, [aiCharterSuggestions, analysisMonths, charter, confirmedCharter, exploratoryDiagnosis, exploratoryDiagnosisInput, inputDataset, ishikawa, ishikawaInputText, hypothesisStatuses, hypothesisNotes, hypothesisLinks, attachments, projectDecisions, artifactHistory, localDraftConflict, manualVocCtq, measurementDataset, pipelineAnalysisContext, pipelineData, processMap, selectedIndicator, statement, whatIfAnalyses, causeAndEffectMatrix, solutionPrioritizationMatrix, controlPhase]);
 
   const queueWorkspaceSave = (
     attempt: WorkspaceSaveAttempt,
@@ -2167,7 +2806,7 @@ function Workspace() {
 
   const saveWorkspace = (source: WorkspaceSaveSource, expectedRevision?: number, analysisArtifactsOverride?: DmaicAnalysisArtifacts) => {
     if (statement.trim().length < 10) {
-      setWorkspaceError('Descreva o problema com pelo menos 10 caracteres antes de salvar no Neon.');
+      setWorkspaceError('Descreva o problema com pelo menos 10 caracteres antes de salvar no Repositório.');
       return;
     }
     if (source === 'charter') charterReviewVersionRef.current += 1;
@@ -2176,7 +2815,7 @@ function Workspace() {
     const charterToPersist = source === 'charter' ? charter : confirmedCharter;
     const analysisArtifacts = analysisArtifactsOverride ?? createAnalysisArtifacts();
     if (analysisArtifactsSizeInBytes(analysisArtifacts) > MAX_ANALYSIS_ARTIFACT_BYTES) {
-      setWorkspaceError('Os dados da análise excedem o limite de 3 MB. Reduza as colunas ou filtre o período do CSV antes de salvar.');
+      setWorkspaceError('Os dados da análise excedem o limite de 3 MB.');
       return;
     }
     const attempt: WorkspaceSaveAttempt = {
@@ -2247,33 +2886,147 @@ function Workspace() {
           } else if (source === 'ishikawa') {
             setIshikawaDirty(false);
             setIshikawaSaved(true);
+          } else if (source === 'hypotheses') {
+            setHypothesesDirty(false);
+            setHypothesesSaved(true);
           }
         },
         onConflict: (latestWorkspace) => setWorkspaceConflict({ latest: latestWorkspace, source }),
         onError: () => setWorkspaceError(source === 'what-if'
-          ? 'A resposta foi gerada, mas ainda não foi salva no Neon. Tente salvar novamente ou resolva o conflito antes de sair.'
-          : 'Não foi possível salvar no Neon. Confirme a conexão e tente novamente.'),
+          ? 'A resposta foi gerada, mas ainda não foi salva no Repositório.'
+          : 'Não foi possível salvar no Repositório. Confirme a conexão e tente novamente.'),
       },
     );
   };
+
   const saveStatement = () => saveWorkspace('statement');
   const saveCharter = () => saveWorkspace('charter');
+
+  const saveMatrices = (causeData?: any, solData?: any) => {
+    if (causeData) setCauseAndEffectMatrix(causeData);
+    if (solData) setSolutionPrioritizationMatrix(solData);
+
+    const currentPipeline = pipelineData || {
+      version: 1,
+      projectTitle: charter.projectName || 'Projeto',
+      problemStatement: statement || DEFAULT_PROBLEM_STATEMENT,
+      executiveSummary: '',
+      businessCase: '',
+      expectedSavings: '',
+      projectCharter: {},
+      vocCtq: [],
+      sipoc: [],
+      msaValidation: [],
+      vitalXs: [],
+      causeAndEffectMatrix: [],
+      effortImpactMatrix: [],
+      solutionPrioritizationMatrix: [],
+      gutPrioritization: [],
+      actionPlan: [],
+      controlPlan: [],
+      indicatorsY: {},
+    };
+
+    const updatedPipeline = {
+      ...currentPipeline,
+      causeAndEffectMatrix: causeData ?? causeAndEffectMatrix ?? (currentPipeline as any).causeAndEffectMatrix,
+      solutionPrioritizationMatrix: solData ?? solutionPrioritizationMatrix ?? (currentPipeline as any).solutionPrioritizationMatrix,
+    };
+
+    setPipelineData(updatedPipeline as any);
+
+    const validStatement = statement && statement.trim().length >= 10 ? statement.trim() : DEFAULT_PROBLEM_STATEMENT;
+    if (!statement || statement.trim().length < 10) {
+      setStatement(validStatement);
+    }
+
+    const artifacts = createAnalysisArtifacts();
+    const finalArtifacts = {
+      ...artifacts,
+      pipeline: updatedPipeline as any,
+      causeAndEffectMatrix: causeData ?? causeAndEffectMatrix,
+      solutionPrioritizationMatrix: solData ?? solutionPrioritizationMatrix,
+    };
+
+    queueWorkspaceSave(
+      {
+        source: 'statement',
+        data: {
+          problemStatement: validStatement,
+          projectCharterContext: toProjectCharterContext(confirmedCharter),
+          aiCharterSuggestions: aiCharterSuggestions,
+          analysisArtifacts: finalArtifacts,
+        },
+      },
+      {
+        onSuccess: () => {
+          setSaved(true);
+          window.setTimeout(() => setSaved(false), 2200);
+        },
+        onError: () => {
+          setWorkspaceError('Não foi possível gravar as matrizes no Repositório. Verifique sua conexão.');
+        },
+      }
+    );
+  };
+
   const updateProcessMap = (nextProcessMap: DmaicProcessMap) => {
+    setWorkspaceDirty(true);
     setProcessMap(nextProcessMap);
     setProcessMapDirty(true);
     setProcessMapSaved(false);
   };
   const saveProcessMap = () => saveWorkspace('process-map');
   const updateIshikawaInputText = (value: string) => {
+    setWorkspaceDirty(true);
     setIshikawaInputText(value);
     setIshikawaDirty(true);
     setIshikawaSaved(false);
     ishikawaMutation.reset();
   };
   const updateIshikawa = (value: Record<string, string[]>) => {
+    setWorkspaceDirty(true);
     setIshikawa(value);
     setIshikawaDirty(true);
     setIshikawaSaved(false);
+  };
+  const updateHypothesisStatus = (key: string, status: HypothesisStatus) => {
+    if (status === 'Comprovada' && !hypothesisNotes[key]?.trim()) {
+      setHypothesisValidationError('Registre a evidência da hipótese antes de marcá-la como Comprovada.');
+      return;
+    }
+    setHypothesisValidationError(null);
+    setWorkspaceDirty(true);
+    setHypothesisStatuses((current) => ({ ...current, [key]: status }));
+    setHypothesesDirty(true);
+    setHypothesesSaved(false);
+  };
+  const updateHypothesisNote = (key: string, note: string) => {
+    setWorkspaceDirty(true);
+    setHypothesisNotes((current) => ({ ...current, [key]: note }));
+    setHypothesesDirty(true);
+    setHypothesesSaved(false);
+    setHypothesisValidationError(null);
+  };
+  const updateHypothesisLink = (key: string, field: keyof HypothesisLink, value: string) => {
+    setWorkspaceDirty(true);
+    setHypothesisLinks((current) => ({ ...current, [key]: { ...(current[key] ?? EMPTY_HYPOTHESIS_LINK), [field]: value } }));
+    setHypothesesDirty(true);
+    setHypothesesSaved(false);
+  };
+  const addAttachment = (file: File) => {
+    setWorkspaceDirty(true);
+    setAttachments((current) => [...current, { name: file.name, type: file.type, size: file.size, addedAt: new Date().toISOString() }]);
+  };
+  const saveHypotheses = () => {
+    const nextHistory = [...artifactHistory, { artifact: 'Hipóteses', action: 'Atualização', date: new Date().toISOString(), detail: 'Status e evidências revisados pela equipe.' }];
+    setArtifactHistory(nextHistory);
+    saveWorkspace('hypotheses', undefined, { ...createAnalysisArtifacts(), hypothesisStatuses, hypothesisNotes, hypothesisLinks, attachments, artifactHistory: nextHistory } as any);
+  };
+  const saveProjectRecords = () => {
+    const nextHistory = [...artifactHistory, { artifact: 'Decisões', action: 'Atualização', date: new Date().toISOString(), detail: 'Registro de decisão revisado pela equipe.' }];
+    setArtifactHistory(nextHistory);
+    saveWorkspace('hypotheses', undefined, { ...createAnalysisArtifacts(), projectDecisions, hypothesisLinks, attachments, artifactHistory: nextHistory } as any);
   };
   const generateIshikawa = () => {
     const sourceText = ishikawaInputText.trim();
@@ -2372,6 +3125,7 @@ function Workspace() {
     if (!workspaceHydrated || !projectKey || !inputDataset || !analysisDirtyRef.current) return;
     saveWorkspace('statement');
   }, [analysisMonths, inputDataset, projectKey, selectedIndicator, workspaceHydrated]);
+  
   const applyLatestWorkspace = (latestWorkspace: DmaicWorkspace) => {
     applyWorkspaceSnapshot(latestWorkspace);
     setWorkspaceConflict(null);
@@ -2416,6 +3170,14 @@ function Workspace() {
     setProcessMapDirty(false);
     setProcessMapSaved(false);
     setIshikawa(recoveredDraft.analysisArtifacts.ishikawa ?? recoveredDraft.analysisArtifacts.pipeline?.ishikawa ?? null);
+    setHypothesisStatuses((recoveredDraft.analysisArtifacts as any)?.hypothesisStatuses ?? {});
+    setHypothesisNotes((recoveredDraft.analysisArtifacts as any)?.hypothesisNotes ?? {});
+    setHypothesisLinks((recoveredDraft.analysisArtifacts as any)?.hypothesisLinks ?? {});
+    setAttachments((recoveredDraft.analysisArtifacts as any)?.attachments ?? []);
+    setProjectDecisions((recoveredDraft.analysisArtifacts as any)?.projectDecisions ?? []);
+    setArtifactHistory((recoveredDraft.analysisArtifacts as any)?.artifactHistory ?? []);
+    setHypothesesDirty(false);
+    setHypothesesSaved(false);
     setIshikawaInputText(recoveredDraft.analysisArtifacts.ishikawaInputText ?? '');
     setIshikawaDirty(false);
     setIshikawaSaved(false);
@@ -2440,6 +3202,8 @@ function Workspace() {
     setSolutionsSaved(false);
     setControlPlanDirty(false);
     setControlPlanSaved(false);
+    setCauseAndEffectMatrix((recoveredDraft.analysisArtifacts as any)?.causeAndEffectMatrix ?? null);
+    setSolutionPrioritizationMatrix((recoveredDraft.analysisArtifacts as any)?.solutionPrioritizationMatrix ?? null);
     setPipelineDone(Boolean(recoveredDraft.analysisArtifacts.pipeline));
     setMeasurementCsvError(null);
     workspaceRevisionRef.current = recoveredDraft.baseRevision;
@@ -2452,25 +3216,31 @@ function Workspace() {
   };
   const updateStatement = (value: string) => {
     draftWriteEnabledRef.current = true;
+    setWorkspaceDirty(true);
     setStatement(value);
   };
   const updateCharter = (field: CharterTextField, value: string) => {
     draftWriteEnabledRef.current = true;
+    setWorkspaceDirty(true);
     setCharter((current) => ({ ...current, [field]: value }));
   };
   const updateCharterTeam = (role: CharterTeamRole, field: keyof CharterTeamMember, value: string) => {
     draftWriteEnabledRef.current = true;
+    setWorkspaceDirty(true);
     setCharter((current) => ({ ...current, team: { ...current.team, [role]: { ...current.team[role], [field]: value } } }));
   };
   const updateAnalysisMonths = (months: number) => {
     analysisDirtyRef.current = true;
+    setWorkspaceDirty(true);
     setAnalysisMonths(months);
   };
   const updateSelectedIndicator = (indicator: string) => {
     analysisDirtyRef.current = true;
+    setWorkspaceDirty(true);
     setSelectedIndicator(indicator);
   };
   const updateManualVocCtq = (rows: DmaicVocCqt[]) => {
+    setWorkspaceDirty(true);
     setManualVocCtq(rows);
     setManualVocCtqDirty(true);
     setManualVocSaved(false);
@@ -2484,6 +3254,7 @@ function Workspace() {
     saveWorkspace('voc');
   };
   const updateSipoc = (next: DmaicSipoc) => {
+    setWorkspaceDirty(true);
     setPipelineData((prev) => prev ? { ...prev, sipoc: next } : prev);
     setSipocDirty(true);
     setSipocSaved(false);
@@ -2493,6 +3264,7 @@ function Workspace() {
     saveWorkspace('sipoc');
   };
   const updateMsa = (next: MsaRow[]) => {
+    setWorkspaceDirty(true);
     setPipelineData((prev) => prev ? { ...prev, msaValidation: next } : prev);
     setMsaDirty(true);
     setMsaSaved(false);
@@ -2502,6 +3274,7 @@ function Workspace() {
     saveWorkspace('msa');
   };
   const updateVitalX = (next: VitalXBreakdownRow[]) => {
+    setWorkspaceDirty(true);
     setPipelineData((prev) => prev ? { ...prev, vitalXs: next } : prev);
     setVitalXDirty(true);
     setVitalXSaved(false);
@@ -2511,7 +3284,9 @@ function Workspace() {
     saveWorkspace('vitalx');
   };
   const updateGut = (next: GutRow[]) => {
-    setPipelineData((prev) => prev ? { ...prev, gutPrioritization: next } : prev);
+    setWorkspaceDirty(true);
+    const persistedRows: DmaicRow[] = next.map((row) => ({ problem: row.problem, g: String(row.g), u: String(row.u), t: String(row.t), score: String(row.score) }));
+    setPipelineData((prev) => prev ? { ...prev, gutPrioritization: persistedRows } : prev);
     setGutDirty(true);
     setGutSaved(false);
   };
@@ -2520,28 +3295,60 @@ function Workspace() {
     saveWorkspace('gut');
   };
   const updateSolutions = (next: SolutionRow[]) => {
+    setWorkspaceDirty(true);
     setPipelineData((prev) => prev ? { ...prev, actionPlan: next } : prev);
     setSolutionsDirty(true);
     setSolutionsSaved(false);
   };
   const saveSolutions = () => {
     if (!pipelineData) return;
+    const incompleteAction = Array.isArray((pipelineData as any).actionPlan) && (pipelineData as any).actionPlan.some((row: Partial<ActionPlanRow>) => !row.who?.trim() || !row.when?.trim());
+    if (incompleteAction) {
+      setWorkspaceError('Cada ação precisa de responsável e prazo antes de ser salva.');
+      return;
+    }
+    setWorkspaceError(null);
     saveWorkspace('solutions');
   };
   const updateControlPlan = (next: ControlPlanRow[]) => {
+    setWorkspaceDirty(true);
     setPipelineData((prev) => prev ? { ...prev, controlPlan: next } : prev);
     setControlPlanDirty(true);
     setControlPlanSaved(false);
   };
   const saveControlPlan = () => {
-    if (!pipelineData) return;
     saveWorkspace('control-plan');
   };
+
+  const evaluateControlPhase = (statistics: ControlStatistic[], months: number) => {
+    if (!inputAnalysis && !measurementAnalysis) {
+      setWorkspaceError('Defina uma baseline com dados de medição antes de avaliar a melhoria.');
+      return;
+    }
+    setWorkspaceError(null);
+    if (!statistics.length || statement.trim().length < 1) return;
+    setControlPhase((current) => ({ ...current, statistics }));
+    setControlEvaluationLoading(true);
+    setControlEvaluationError(null);
+    void fetch('/api/dmaic/control-evaluation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ problemStatement: statement.trim(), projectCharterContext: toProjectCharterContext(charter), months, statistics }),
+    }).then(async (response) => {
+      const payload = await response.json() as ControlEvaluation & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? 'Não foi possível avaliar o Controle.');
+      const nextControlPhase = { ...controlPhase, statistics, evaluation: payload };
+      setControlPhase(nextControlPhase);
+      saveWorkspace('control-plan', undefined, { ...createAnalysisArtifacts(), controlPhase: nextControlPhase } as any);
+    }).catch((error: unknown) => {
+      setControlEvaluationError(error instanceof Error ? error.message : 'Não foi possível avaliar o Controle.');
+    }).finally(() => setControlEvaluationLoading(false));
+  };
+
   const loadSelectedProject = async () => {
     const nextProjectKey = Number(selectedProjectKey);
     if (!Number.isSafeInteger(nextProjectKey) || nextProjectKey < 1 || projectLoading) return;
-    const hasCurrentContent = Boolean(projectKey || statement.trim() || charter.projectName.trim());
-    if (hasCurrentContent && !window.confirm('Carregar este projeto trocará o conteúdo que está na tela. Edições não salvas não serão mantidas. Deseja continuar?')) return;
+    if (hasUnsavedChanges && !window.confirm('Há alterações não salvas neste projeto. Carregar outro projeto irá descartá-las. Deseja continuar?')) return;
     workspaceSessionRef.current += 1;
     setProjectLoading(true);
     setWorkspaceError(null);
@@ -2559,7 +3366,7 @@ function Workspace() {
       setLocalDraftConflict(null);
       setLocalDraftRecovered(false);
       setPipelineError(null);
-      setProjectLoadedMessage(`Projeto #${nextProjectKey} carregado do Neon.`);
+      setProjectLoadedMessage(`Projeto #${nextProjectKey} carregado do Repositório.`);
       window.setTimeout(() => setProjectLoadedMessage(null), 2600);
     } catch (error) {
       setWorkspaceError(error instanceof Error ? error.message : 'Não foi possível carregar o projeto selecionado.');
@@ -2567,14 +3374,15 @@ function Workspace() {
       setProjectLoading(false);
     }
   };
+
   const startNewProject = () => {
-    const hasCurrentContent = Boolean(projectKey || statement.trim() || charter.projectName.trim());
-    if (hasCurrentContent && !window.confirm('Começar um novo projeto trocará o conteúdo que está na tela. Edições não salvas não serão mantidas. Deseja continuar?')) return;
+    if (hasUnsavedChanges && !window.confirm('Há alterações não salvas neste projeto. Começar um novo projeto irá descartá-las. Deseja continuar?')) return;
     workspaceSessionRef.current += 1;
     const freshCharter = createProjectCharterDraft();
     setProjectKey(null);
     workspaceProjectKeyRef.current = null;
     analysisDirtyRef.current = false;
+    setWorkspaceDirty(false);
     setSelectedProjectKey('');
     setStatement('');
     setCharter(freshCharter);
@@ -2596,6 +3404,8 @@ function Workspace() {
     setSolutionsSaved(false);
     setControlPlanDirty(false);
     setControlPlanSaved(false);
+    setCauseAndEffectMatrix(null);
+    setSolutionPrioritizationMatrix(null);
     setPipelineDone(false);
     setInputDataset(null);
     setMeasurementDataset(null);
@@ -2605,6 +3415,14 @@ function Workspace() {
     setProcessMapDirty(false);
     setProcessMapSaved(false);
     setIshikawa(null);
+    setHypothesisStatuses({});
+    setHypothesisNotes({});
+    setHypothesisLinks({});
+    setAttachments([]);
+    setProjectDecisions([]);
+    setArtifactHistory([]);
+    setHypothesesDirty(false);
+    setHypothesesSaved(false);
     setIshikawaInputText('');
     setIshikawaDirty(false);
     setIshikawaSaved(false);
@@ -2628,13 +3446,14 @@ function Workspace() {
     setWorkspaceHydrated(true);
     if (typeof window !== 'undefined') window.localStorage.removeItem(WORKSPACE_DRAFT_STORAGE_KEY);
   };
+
   const startPipeline = () => {
     if (statement.trim().length < 10) {
       setPipelineError('Descreva o problema com pelo menos 10 caracteres para iniciar o pipeline.');
       return;
     }
     if (!projectKey) {
-      setPipelineError('Salve o Problem Statement primeiro para criar o código numérico deste projeto no Neon.');
+      setPipelineError('Salve o Problem Statement primeiro para criar o código numérico deste projeto no Repositório.');
       return;
     }
     setPipelineError(null);
@@ -2663,19 +3482,19 @@ function Workspace() {
             return;
           }
           const generatedCharter = applyGeneratedCharterFields(charter, data.generatedCharter);
-           const shouldSeedProcessMap = !pipelineData && !processMapDirty;
-           const generatedProcessMap = shouldSeedProcessMap
-             ? createProcessMapFromSipoc(data.sipoc, data.vocCtq, data.indicatorsY)
-             : processMap;
+          const shouldSeedProcessMap = !pipelineData && !processMapDirty;
+          const generatedProcessMap = shouldSeedProcessMap
+            ? createProcessMapFromSipoc(data.sipoc, data.vocCtq, data.indicatorsY)
+            : processMap;
           setPipelineData(data);
           setPipelineAnalysisContext(analysisContext);
           setCharter(generatedCharter);
           setAiCharterSuggestions(data.generatedCharter);
-           if (shouldSeedProcessMap) {
-             setProcessMap(generatedProcessMap);
-             setProcessMapDirty(false);
-             setProcessMapSaved(false);
-           }
+          if (shouldSeedProcessMap) {
+            setProcessMap(generatedProcessMap);
+            setProcessMapDirty(false);
+            setProcessMapSaved(false);
+          }
           setPipelineDone(true);
           setArea('overview');
           queueWorkspaceSave(
@@ -2686,12 +3505,12 @@ function Workspace() {
                 problemStatement: statement.trim(),
                 projectCharterContext: toProjectCharterContext(charter),
                 aiCharterSuggestions: data.generatedCharter,
-                 analysisArtifacts: { ...createAnalysisArtifacts(), pipeline: data, pipelineAnalysisContext: analysisContext, processMap: generatedProcessMap },
+                analysisArtifacts: { ...createAnalysisArtifacts(), pipeline: data, pipelineAnalysisContext: analysisContext, processMap: generatedProcessMap },
               },
             },
             {
               onConflict: (latestWorkspace) => setWorkspaceConflict({ latest: latestWorkspace, source: 'suggestions' }),
-              onError: () => setWorkspaceError('As sugestões foram geradas, mas não puderam ser protegidas no Neon. Salve o Charter para tentar novamente.'),
+              onError: () => setWorkspaceError('As sugestões foram geradas, mas não puderam ser protegidas no Repositório. Salve o Charter para tentar novamente.'),
             },
           );
         },
@@ -2702,6 +3521,7 @@ function Workspace() {
       },
     );
   };
+
   const handleUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -2738,6 +3558,7 @@ function Workspace() {
     };
     reader.readAsText(file);
   };
+
   const handleMeasurementUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -2756,6 +3577,7 @@ function Workspace() {
         const dataset = parseMeasurementCsv(String(reader.result ?? ''), file.name);
         if (uploadVersion !== measurementUploadVersionRef.current) return;
         analysisDirtyRef.current = true;
+        setWorkspaceDirty(true);
         setMeasurementDataset(dataset);
       } catch (error) {
         if (uploadVersion !== measurementUploadVersionRef.current) return;
@@ -2770,228 +3592,386 @@ function Workspace() {
     };
     reader.readAsText(file);
   };
-  const retryUpload = () => { setCsvError(null); fileRef.current?.click(); };
-  const openTool = (tool: Tool) => setSelectedTool(tool);
-  return <div className="flex min-h-[100dvh] bg-background text-foreground">
-    <Sidebar area={displayArea} setArea={setArea} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} activeProjectName={activeProjectName} />
-    {mobileOpen && <button data-testid="button-sidebar-overlay" aria-label="Fechar menu" className="fixed inset-0 z-20 bg-sidebar/30 lg:hidden" onClick={() => setMobileOpen(false)} />}
-    <div className="flex min-w-0 flex-1 flex-col"><Topbar area={displayArea} setMobileOpen={setMobileOpen} onStart={startPipeline} pipelineLoading={pipelineLoading} activeProjectName={activeProjectName} />
-      <main className="dmaic-grid flex-1 overflow-x-hidden px-5 py-7 sm:px-8 sm:py-9">
-        <div className="mx-auto max-w-[1240px]">
-           {area === 'overview' && <SavedProjects projects={workspacesQuery.data ?? []} selectedProjectKey={selectedProjectKey} loading={workspacesQuery.isLoading || projectLoading} error={workspacesQuery.isError ? 'Não foi possível carregar a lista de projetos salvos.' : null} onSelect={setSelectedProjectKey} onLoad={() => { void loadSelectedProject(); }} onNew={startNewProject} />}
-           {projectLoadedMessage && <div data-testid="status-project-loaded" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span>{projectLoadedMessage}</span></div>}
-           {pipelineLoading && <div data-testid="status-pipeline-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><RefreshCw size={15} className="animate-spin text-primary" /><span><strong>Montando seu caminho DMAIC...</strong> O Gemini está estruturando os entregáveis para a sessão.</span></div>}
-           {pipelineError && <div data-testid="status-pipeline-error" className="reveal mb-6 flex items-center justify-between gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive"><span>{pipelineError}</span><Button testId="button-retry-pipeline" onClick={startPipeline} variant="outline">Tentar novamente</Button></div>}
-            {pipelineData && <div data-testid="status-pipeline-analysis-context" className="reveal mb-6 flex items-start gap-3 rounded-xl border border-chart-3/25 bg-chart-3/5 px-4 py-3 text-xs"><FileBarChart size={15} className="mt-0.5 shrink-0 text-chart-3" /><span>{pipelineAnalysisContext ? <><strong>Pipeline fundamentado na análise local.</strong> Indicador <strong>{pipelineAnalysisContext.indicator}</strong>, janela de {pipelineAnalysisContext.analysisMonths} mês(es) e resumo estatístico foram registrados junto aos artefatos gerados.</> : <><strong>Pipeline gerado sem análise estatística anexada.</strong> Carregue um CSV e gere novamente para fundamentar as sugestões em evidências locais.</>}</span></div>}
-           {workspaceQuery.isLoading && <div data-testid="status-workspace-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-border bg-muted/55 px-4 py-3 text-xs"><RefreshCw size={15} className="animate-spin text-primary" /><span>Carregando o Project Charter salvo...</span></div>}
-            {localDraftConflict && <div data-testid="status-local-draft-conflict" className="reveal mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-xs"><div className="flex min-w-0 gap-3"><Info size={16} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="font-bold text-foreground">Encontramos um rascunho neste navegador e uma versão mais recente no Neon.</p><p className="mt-1 leading-relaxed text-muted-foreground">Nenhum conteúdo foi apagado. Escolha qual versão deseja manter na tela antes de continuar editando.</p></div></div><div className="flex shrink-0 flex-wrap gap-2"><Button testId="button-use-server-version" onClick={useServerVersionForLocalDraft} variant="outline">Usar versão do Neon</Button><Button testId="button-recover-local-draft" onClick={recoverLocalDraft}>Recuperar meu rascunho</Button></div></div>}
-           {workspaceConflict && <div data-testid="status-workspace-conflict" className="reveal mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-accent/35 bg-accent/10 px-4 py-3 text-xs"><div className="flex min-w-0 gap-3"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><div><p className="font-bold text-foreground">Há uma edição mais recente neste workspace.</p><p className="mt-1 leading-relaxed text-muted-foreground">Seus campos e sugestões continuam aqui. Carregue a versão mais recente para revisá-la ou substitua-a conscientemente pela sua edição.</p></div></div><div className="flex shrink-0 flex-wrap gap-2"><Button testId="button-use-latest-workspace" onClick={useLatestWorkspace} variant="outline">Usar versão mais recente</Button><Button testId="button-overwrite-workspace" onClick={overwriteLatestWorkspace}>Substituir mesmo assim</Button></div></div>}
-           {(workspaceError || workspaceQuery.isError) && <div data-testid="status-workspace-error" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive"><Info size={15} /><span>{workspaceError ?? 'Não foi possível carregar os dados salvos no Neon.'}</span></div>}
-            {localDraftRecovered && !localDraftConflict && <div data-testid="status-local-draft-recovered" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Rascunho recuperado deste navegador.</strong> Suas edições continuam protegidas localmente; use os botões de salvar para confirmá-las também no Neon.</span></div>}
-           {saved && <div data-testid="status-statement-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Mudança salva no Neon.</strong> O enunciado estará disponível ao reabrir este workspace.</span></div>}
-           {charterSaved && <div data-testid="status-charter-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Project charter salvo no Neon.</strong> Essas informações serão carregadas ao reabrir este workspace e usadas como contexto na geração do pipeline.</span></div>}
-              {area === 'overview' ? <Overview statement={statement} setStatement={updateStatement} onSave={saveStatement} charter={charter} onCharterChange={updateCharter} onTeamChange={updateCharterTeam} onSaveCharter={saveCharter} pipelineDone={pipelineDone} hasAiSuggestions={Boolean(aiCharterSuggestions)} onOpenArea={setArea} /> : <SprintView area={area} onOpenTool={openTool} onChangeVital={setVitalId} vitalId={vitalId} inputDataset={inputDataset} inputAnalysis={inputAnalysis} inputError={csvError} analysisMonths={analysisMonths} onAnalysisMonthsChange={updateAnalysisMonths} selectedIndicator={selectedIndicator} onSelectedIndicatorChange={updateSelectedIndicator} diagnosis={exploratoryDiagnosis} onDiagnosisChange={handleDiagnosisChange} onSaveAnalysis={saveStatement} onUpload={handleUpload} inputRef={fileRef} activeProjectName={activeProjectName} />}
-              {area === 'measurement' && <>
-                <MeasurementAnalysisPanel dataset={measurementDataset} analysis={measurementAnalysis} error={measurementCsvError} onUpload={handleMeasurementUpload} inputRef={measurementFileRef} onSave={saveStatement} activeProjectName={activeProjectName} whatIfAnalyses={whatIfAnalyses} onRunWhatIf={runMeasurementWhatIf} whatIfLoading={whatIfMutation.isPending} whatIfError={whatIfMutation.isError ? (whatIfMutation.error instanceof Error ? whatIfMutation.error.message.replace(/^HTTP \d+ [^:]+:\s*/, '') : 'Não foi possível realizar a análise What If agora.') : null} whatIfSaved={whatIfSaved} />
-                <ProcessMapEditor value={processMap} onChange={updateProcessMap} onSave={saveProcessMap} dirty={processMapDirty} saved={processMapSaved} />
-              </>}
-             <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-[10px] text-muted-foreground"><span className="mono-label">DMAIC Ágil Suite · workspace no Neon {projectKey ? `· projeto #${projectKey}` : '· novo projeto'}</span><span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> {pipelineData ? 'artefatos gerados por IA · revise com o time' : 'dados de exemplo sinalizados · sem envio externo'}</span></footer>
-        </div>
-      </main>
-    </div>
-     {selectedTool && <DetailDrawer tool={selectedTool} onClose={() => setSelectedTool(null)} pareto={pareto} imr={imr} inputAnalysis={inputAnalysis} hasInputDataset={Boolean(inputDataset)} csvError={csvError} onRetry={retryUpload} pipeline={pipelineData} hasDiagnosis={Boolean(pipelineAnalysisContext?.diagnosis)} manualRows={manualVocCtq} hasManualChanges={manualVocCtqDirty} manualSaveConfirmed={manualVocSaved} onManualRowsChange={updateManualVocCtq} onSaveManualRows={saveManualVocCtq} charter={charter} activeProjectName={activeProjectName} sipocDirty={sipocDirty} sipocSaved={sipocSaved} onSipocChange={updateSipoc} onSaveSipoc={saveSipoc} msaDirty={msaDirty} msaSaved={msaSaved} onMsaChange={updateMsa} onSaveMsa={saveMsa} vitalXDirty={vitalXDirty} vitalXSaved={vitalXSaved} onVitalXChange={updateVitalX} onSaveVitalX={saveVitalX} gutDirty={gutDirty} gutSaved={gutSaved} onGutChange={updateGut} onSaveGut={saveGut} solutionsDirty={solutionsDirty} solutionsSaved={solutionsSaved} onSolutionsChange={updateSolutions} onSaveSolutions={saveSolutions} controlPlanDirty={controlPlanDirty} controlPlanSaved={controlPlanSaved} onControlPlanChange={updateControlPlan} onSaveControlPlan={saveControlPlan} ishikawa={ishikawa} ishikawaInputText={ishikawaInputText} ishikawaDirty={ishikawaDirty} ishikawaSaved={ishikawaSaved} ishikawaGenerating={ishikawaMutation.isPending} ishikawaError={ishikawaMutation.isError ? getApiErrorMessage(ishikawaMutation.error) : null} onIshikawaInputTextChange={updateIshikawaInputText} onGenerateIshikawa={generateIshikawa} onIshikawaChange={updateIshikawa} onSaveIshikawa={saveIshikawa} />}
-  </div>;
-}
-/*
- * Alternative pre-rebase Workspace implementation retained temporarily while
- * the active implementation above receives the Charter persistence changes.
- * It is intentionally inactive.
- */
-/*
-function Workspace() {
-  const pipelineMutation = useRunDmaicPipeline();
-  const workspaceQuery = useGetDmaicWorkspace();
-  const workspaceMutation = useSaveDmaicWorkspace();
-  const [area, setArea] = useState<Area>('overview');
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [statement, setStatement] = useState('O tempo entre a entrada da solicitação e a aprovação do crédito varia de 8 a 31 minutos, gerando retrabalho e previsibilidade baixa para as agências no fechamento do mês.');
-  const [saved, setSaved] = useState(false);
-  const [charter, setCharter] = useState<ProjectCharterDraft>(createProjectCharterDraft);
-  const [charterSaved, setCharterSaved] = useState(false);
-  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
-  const [workspaceHydrated, setWorkspaceHydrated] = useState(false);
-  const [pipelineLoading, setPipelineLoading] = useState(false);
-  const [pipelineDone, setPipelineDone] = useState(false);
-  const [confirmedCharter, setConfirmedCharter] = useState<ProjectCharterDraft>(createProjectCharterDraft);
-  const [aiCharterSuggestions, setAiCharterSuggestions] = useState<GeneratedCharterFields | null>(null);
-  const [pipelineData, setPipelineData] = useState<DmaicPipeline | null>(null);
-  const [pipelineError, setPipelineError] = useState<string | null>(null);
-  const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
-  const [vitalId, setVitalId] = useState('x1');
-  const [csvName, setCsvName] = useState<string | null>(null);
-  const [csvError, setCsvError] = useState<string | null>(null);
-  const [pareto, setPareto] = useState(initialPareto);
-  const [imr, setImr] = useState(initialImr);
-  const fileRef = useRef<HTMLInputElement | null>(null);
-  const charterReviewVersionRef = useRef(0);
-  const workspaceSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const displayArea = area === 'overview' ? 'overview' : area;
 
-  useEffect(() => {
-    if (!workspaceQuery.data || workspaceHydrated) return;
-    if (workspaceQuery.data.hasSavedData) {
-      setStatement(workspaceQuery.data.problemStatement);
-      const persistedCharter = toProjectCharterDraft(workspaceQuery.data.projectCharterContext);
-      const pendingSuggestions = workspaceQuery.data.aiCharterSuggestions;
-      setConfirmedCharter(persistedCharter);
-      setCharter(pendingSuggestions ? applyGeneratedCharterFields(persistedCharter, pendingSuggestions) : persistedCharter);
-      setAiCharterSuggestions(pendingSuggestions);
-    }
-    setWorkspaceHydrated(true);
-  }, [workspaceHydrated, workspaceQuery.data]);
-
-  const queueWorkspaceSave = (
-    data: { problemStatement: string; projectCharterContext: ProjectCharterContext; aiCharterSuggestions: GeneratedCharterFields | null },
-    callbacks: { onSuccess?: () => void; onError: () => void },
-  ) => {
-    const queuedSave = workspaceSaveQueueRef.current
-      .catch(() => undefined)
-      .then(() => workspaceMutation.mutateAsync({ data }));
-    workspaceSaveQueueRef.current = queuedSave.then(() => undefined, () => undefined);
-    void queuedSave.then(() => callbacks.onSuccess?.()).catch(callbacks.onError);
-  };
-
-  const saveWorkspace = (source: 'statement' | 'charter') => {
-    if (statement.trim().length < 10) {
-      setWorkspaceError('Descreva o problema com pelo menos 10 caracteres antes de salvar no Neon.');
-      return;
-    }
-    if (source === 'charter') charterReviewVersionRef.current += 1;
-    setWorkspaceError(null);
-    const charterToPersist = source === 'charter' ? charter : confirmedCharter;
-    queueWorkspaceSave(
-      {
-        problemStatement: statement.trim(),
-        projectCharterContext: toProjectCharterContext(charterToPersist),
-        aiCharterSuggestions: source === 'charter' ? null : aiCharterSuggestions,
-      },
-      {
-        onSuccess: () => {
-          if (source === 'statement') {
-            setSaved(true);
-            window.setTimeout(() => setSaved(false), 2200);
-          } else {
-            setConfirmedCharter(charter);
-            setAiCharterSuggestions(null);
-            setCharterSaved(true);
-            window.setTimeout(() => setCharterSaved(false), 2200);
-          }
-        },
-        onError: () => setWorkspaceError('Não foi possível salvar no Neon. Confirme a conexão e tente novamente.'),
-      },
-    );
-  };
-  const saveStatement = () => saveWorkspace('statement');
-  const saveCharter = () => saveWorkspace('charter');
-  const updateCharter = (field: CharterTextField, value: string) => {
-    setCharter((current) => ({ ...current, [field]: value }));
-  };
-  const updateCharterTeam = (role: CharterTeamRole, field: keyof CharterTeamMember, value: string) => {
-    setCharter((current) => ({ ...current, team: { ...current.team, [role]: { ...current.team[role], [field]: value } } }));
-  };
-  const startPipeline = () => {
-    if (statement.trim().length < 10) {
-      setPipelineError('Descreva o problema com pelo menos 10 caracteres para iniciar o pipeline.');
-      return;
-    }
-    setPipelineError(null);
-    setPipelineLoading(true);
-    const generationReviewVersion = charterReviewVersionRef.current;
-    pipelineMutation.mutate(
-      {
-        data: {
-          problemStatement: statement.trim(),
-          projectCharterContext: toProjectCharterContext(charter),
-        },
-      },
-      {
-        onSuccess: (data) => {
-          if (generationReviewVersion !== charterReviewVersionRef.current) {
-            setPipelineError('O Charter foi confirmado durante a geração. Inicie o pipeline novamente para usar a versão revisada.');
-            return;
-          }
-          setPipelineData(data);
-          setCharter((current) => applyGeneratedCharterFields(current, data.generatedCharter));
-          setAiCharterSuggestions(data.generatedCharter);
-          setPipelineDone(true);
-          setArea('overview');
-          queueWorkspaceSave(
-            {
-              problemStatement: statement.trim(),
-              projectCharterContext: toProjectCharterContext(confirmedCharter),
-              aiCharterSuggestions: data.generatedCharter,
-            },
-            {
-              onError: () => setWorkspaceError('As sugestões foram geradas, mas não puderam ser protegidas no Neon. Salve o Charter para tentar novamente.'),
-            },
-          );
-        },
-        onError: () => {
-          setPipelineError('Não foi possível gerar o pipeline agora. Verifique a chave Gemini e tente novamente.');
-        },
-        onSettled: () => setPipelineLoading(false),
-      },
-    );
-  };
-  const handleUpload = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleControlUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    setCsvError(null);
-    if (!file.name.toLowerCase().endsWith('.csv')) { setCsvError('Use um arquivo com extensão .csv para calcular as análises.'); return; }
+    const uploadVersion = controlUploadVersionRef.current + 1;
+    controlUploadVersionRef.current = uploadVersion;
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setWorkspaceError('Use um arquivo com extensão .csv para Controle.');
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
-      const text = String(reader.result ?? '');
-      const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-      if (lines.length < 2) { setCsvError('O CSV precisa ter cabeçalho e pelo menos uma linha de dados.'); return; }
-      const rows = lines.slice(1).map((line) => line.split(/[;,]/).map((value) => value.trim()));
-      const numeric = rows.map((row) => Number(row.find((value) => value !== '' && !Number.isNaN(Number(value)))?.replace(',', '.'))).filter((value) => Number.isFinite(value));
-      if (numeric.length >= 3) setImr(numeric.slice(0, 40));
-      const counts = new Map<string, number>();
-      rows.forEach((row) => { const key = row.find((value) => value && Number.isNaN(Number(value))) ?? 'Categoria sem nome'; counts.set(key, (counts.get(key) ?? 0) + 1); });
-      if (counts.size > 0) setPareto(Array.from(counts.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8));
-      setCsvName(file.name);
+      if (uploadVersion !== controlUploadVersionRef.current) return;
+      try {
+        const dataset = parseInputCsv(String(reader.result ?? ''), file.name);
+        const numericIndicators = dataset.indicatorColumns.filter((indicator) => {
+          const normalized = indicator.toLowerCase();
+          return indicator !== dataset.dateColumn && indicator !== dataset.headers[0] && !/\b(data|date|m[eê]s|mes|month|per[ií]odo|period)\b/.test(normalized) && isContinuousIndicator(dataset, indicator);
+        });
+        const selectedIndicators = numericIndicators.length > 0
+          ? numericIndicators.slice(0, 1)
+          : dataset.indicatorColumns.filter((indicator) => indicator !== dataset.headers[0]).slice(0, 1);
+        setWorkspaceDirty(true);
+        setControlPhase({ dataset, months: controlPhase.months, selectedIndicators: selectedIndicators.slice(0, 1), statistics: [], evaluation: null });
+        setWorkspaceError(null);
+      } catch (error) {
+        setWorkspaceError(error instanceof Error ? error.message : 'Não foi possível interpretar o CSV de Controle.');
+      }
     };
-    reader.onerror = () => setCsvError('O navegador não conseguiu ler este arquivo. Tente exportar o CSV novamente.');
+    reader.onerror = () => setWorkspaceError('O navegador não conseguiu ler o CSV de Controle.');
     reader.readAsText(file);
   };
+
   const retryUpload = () => { setCsvError(null); fileRef.current?.click(); };
   const openTool = (tool: Tool) => setSelectedTool(tool);
-  return <div className="flex min-h-[100dvh] bg-background text-foreground">
-    <Sidebar area={displayArea} setArea={setArea} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
-    {mobileOpen && <button data-testid="button-sidebar-overlay" aria-label="Fechar menu" className="fixed inset-0 z-20 bg-sidebar/30 lg:hidden" onClick={() => setMobileOpen(false)} />}
-    <div className="flex min-w-0 flex-1 flex-col"><Topbar area={displayArea} setMobileOpen={setMobileOpen} onStart={startPipeline} pipelineLoading={pipelineLoading} />
-      <main className="dmaic-grid flex-1 overflow-x-hidden px-5 py-7 sm:px-8 sm:py-9">
-        <div className="mx-auto max-w-[1240px]">
-           {pipelineLoading && <div data-testid="status-pipeline-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><RefreshCw size={15} className="animate-spin text-primary" /><span><strong>Montando seu caminho DMAIC...</strong> O Gemini está estruturando os entregáveis para a sessão.</span></div>}
-           {pipelineError && <div data-testid="status-pipeline-error" className="reveal mb-6 flex items-center justify-between gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive"><span>{pipelineError}</span><Button testId="button-retry-pipeline" onClick={startPipeline} variant="outline">Tentar novamente</Button></div>}
-           {workspaceQuery.isLoading && <div data-testid="status-workspace-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-border bg-muted/55 px-4 py-3 text-xs"><RefreshCw size={15} className="animate-spin text-primary" /><span>Carregando o Project Charter salvo...</span></div>}
-           {(workspaceError || workspaceQuery.isError) && <div data-testid="status-workspace-error" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive"><Info size={15} /><span>{workspaceError ?? 'Não foi possível carregar os dados salvos no Neon.'}</span></div>}
-           {saved && <div data-testid="status-statement-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Mudança salva no Neon.</strong> O enunciado estará disponível ao reabrir este workspace.</span></div>}
-           {charterSaved && <div data-testid="status-charter-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Project charter salvo no Neon.</strong> Essas informações serão carregadas ao reabrir este workspace e usadas como contexto na geração do pipeline.</span></div>}
-           {area === 'overview' ? <Overview statement={statement} setStatement={setStatement} onSave={saveStatement} charter={charter} onCharterChange={updateCharter} onTeamChange={updateCharterTeam} onSaveCharter={saveCharter} pipelineDone={pipelineDone} hasAiSuggestions={Boolean(aiCharterSuggestions)} onOpenArea={setArea} /> : <SprintView area={area} onOpenTool={openTool} onChangeVital={setVitalId} vitalId={vitalId} csvName={csvName} onUpload={handleUpload} inputRef={fileRef} />}
-            <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-[10px] text-muted-foreground"><span className="mono-label">DMAIC Ágil Suite · workspace no Neon</span><span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> {pipelineData ? 'artefatos gerados por IA · revise com o time' : 'dados de exemplo sinalizados · sem envio externo'}</span></footer>
-        </div>
-      </main>
+  const exportExecutiveReport = () => {
+    const linkRows = Object.entries(hypothesisLinks).map(([key, link]) => `<tr><td>${escapeCharterHtml(key)}</td><td>${escapeCharterHtml(link.vitalX)}</td><td>${escapeCharterHtml(link.test)}</td><td>${escapeCharterHtml(link.action)}</td><td>${escapeCharterHtml(link.result)}</td></tr>`).join('');
+    const decisionRows = projectDecisions.map((decision) => `<tr><td>${escapeCharterHtml(decision.decision)}</td><td>${escapeCharterHtml(decision.owner)}</td><td>${escapeCharterHtml(decision.date)}</td><td>${escapeCharterHtml(decision.evidence)}</td><td>${escapeCharterHtml(decision.impact)}</td></tr>`).join('');
+    const historyRows = artifactHistory.map((entry) => `<li>${escapeCharterHtml(entry.artifact)} · ${escapeCharterHtml(entry.action)} · ${escapeCharterHtml(entry.detail)}</li>`).join('');
+    const attachmentRows = attachments.map((item) => `<li>${escapeCharterHtml(item.name)} (${Math.ceil(item.size / 1024)} KB)</li>`).join('');
+    const executiveRows = `<h1>Resumo executivo</h1><p class="subtitle">${escapeCharterHtml(activeProjectName)} · gerado em ${new Date().toLocaleDateString('pt-BR')}</p><h2>Problema</h2><p>${escapeCharterHtml(statement)}</p><h2>Y e baseline</h2><p>${escapeCharterHtml(String((pipelineData as any)?.indicatorsY?.primaryMetricY ?? 'Não definido'))} · ${escapeCharterHtml(String((pipelineData as any)?.indicatorsY?.baseline ?? 'Não registrado'))}</p><h2>Hipóteses em teste</h2><p>${Object.values(hypothesisStatuses).filter((status) => status === 'Em teste').length}</p><h2>Ações abertas</h2><p>${Array.isArray((pipelineData as any)?.actionPlan) ? (pipelineData as any).actionPlan.length : 0}</p><h2>Vínculos de rastreabilidade</h2><table><tr><th>Hipótese</th><th>X vital</th><th>Teste</th><th>Ação</th><th>Resultado</th></tr>${linkRows}</table><h2>Decisões</h2><table><tr><th>Decisão</th><th>Responsável</th><th>Data</th><th>Evidência</th><th>Impacto</th></tr>${decisionRows}</table><h2>Resultado atual</h2><p>${escapeCharterHtml(controlPhase.evaluation?.summary ?? 'Ainda não avaliado')}</p><h2>Histórico</h2><ul>${historyRows || '<li>Nenhum registro.</li>'}</ul><h2>Anexos</h2><ul>${attachmentRows || '<li>Nenhum anexo.</li>'}</ul>`;
+    openPrintDocument(`Resumo executivo - ${activeProjectName}`, executiveRows);
+  };
+  const duplicateAsModel = () => {
+    const modelCharter = { ...charter, projectName: `${charter.projectName.trim() || activeProjectName} (Modelo)` };
+    void workspaceMutation.mutateAsync({ data: { problemStatement: statement, projectCharterContext: toProjectCharterContext(modelCharter), aiCharterSuggestions, analysisArtifacts: createAnalysisArtifacts(), expectedRevision: 0 } }).then((workspace) => {
+      applyWorkspaceSnapshot(workspace);
+      setArea('overview');
+      setProjectLoadedMessage(`Modelo duplicado no Repositório como projeto #${workspace.projectKey}.`);
+    }).catch(() => setWorkspaceError('Não foi possível duplicar o projeto como modelo.'));
+  };
+
+  return (
+    <div className="flex min-h-[100dvh] bg-background text-foreground">
+      <Sidebar area={displayArea} setArea={setArea} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} activeProjectName={activeProjectName} progress={projectProgress} completedMilestones={completedMilestones} daysInCycle={daysInCycle} />
+      {mobileOpen && <button data-testid="button-sidebar-overlay" aria-label="Fechar menu" className="fixed inset-0 z-20 bg-sidebar/30 lg:hidden" onClick={() => setMobileOpen(false)} />}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Topbar area={displayArea} setMobileOpen={setMobileOpen} onStart={startPipeline} pipelineLoading={pipelineLoading} activeProjectName={activeProjectName} searchTerm={searchTerm} onSearch={setSearchTerm} hasUnsavedChanges={hasUnsavedChanges} />
+        <main className="dmaic-grid flex-1 overflow-x-hidden px-5 py-7 sm:px-8 sm:py-9">
+          <div className="mx-auto max-w-[1240px]">
+            {area === 'overview' && (
+              <SavedProjects
+                projects={workspacesQuery.data ?? []}
+                selectedProjectKey={selectedProjectKey}
+                loading={workspacesQuery.isLoading || projectLoading}
+                error={workspacesQuery.isError ? 'Não foi possível carregar a lista de projetos salvos.' : null}
+                onSelect={setSelectedProjectKey}
+                onLoad={() => { void loadSelectedProject(); }}
+                onNew={startNewProject}
+              />
+            )}
+
+            {projectLoadedMessage && (
+              <div data-testid="status-project-loaded" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs">
+                <Check size={15} className="text-primary" />
+                <span>{projectLoadedMessage}</span>
+              </div>
+            )}
+
+            {pipelineLoading && (
+              <div data-testid="status-pipeline-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs">
+                <RefreshCw size={15} className="animate-spin text-primary" />
+                <span><strong>Montando seu caminho DMAIC...</strong> O Gemini está estruturando os entregáveis para a sessão.</span>
+              </div>
+            )}
+
+            {pipelineError && (
+              <div data-testid="status-pipeline-error" className="reveal mb-6 flex items-center justify-between gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive">
+                <span>{pipelineError}</span>
+                <Button testId="button-retry-pipeline" onClick={startPipeline} variant="outline">Tentar novamente</Button>
+              </div>
+            )}
+
+            {pipelineData && (
+              <div data-testid="status-pipeline-analysis-context" className="reveal mb-6 flex items-start gap-3 rounded-xl border border-chart-3/25 bg-chart-3/5 px-4 py-3 text-xs">
+                <FileBarChart size={15} className="mt-0.5 shrink-0 text-chart-3" />
+                <span>
+                  {pipelineAnalysisContext ? (
+                    <><strong>Pipeline fundamentado na análise local.</strong> Indicador <strong>{pipelineAnalysisContext.indicator}</strong>, janela de {pipelineAnalysisContext.analysisMonths} mês(es) e resumo estatístico foram registrados junto aos artefatos gerados.</>
+                  ) : (
+                    <><strong>Pipeline gerado sem análise estatística anexada.</strong> Carregue um CSV e gere novamente para fundamentar as sugestões em evidências locais.</>
+                  )}
+                </span>
+              </div>
+            )}
+
+            {workspaceQuery.isLoading && (
+              <div data-testid="status-workspace-loading" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-border bg-muted/55 px-4 py-3 text-xs">
+                <RefreshCw size={15} className="animate-spin text-primary" />
+                <span>Carregando o Project Charter salvo...</span>
+              </div>
+            )}
+
+            {localDraftConflict && (
+              <div data-testid="status-local-draft-conflict" className="reveal mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-xs">
+                <div className="flex min-w-0 gap-3">
+                  <Info size={16} className="mt-0.5 shrink-0 text-amber-700" />
+                  <div>
+                    <p className="font-bold text-foreground">Encontramos um rascunho neste navegador e uma versão mais recente no Repositório.</p>
+                    <p className="mt-1 leading-relaxed text-muted-foreground">Nenhum conteúdo foi apagado. Escolha qual versão deseja manter na tela antes de continuar editando.</p>
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button testId="button-use-server-version" onClick={useServerVersionForLocalDraft} variant="outline">Usar versão do Repositório</Button>
+                  <Button testId="button-recover-local-draft" onClick={recoverLocalDraft}>Recuperar meu rascunho</Button>
+                </div>
+              </div>
+            )}
+
+            {workspaceConflict && (
+              <div data-testid="status-workspace-conflict" className="reveal mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-accent/35 bg-accent/10 px-4 py-3 text-xs">
+                <div className="flex min-w-0 gap-3">
+                  <Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" />
+                  <div>
+                    <p className="font-bold text-foreground">Há uma edição mais recente neste workspace.</p>
+                    <p className="mt-1 leading-relaxed text-muted-foreground">Seus campos e sugestões continuam aqui. Carregue a versão mais recente para revisá-la ou substitua-a conscientemente pela sua edição.</p>
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button testId="button-use-latest-workspace" onClick={useLatestWorkspace} variant="outline">Usar versão mais recente</Button>
+                  <Button testId="button-overwrite-workspace" onClick={overwriteLatestWorkspace}>Substituir mesmo assim</Button>
+                </div>
+              </div>
+            )}
+
+            {(workspaceError || workspaceQuery.isError) && (
+              <div data-testid="status-workspace-error" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-xs text-destructive">
+                <Info size={15} />
+                <span>{workspaceError ?? 'Não foi possível carregar os dados salvos no Repositório.'}</span>
+              </div>
+            )}
+
+            {localDraftRecovered && !localDraftConflict && (
+              <div data-testid="status-local-draft-recovered" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs">
+                <Check size={15} className="text-primary" />
+                <span><strong>Rascunho recuperado deste navegador.</strong> Suas edições continuam protegidas localmente; use os botões de salvar para confirmá-las também no Repositório.</span>
+              </div>
+            )}
+
+            {saved && (
+              <div data-testid="status-statement-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs">
+                <Check size={15} className="text-primary" />
+                <span><strong>Mudança salva no Repositório.</strong> O enunciado estará disponível ao reabrir este workspace.</span>
+              </div>
+            )}
+
+            {charterSaved && (
+              <div data-testid="status-charter-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs">
+                <Check size={15} className="text-primary" />
+                <span><strong>Project charter salvo no Repositório.</strong> Essas informações serão carregadas ao reabrir este workspace e usadas como contexto na geração do pipeline.</span>
+              </div>
+            )}
+
+            {manualVocSaved && (
+              <div data-testid="status-manual-voc-saved" className="reveal mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs">
+                <Check size={15} className="text-primary" />
+                <span><strong>Indicadores manuais salvos no Repositório.</strong> Suas métricas foram registradas neste workspace.</span>
+              </div>
+            )}
+
+            {area === 'executive' ? (
+              <ExecutiveSummary statement={statement} charter={charter} pipeline={pipelineData} ishikawa={ishikawa} hypothesisStatuses={hypothesisStatuses} hypothesisNotes={hypothesisNotes} hypothesisLinks={hypothesisLinks} controlPhase={controlPhase} attachments={attachments} searchTerm={searchTerm} onExport={exportExecutiveReport} onLinkChange={updateHypothesisLink} onAttachmentAdd={addAttachment} onDuplicate={duplicateAsModel} />
+            ) : area === 'decisions' ? (
+              <div className="space-y-7">
+                <div className="reveal flex flex-wrap items-end justify-between gap-4">
+                  <div><p className="mono-label mb-2 text-primary">Projeto</p><h2 className="font-serif text-3xl font-bold tracking-tight sm:text-4xl">Decisões</h2><p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">Registre as escolhas que orientam o projeto, seus responsáveis e as evidências que sustentam cada caminho.</p></div>
+                  <StatusPill tone="green">Governança do projeto</StatusPill>
+                </div>
+                <ProjectRecordsPanel decisions={projectDecisions} history={artifactHistory} onDecisionsChange={setProjectDecisions} onSave={saveProjectRecords} />
+              </div>
+            ) : area === 'overview' ? (
+              <Overview
+                statement={statement}
+                setStatement={updateStatement}
+                onSave={saveStatement}
+                statementSaved={saved}
+                charter={charter}
+                onCharterChange={updateCharter}
+                onTeamChange={updateCharterTeam}
+                onSaveCharter={saveCharter}
+                charterSaved={charterSaved}
+                pipelineDone={pipelineDone}
+                hasAiSuggestions={Boolean(aiCharterSuggestions)}
+                onOpenArea={setArea}
+                onOpenTool={openTool}
+                phaseProgress={calculatedPhaseProgress}
+                pulse={pulse}
+              />
+            ) : area === 'control' ? null : (
+              <SprintView
+                area={area}
+                onOpenTool={openTool}
+                ishikawa={ishikawa}
+                hypothesisStatuses={hypothesisStatuses}
+                hypothesisNotes={hypothesisNotes}
+                onHypothesisNoteChange={updateHypothesisNote}
+                hypothesisValidationError={hypothesisValidationError}
+                projectDecisions={projectDecisions}
+                artifactHistory={artifactHistory}
+                onProjectDecisionsChange={(value) => { setWorkspaceDirty(true); setProjectDecisions(value); }}
+                onSaveProjectRecords={saveProjectRecords}
+                onHypothesisStatusChange={updateHypothesisStatus}
+                onSaveHypotheses={saveHypotheses}
+                hypothesesDirty={hypothesesDirty}
+                hypothesesSaved={hypothesesSaved}
+                phaseProgress={calculatedPhaseProgress[area as 'definition' | 'measurement' | 'aic']}
+                onChangeVital={setVitalId}
+                vitalId={vitalId}
+                inputDataset={inputDataset}
+                inputAnalysis={inputAnalysis}
+                inputError={csvError}
+                analysisMonths={analysisMonths}
+                onAnalysisMonthsChange={updateAnalysisMonths}
+                selectedIndicator={selectedIndicator}
+                onSelectedIndicatorChange={updateSelectedIndicator}
+                diagnosis={exploratoryDiagnosis}
+                diagnosisInput={exploratoryDiagnosisInput}
+                onDiagnosisChange={handleDiagnosisChange}
+                onSaveAnalysis={saveStatement}
+                onUpload={handleUpload}
+                inputRef={fileRef}
+                activeProjectName={activeProjectName}
+                pipeline={pipelineData}
+                causeAndEffectMatrix={causeAndEffectMatrix}
+                solutionPrioritizationMatrix={solutionPrioritizationMatrix}
+                setCauseAndEffectMatrix={setCauseAndEffectMatrix}
+                setSolutionPrioritizationMatrix={setSolutionPrioritizationMatrix}
+                onSaveMatrices={saveMatrices}
+                onExportMeasurementPdf={() => exportMeasurementPdf(measurementDataset, measurementAnalysis, processMap, whatIfAnalyses, activeProjectName)}
+              />
+            )}
+
+            {area === 'control' && (
+              <>
+                <PhaseSummary area="control" progress={controlPhaseProgress} />
+                <ControlPhasePanel
+                  phase={controlPhase}
+                  onChange={(value) => { setWorkspaceDirty(true); setControlPhase(value); }}
+                  onUpload={handleControlUpload}
+                  onSave={(phase) => saveWorkspace('control-plan', undefined, { ...createAnalysisArtifacts(), controlPhase: phase } as any)}
+                  onEvaluate={evaluateControlPhase}
+                  evaluation={controlPhase.evaluation}
+                  evaluating={controlEvaluationLoading}
+                  evaluationError={controlEvaluationError}
+                  saved={controlPlanSaved}
+                />
+              </>
+            )}
+
+            {area === 'measurement' && (
+              <>
+                {area === 'measurement' && (
+                  <MeasurementAnalysisPanel
+                    dataset={measurementDataset}
+                    analysis={measurementAnalysis}
+                    error={measurementCsvError}
+                    onUpload={handleMeasurementUpload}
+                    inputRef={measurementFileRef}
+                    onSave={saveStatement}
+                    activeProjectName={activeProjectName}
+                    whatIfAnalyses={whatIfAnalyses}
+                    onRunWhatIf={runMeasurementWhatIf}
+                    whatIfLoading={whatIfMutation.isPending}
+                    whatIfError={
+                      whatIfMutation.isError
+                        ? whatIfMutation.error instanceof Error
+                          ? whatIfMutation.error.message.replace(/^HTTP \d+ [^:]+:\s*/, '')
+                          : 'Não foi possível realizar a análise What If agora.'
+                        : null
+                    }
+                    whatIfSaved={whatIfSaved}
+                  />
+                )}
+                <ProcessMapEditor
+                  value={processMap}
+                  onChange={updateProcessMap}
+                  onSave={saveProcessMap}
+                  dirty={processMapDirty}
+                  saved={processMapSaved}
+                />
+              </>
+            )}
+
+            <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-[10px] text-muted-foreground">
+              <span className="mono-label">DMAIC Ágil Suite · workspace no Repositório {projectKey ? `· projeto #${projectKey}` : '· novo projeto'}</span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                {pipelineData ? 'artefatos gerados pela Suíte · revise com o time' : 'dados de exemplo sinalizados · sem envio externo'}
+              </span>
+            </footer>
+          </div>
+        </main>
+      </div>
+
+      {selectedTool && (
+        <DetailDrawer
+          tool={selectedTool}
+          onClose={() => setSelectedTool(null)}
+          pareto={pareto}
+          imr={imr}
+          inputAnalysis={inputAnalysis}
+          hasInputDataset={Boolean(inputDataset)}
+          csvError={csvError}
+          onRetry={retryUpload}
+          pipeline={pipelineData}
+          hasDiagnosis={Boolean(exploratoryDiagnosis)}
+          manualRows={manualVocCtq}
+          hasManualChanges={manualVocCtqDirty}
+          manualSaveConfirmed={manualVocSaved}
+          onManualRowsChange={updateManualVocCtq}
+          onSaveManualRows={saveManualVocCtq}
+          charter={charter}
+          activeProjectName={activeProjectName}
+          sipocDirty={sipocDirty}
+          sipocSaved={sipocSaved}
+          onSipocChange={updateSipoc}
+          onSaveSipoc={saveSipoc}
+          msaDirty={msaDirty}
+          msaSaved={msaSaved}
+          onMsaChange={updateMsa}
+          onSaveMsa={saveMsa}
+          vitalXDirty={vitalXDirty}
+          vitalXSaved={vitalXSaved}
+          onVitalXChange={updateVitalX}
+          onSaveVitalX={saveVitalX}
+          gutDirty={gutDirty}
+          gutSaved={gutSaved}
+          onGutChange={updateGut}
+          onSaveGut={saveGut}
+          solutionsDirty={solutionsDirty}
+          solutionsSaved={solutionsSaved}
+          onSolutionsChange={updateSolutions}
+          onSaveSolutions={saveSolutions}
+          controlPlanDirty={controlPlanDirty}
+          controlPlanSaved={controlPlanSaved}
+          onControlPlanChange={updateControlPlan}
+          onSaveControlPlan={saveControlPlan}
+          ishikawa={ishikawa}
+          ishikawaInputText={ishikawaInputText}
+          ishikawaDirty={ishikawaDirty}
+          ishikawaSaved={ishikawaSaved}
+          ishikawaGenerating={ishikawaMutation.isPending}
+          ishikawaError={ishikawaMutation.isError ? getApiErrorMessage(ishikawaMutation.error) : null}
+          onIshikawaInputTextChange={updateIshikawaInputText}
+          onGenerateIshikawa={generateIshikawa}
+          onIshikawaChange={updateIshikawa}
+          onSaveIshikawa={saveIshikawa}
+        />
+      )}
     </div>
-     {selectedTool && <DetailDrawer tool={selectedTool} onClose={() => setSelectedTool(null)} pareto={pareto} imr={imr} csvError={csvError} onRetry={retryUpload} pipeline={pipelineData} />}
-  </div>;
+  );
 }
-*/
+
+function RoutedErrorBoundary({ children }: { children: ReactNode }) {
+  const [location] = useLocation();
+  return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
+}
 
 function Router() {
   return (
-    // Keep a shared shell (sidebar, navbar) outside the boundary so it
-    // survives a page crash.
     <RoutedErrorBoundary>
       <Switch>
         <Route path="/" component={Workspace} />
@@ -2999,11 +3979,6 @@ function Router() {
       </Switch>
     </RoutedErrorBoundary>
   );
-}
-
-function RoutedErrorBoundary({ children }: { children: ReactNode }) {
-  const [location] = useLocation();
-  return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
 }
 
 function App() {
@@ -3020,326 +3995,3 @@ function App() {
 }
 
 export default App;
-
-function SolutionsTreeMap({ rows, hasPipeline, dirty, saved, onChange, onSave }: { rows: SolutionRow[]; hasPipeline: boolean; dirty: boolean; saved: boolean; onChange: (next: SolutionRow[]) => void; onSave: () => void }) {
-  const displayRows = hasPipeline ? rows : exampleSolutionRows;
-  const readOnly = !hasPipeline;
-  const updateCell = (index: number, key: keyof SolutionRow, value: string) => onChange(displayRows.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row));
-  const removeRow = (index: number) => onChange(displayRows.filter((_, rowIndex) => rowIndex !== index));
-  const addRow = () => onChange([...displayRows, { ...EMPTY_SOLUTION_ROW }]);
-  return <div data-testid="map-solutions" className="space-y-6">
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <p className="mono-label text-primary">{hasPipeline ? 'Gerado pelo pipeline · editável' : 'Exemplo orientativo'}</p>
-        <h3 className="mt-2 font-serif text-lg font-bold">Hipótese vira experimento</h3>
-        <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">Cada solução aplica o método 5W2H: conecta um porquê validado a um experimento concreto, com dono, prazo e esforço estimado.</p>
-      </div>
-      <Sparkles size={20} className="shrink-0 text-primary" />
-    </div>
-
-    {readOnly && <div data-testid="status-solutions-no-pipeline" className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><p className="leading-relaxed"><strong>A árvore de soluções ainda é um exemplo.</strong> Preencha o Problem Statement, salve o projeto e gere o pipeline para que o Gemini proponha experimentos — depois ajuste com o plano real do time.</p></div>}
-
-    {hasPipeline && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
-      <div><p className="text-xs font-bold">Refine o plano com o time</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Adicione novas soluções ou ajuste responsáveis, prazos e esforço estimado.</p></div>
-      <div className="flex flex-wrap gap-2"><Button testId="button-add-solution-row" onClick={addRow}><Plus size={14} /> Adicionar solução</Button>{(dirty || saved) && <Button testId="button-save-solutions" onClick={onSave} variant="outline" disabled={!dirty}><Save size={14} /> Salvar soluções</Button>}</div>
-    </div>}
-    {saved && !dirty && <div data-testid="status-solutions-saved" className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Árvore de soluções salva no Neon.</strong> As alterações continuarão disponíveis ao reabrir este workspace.</span></div>}
-
-    <div className="space-y-3">
-      {displayRows.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma solução registrada ainda.</p>}
-      {displayRows.map((row, index) => <div key={index} data-testid={`card-solution-${index}`} className="overflow-hidden rounded-xl border border-border">
-        <div className="flex items-center justify-between gap-3 border-b border-border bg-primary/5 px-4 py-2.5">
-          <span className="mono-label text-primary">Solução #{index + 1}</span>
-          {!readOnly && <button type="button" data-testid={`button-remove-solution-${index}`} onClick={() => removeRow(index)} className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground hover:text-destructive"><X size={13} /> Remover</button>}
-        </div>
-        <div className="grid gap-3 p-4 sm:grid-cols-2">
-          {SOLUTION_FIELDS.map((field) => <label key={field.key} className="block">
-            <span className="mb-1.5 block text-[10px] font-bold text-muted-foreground">{field.label}</span>
-            {readOnly ? <p data-testid={`text-solution-${field.key}-${index}`} className="rounded-lg bg-muted/50 px-2.5 py-2 text-[11px] leading-relaxed">{row[field.key] || '—'}</p> : <textarea data-testid={`input-solution-${field.key}-${index}`} value={row[field.key]} onChange={(event) => updateCell(index, field.key, event.target.value)} rows={2} className="min-h-[52px] w-full resize-y rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] leading-relaxed outline-none transition-colors focus:border-primary/60" placeholder={field.hint} />}
-          </label>)}
-        </div>
-      </div>)}
-    </div>
-    <p className="text-[10px] leading-relaxed text-muted-foreground">Cada solução é uma hipótese até ser validada por um piloto ou experimento controlado. Confirme impacto e custo real antes de escalar.</p>
-  </div>;
-}
-
-function MsaValidationMap({ rows, hasPipeline, dirty, saved, onChange, onSave }: { rows: MsaRow[]; hasPipeline: boolean; dirty: boolean; saved: boolean; onChange: (next: MsaRow[]) => void; onSave: () => void }) {
-  const displayRows = hasPipeline ? rows : exampleMsaRows;
-  const readOnly = !hasPipeline;
-  const updateCell = (index: number, key: keyof MsaRow, value: string) => onChange(displayRows.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row));
-  const removeRow = (index: number) => onChange(displayRows.filter((_, rowIndex) => rowIndex !== index));
-  const addRow = () => onChange([...displayRows, { ...EMPTY_MSA_ROW }]);
-  return <div data-testid="map-msa" className="space-y-6">
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <p className="mono-label text-primary">{hasPipeline ? 'Gerado pelo pipeline · editável' : 'Exemplo orientativo'}</p>
-        <h3 className="mt-2 font-serif text-lg font-bold">A medida merece confiança?</h3>
-        <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">Antes de confiar em um indicador, valide o sistema de medição: repetibilidade (mesma pessoa, mesma leitura) e reprodutibilidade (pessoas diferentes, mesma leitura).</p>
-      </div>
-      <TestTube2 size={20} className="shrink-0 text-primary" />
-    </div>
-
-    {readOnly && <div data-testid="status-msa-no-pipeline" className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><p className="leading-relaxed"><strong>A validação ainda é um exemplo.</strong> Preencha o Problem Statement, salve o projeto e gere o pipeline para que o Gemini avalie as variáveis medidas — depois ajuste com os resultados reais do Gage R&R.</p></div>}
-
-    {hasPipeline && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
-      <div><p className="text-xs font-bold">Ajuste com os resultados reais do estudo</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Adicione variáveis medidas ou corrija o veredito com base no Gage R&R conduzido pelo time.</p></div>
-      <div className="flex flex-wrap gap-2"><Button testId="button-add-msa-row" onClick={addRow}><Plus size={14} /> Adicionar variável</Button>{(dirty || saved) && <Button testId="button-save-msa" onClick={onSave} variant="outline" disabled={!dirty}><Save size={14} /> Salvar MSA</Button>}</div>
-    </div>}
-    {saved && !dirty && <div data-testid="status-msa-saved" className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Validação MSA salva no Neon.</strong> As alterações continuarão disponíveis ao reabrir este workspace.</span></div>}
-
-    <div className="overflow-x-auto rounded-xl border border-border" data-testid="table-msa-scroll">
-      <div className="min-w-[720px]">
-        <div className="grid grid-cols-[0.85fr_1.15fr_1.4fr] border-b border-border bg-sidebar px-4 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground">
-          {MSA_FIELDS.map((field) => <div key={field.key}>{field.label}</div>)}
-        </div>
-        {displayRows.length === 0 && <p className="p-4 text-xs text-muted-foreground">Nenhuma variável registrada ainda.</p>}
-        {displayRows.map((row, index) => <div key={index} data-testid={`row-msa-${index}`} className="grid grid-cols-[0.85fr_1.15fr_1.4fr] border-b border-border last:border-0">
-          {MSA_FIELDS.map((field, fieldIndex) => <div key={field.key} className={`p-3 ${fieldIndex < MSA_FIELDS.length - 1 ? 'border-r border-border' : ''}`}>
-            {readOnly ? <p data-testid={`text-msa-${field.key}-${index}`} className="text-xs leading-relaxed">{row[field.key] || '—'}</p> : <textarea data-testid={`input-msa-${field.key}-${index}`} value={row[field.key]} onChange={(event) => updateCell(index, field.key, event.target.value)} rows={2} className="min-h-[56px] w-full resize-y rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] leading-relaxed outline-none transition-colors focus:border-primary/60" />}
-          </div>)}
-          {!readOnly && <div className="col-span-3 flex justify-end border-t border-border/60 px-3 py-1.5"><button type="button" data-testid={`button-remove-msa-${index}`} onClick={() => removeRow(index)} className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground hover:text-destructive"><X size={12} /> Remover variável</button></div>}
-        </div>)}
-      </div>
-    </div>
-    <p className="text-[10px] leading-relaxed text-muted-foreground">Os resultados de Gage R&R e o veredito de confiabilidade devem ser confirmados por um estudo real de sistema de medição antes de orientar decisões do projeto.</p>
-  </div>;
-}
-
-function GutPrioritizationMap({ rows, hasPipeline, dirty, saved, onChange, onSave }: { rows: GutRow[]; hasPipeline: boolean; dirty: boolean; saved: boolean; onChange: (next: GutRow[]) => void; onSave: () => void }) {
-  const displayRows = hasPipeline ? rows : exampleGutRows;
-  const readOnly = !hasPipeline;
-  const maxScore = Math.max(1, ...displayRows.map((row) => parseGutScore(row.gutScore) ?? 0));
-  const updateCell = (index: number, key: keyof GutRow, value: string) => onChange(displayRows.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row));
-  const removeRow = (index: number) => onChange(displayRows.filter((_, rowIndex) => rowIndex !== index));
-  const addRow = () => onChange([...displayRows, { ...EMPTY_GUT_ROW }]);
-  return <div data-testid="map-gut" className="space-y-6">
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <p className="mono-label text-primary">{hasPipeline ? 'Gerado pelo pipeline · editável' : 'Exemplo orientativo'}</p>
-        <h3 className="mt-2 font-serif text-lg font-bold">Decida com critério explícito</h3>
-        <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">Gravidade × Urgência × Tendência (cada uma de 1 a 5) formam o score GUT. Trate as causas com maior score primeiro.</p>
-      </div>
-      <ClipboardCheck size={20} className="shrink-0 text-accent-foreground" />
-    </div>
-
-    {readOnly && <div data-testid="status-gut-no-pipeline" className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><p className="leading-relaxed"><strong>A priorização ainda é um exemplo.</strong> Preencha o Problem Statement, salve o projeto e gere o pipeline para que o Gemini avalie as causas — depois ajuste as notas com o critério do time.</p></div>}
-
-    {hasPipeline && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
-      <div><p className="text-xs font-bold">Ajuste as notas com o critério do time</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Adicione causas levantadas na matriz 6M ou corrija as notas de Gravidade, Urgência e Tendência.</p></div>
-      <div className="flex flex-wrap gap-2"><Button testId="button-add-gut-row" onClick={addRow}><Plus size={14} /> Adicionar causa</Button>{(dirty || saved) && <Button testId="button-save-gut" onClick={onSave} variant="outline" disabled={!dirty}><Save size={14} /> Salvar priorização</Button>}</div>
-    </div>}
-    {saved && !dirty && <div data-testid="status-gut-saved" className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Priorização GUT salva no Neon.</strong> As alterações continuarão disponíveis ao reabrir este workspace.</span></div>}
-
-    <div className="space-y-2">
-      {displayRows.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma causa registrada ainda.</p>}
-      {displayRows.map((row, index) => {
-        const score = parseGutScore(row.gutScore);
-        const barWidth = score !== null ? Math.max(4, (score / maxScore) * 100) : 0;
-        return <div key={index} data-testid={`row-gut-${index}`} className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex-1">
-              <p className="mono-label text-muted-foreground">Causa #{index + 1}</p>
-              {readOnly ? <p data-testid={`text-gut-cause-${index}`} className="mt-1 text-sm font-semibold leading-relaxed">{row.cause || '—'}</p> : <textarea data-testid={`input-gut-cause-${index}`} value={row.cause} onChange={(event) => updateCell(index, 'cause', event.target.value)} rows={2} className="mt-1 min-h-[52px] w-full resize-y rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs leading-relaxed outline-none transition-colors focus:border-primary/60" />}
-            </div>
-            {!readOnly && <button type="button" data-testid={`button-remove-gut-${index}`} onClick={() => removeRow(index)} aria-label="Remover causa" className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-destructive"><X size={13} /></button>}
-          </div>
-          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-[repeat(3,72px)_1fr]">
-            {GUT_SCORE_FIELDS.map((field) => <label key={field.key} className="block" title={field.hint}>
-              <span className="mb-1 block text-center text-[9px] font-bold uppercase text-muted-foreground">{field.label}</span>
-              {readOnly ? <p data-testid={`text-gut-${field.key}-${index}`} className="rounded-lg bg-muted px-2 py-1.5 text-center text-xs font-bold">{row[field.key] || '—'}</p> : <input data-testid={`input-gut-${field.key}-${index}`} value={row[field.key]} onChange={(event) => updateCell(index, field.key, event.target.value)} className="h-8 w-full rounded-lg border border-border bg-background px-2 text-center text-xs font-bold outline-none transition-colors focus:border-primary/60" />}
-            </label>)}
-            <div>
-              <span className="mb-1 block text-[9px] font-bold uppercase text-muted-foreground">Score GUT</span>
-              <div className="flex items-center gap-2">
-                {readOnly ? <span data-testid={`text-gut-gutScore-${index}`} className="font-mono text-sm font-bold text-primary">{row.gutScore || '—'}</span> : <input data-testid={`input-gut-gutScore-${index}`} value={row.gutScore} onChange={(event) => updateCell(index, 'gutScore', event.target.value)} className="h-8 w-20 shrink-0 rounded-lg border border-border bg-background px-2 text-center text-xs font-bold outline-none transition-colors focus:border-primary/60" />}
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-accent" style={{ width: `${barWidth}%` }} /></div>
-              </div>
-            </div>
-          </div>
-        </div>;
-      })}
-    </div>
-    <p className="text-[10px] leading-relaxed text-muted-foreground">As notas de Gravidade, Urgência e Tendência refletem o julgamento do time no momento da análise; revalide-as periodicamente à medida que o processo muda.</p>
-  </div>;
-}
-
-const MSA_FIELDS: { key: keyof MsaRow; label: string }[] = [
-  { key: 'variable', label: 'Variável medida' },
-  { key: 'gageRrStatus', label: 'Resultado do Gage R&R' },
-  { key: 'recommendation', label: 'Recomendação' },
-];
-
-function VitalXBreakdownMap({ rows, hasPipeline, dirty, saved, onChange, onSave }: { rows: VitalXBreakdownRow[]; hasPipeline: boolean; dirty: boolean; saved: boolean; onChange: (next: VitalXBreakdownRow[]) => void; onSave: () => void }) {
-  const displayRows = hasPipeline ? rows : exampleVitalXBreakdownRows;
-  const readOnly = !hasPipeline;
-  const updateCell = (index: number, key: keyof VitalXBreakdownRow, value: string) => onChange(displayRows.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row));
-  const removeRow = (index: number) => onChange(displayRows.filter((_, rowIndex) => rowIndex !== index));
-  const addRow = () => onChange([...displayRows, { ...EMPTY_VITAL_X_BREAKDOWN_ROW }]);
-  return <div data-testid="map-vitalx" className="space-y-6">
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <p className="mono-label text-primary">{hasPipeline ? 'Gerado pelo pipeline · editável' : 'Exemplo orientativo'}</p>
-        <h3 className="mt-2 font-serif text-lg font-bold">Do Y ao fator controlável</h3>
-        <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">Vitais X são os poucos fatores controláveis que mais explicam a variação do indicador Y. Priorize-os com uma meta específica e um sprint responsável antes de desenhar soluções.</p>
-      </div>
-      <Zap size={20} className="shrink-0 text-chart-4" />
-    </div>
-
-    {readOnly && <div data-testid="status-vitalx-no-pipeline" className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><p className="leading-relaxed"><strong>Os vitais X ainda são um exemplo.</strong> Preencha o Problem Statement, salve o projeto e gere o pipeline para que o Gemini proponha os fatores controláveis — depois ajuste com o que o time já sabe do processo.</p></div>}
-
-    {hasPipeline && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
-      <div><p className="text-xs font-bold">Ajuste os fatores com o conhecimento do time</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Adicione, edite ou remova vitais X e reatribua sprints conforme a priorização do backlog.</p></div>
-      <div className="flex flex-wrap gap-2"><Button testId="button-add-vitalx-row" onClick={addRow}><Plus size={14} /> Adicionar vital X</Button>{(dirty || saved) && <Button testId="button-save-vitalx" onClick={onSave} variant="outline" disabled={!dirty}><Save size={14} /> Salvar vitais X</Button>}</div>
-    </div>}
-    {saved && !dirty && <div data-testid="status-vitalx-saved" className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Vitais X salvos no Neon.</strong> As alterações continuarão disponíveis ao reabrir este workspace.</span></div>}
-
-    <div className="grid gap-3 sm:grid-cols-2">
-      {displayRows.length === 0 && <p className="text-xs text-muted-foreground">Nenhum vital X registrado ainda.</p>}
-      {displayRows.map((row, index) => <div key={index} data-testid={`card-vitalx-${index}`} className="rounded-xl border border-border bg-card p-4">
-        <div className="flex items-start justify-between gap-2">
-          {readOnly ? <span data-testid={`text-vitalx-id-${index}`} className="rounded-full bg-chart-4/15 px-2.5 py-1 text-[11px] font-bold text-chart-4">{row.id || `X${index + 1}`}</span> : <input data-testid={`input-vitalx-id-${index}`} value={row.id} onChange={(event) => updateCell(index, 'id', event.target.value)} className="h-8 w-20 rounded-lg border border-border bg-background px-2 text-center text-xs font-bold outline-none transition-colors focus:border-primary/60" placeholder={`X${index + 1}`} />}
-          {!readOnly && <button type="button" data-testid={`button-remove-vitalx-${index}`} onClick={() => removeRow(index)} aria-label="Remover vital X" className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-destructive"><X size={13} /></button>}
-        </div>
-        <div className="mt-3">
-          <span className="mono-label text-muted-foreground">Fator controlável</span>
-          {readOnly ? <p data-testid={`text-vitalx-description-${index}`} className="mt-1 text-xs font-semibold leading-relaxed">{row.description || '—'}</p> : <textarea data-testid={`input-vitalx-description-${index}`} value={row.description} onChange={(event) => updateCell(index, 'description', event.target.value)} rows={2} className="mt-1 min-h-[56px] w-full resize-y rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] leading-relaxed outline-none transition-colors focus:border-primary/60" />}
-        </div>
-        <div className="mt-3 rounded-lg bg-muted/60 p-2.5">
-          <span className="mono-label text-muted-foreground">Meta específica de redução</span>
-          {readOnly ? <p data-testid={`text-vitalx-goal-${index}`} className="mt-1 text-[11px] leading-relaxed">{row.specificGoalReduction || '—'}</p> : <textarea data-testid={`input-vitalx-goal-${index}`} value={row.specificGoalReduction} onChange={(event) => updateCell(index, 'specificGoalReduction', event.target.value)} rows={2} className="mt-1 min-h-[52px] w-full resize-y rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] leading-relaxed outline-none transition-colors focus:border-primary/60" />}
-        </div>
-        <div className="mt-3 flex items-center gap-2">
-          <ArrowRight size={13} className="shrink-0 text-muted-foreground" />
-          <span className="mono-label text-muted-foreground">Sprint</span>
-          {readOnly ? <span data-testid={`text-vitalx-sprint-${index}`} className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-bold text-primary">{row.assignedSprint || '—'}</span> : <input data-testid={`input-vitalx-sprint-${index}`} value={row.assignedSprint} onChange={(event) => updateCell(index, 'assignedSprint', event.target.value)} className="h-8 flex-1 rounded-lg border border-border bg-background px-2.5 text-[11px] font-bold outline-none transition-colors focus:border-primary/60" placeholder="Sprint 1" />}
-        </div>
-      </div>)}
-    </div>
-    <p className="text-[10px] leading-relaxed text-muted-foreground">A relação entre cada vital X e o indicador Y é uma hipótese até ser confirmada por análise ou experimento. Valide antes de comprometer sprints inteiros a um único fator.</p>
-  </div>;
-}
-
-const EMPTY_VITAL_X_BREAKDOWN_ROW: VitalXBreakdownRow = { id: '', description: '', specificGoalReduction: '', assignedSprint: '' };
-
-type GutRow = { cause: string; gravity: string; urgency: string; tendency: string; gutScore: string };
-
-const GUT_SCORE_FIELDS: { key: 'gravity' | 'urgency' | 'tendency'; label: string; hint: string }[] = [
-  { key: 'gravity', label: 'G', hint: 'Gravidade · impacto se nada for feito' },
-  { key: 'urgency', label: 'U', hint: 'Urgência · tempo disponível para agir' },
-  { key: 'tendency', label: 'T', hint: 'Tendência · piora se não for tratado' },
-];
-
-const CONTROL_PLAN_FIELDS: { key: keyof ControlPlanRow; label: string }[] = [
-  { key: 'parameter', label: 'Parâmetro' },
-  { key: 'specification', label: 'Especificação' },
-  { key: 'measurementFreq', label: 'Frequência de medição' },
-  { key: 'responsible', label: 'Responsável' },
-  { key: 'reactionPlan', label: 'Plano de reação' },
-];
-
-const EMPTY_SOLUTION_ROW: SolutionRow = { what: '', why: '', where: '', when: '', who: '', how: '', howMuch: '' };
-
-type SolutionRow = { what: string; why: string; where: string; when: string; who: string; how: string; howMuch: string };
-
-type VitalXBreakdownRow = { id: string; description: string; specificGoalReduction: string; assignedSprint: string };
-
-const EMPTY_GUT_ROW: GutRow = { cause: '', gravity: '', urgency: '', tendency: '', gutScore: '' };
-
-type ControlPlanRow = { parameter: string; specification: string; measurementFreq: string; responsible: string; reactionPlan: string };
-
-function normalizeRows<T extends Record<string, string>>(rows: DmaicRow[] | undefined, template: T): T[] {
-  return (rows ?? []).map((row) => normalizeRow(row, template));
-}
-
-const exampleSolutionRows: SolutionRow[] = [
-  { what: 'Checklist digital de documentos obrigatórios', why: 'Reduzir retrabalho por documentação incompleta na abertura', where: 'Etapa de abertura da solicitação', when: 'Próximo sprint', who: 'Operações + TI', how: 'Formulário com validação obrigatória por campo antes do envio', howMuch: 'Baixo custo; reaproveita o sistema atual de abertura' },
-  { what: 'Painel de status para o cliente', why: 'Reduzir cobranças por falta de visibilidade do andamento', where: 'Fluxo completo de aprovação', when: 'Sprint seguinte', who: 'Atendimento + TI', how: 'Tela de acompanhamento com etapas e prazo estimado', howMuch: 'Médio custo; requer integração com o sistema de fluxo' },
-];
-
-const exampleVitalXBreakdownRows: VitalXBreakdownRow[] = [
-  { id: 'X1', description: 'Tempo de espera na triagem inicial', specificGoalReduction: 'Reduzir de 18,4 para 11,0 min', assignedSprint: 'Sprint 1' },
-  { id: 'X2', description: 'Retrabalho por documentação incompleta', specificGoalReduction: 'Reduzir taxa de retrabalho em 30%', assignedSprint: 'Sprint 2' },
-  { id: 'X3', description: 'Carga de solicitações por operador', specificGoalReduction: 'Nivelar carga em até 12 solicitações/h', assignedSprint: 'Sprint 2' },
-];
-
-function parseGutScore(value: string): number | null {
-  const parsed = Number(value.replace(',', '.'));
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function ControlPlanMap({ rows, hasPipeline, dirty, saved, onChange, onSave }: { rows: ControlPlanRow[]; hasPipeline: boolean; dirty: boolean; saved: boolean; onChange: (next: ControlPlanRow[]) => void; onSave: () => void }) {
-  const displayRows = hasPipeline ? rows : exampleControlPlanRows;
-  const readOnly = !hasPipeline;
-  const updateCell = (index: number, key: keyof ControlPlanRow, value: string) => onChange(displayRows.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row));
-  const removeRow = (index: number) => onChange(displayRows.filter((_, rowIndex) => rowIndex !== index));
-  const addRow = () => onChange([...displayRows, { ...EMPTY_CONTROL_PLAN_ROW }]);
-  return <div data-testid="map-control-plan" className="space-y-6">
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <p className="mono-label text-primary">{hasPipeline ? 'Gerado pelo pipeline · editável' : 'Exemplo orientativo'}</p>
-        <h3 className="mt-2 font-serif text-lg font-bold">Faça a melhora sobreviver</h3>
-        <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">Um plano de controle define o que medir, com que frequência, quem responde e o que fazer quando o parâmetro sair da especificação.</p>
-      </div>
-      <ShieldCheck size={20} className="shrink-0 text-chart-3" />
-    </div>
-
-    {readOnly && <div data-testid="status-control-plan-no-pipeline" className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4 text-xs"><Info size={16} className="mt-0.5 shrink-0 text-accent-foreground" /><p className="leading-relaxed"><strong>O plano de controle ainda é um exemplo.</strong> Preencha o Problem Statement, salve o projeto e gere o pipeline para que o Gemini proponha os parâmetros — depois ajuste com o padrão real de operação.</p></div>}
-
-    {hasPipeline && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
-      <div><p className="text-xs font-bold">Ajuste o plano com o padrão de operação</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Adicione parâmetros de controle ou corrija especificação, frequência, responsável e plano de reação.</p></div>
-      <div className="flex flex-wrap gap-2"><Button testId="button-add-control-plan-row" onClick={addRow}><Plus size={14} /> Adicionar parâmetro</Button>{(dirty || saved) && <Button testId="button-save-control-plan" onClick={onSave} variant="outline" disabled={!dirty}><Save size={14} /> Salvar plano de controle</Button>}</div>
-    </div>}
-    {saved && !dirty && <div data-testid="status-control-plan-saved" className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/7 px-4 py-3 text-xs"><Check size={15} className="text-primary" /><span><strong>Plano de controle salvo no Neon.</strong> As alterações continuarão disponíveis ao reabrir este workspace.</span></div>}
-
-    <div className="overflow-x-auto rounded-xl border border-border" data-testid="table-control-plan-scroll">
-      <div className="min-w-[900px]">
-        <div className="grid grid-cols-[0.85fr_1fr_1fr_0.75fr_1.1fr] border-b border-border bg-sidebar px-4 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground">
-          {CONTROL_PLAN_FIELDS.map((field) => <div key={field.key}>{field.label}</div>)}
-        </div>
-        {displayRows.length === 0 && <p className="p-4 text-xs text-muted-foreground">Nenhum parâmetro registrado ainda.</p>}
-        {displayRows.map((row, index) => <div key={index} data-testid={`row-control-plan-${index}`} className="grid grid-cols-[0.85fr_1fr_1fr_0.75fr_1.1fr] border-b border-border last:border-0">
-          {CONTROL_PLAN_FIELDS.map((field, fieldIndex) => <div key={field.key} className={`p-3 ${fieldIndex < CONTROL_PLAN_FIELDS.length - 1 ? 'border-r border-border' : ''}`}>
-            {readOnly ? <p data-testid={`text-control-plan-${field.key}-${index}`} className="text-xs leading-relaxed">{row[field.key] || '—'}</p> : <textarea data-testid={`input-control-plan-${field.key}-${index}`} value={row[field.key]} onChange={(event) => updateCell(index, field.key, event.target.value)} rows={2} className="min-h-[56px] w-full resize-y rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] leading-relaxed outline-none transition-colors focus:border-primary/60" />}
-          </div>)}
-          {!readOnly && <div className="col-span-5 flex justify-end border-t border-border/60 px-3 py-1.5"><button type="button" data-testid={`button-remove-control-plan-${index}`} onClick={() => removeRow(index)} className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground hover:text-destructive"><X size={12} /> Remover parâmetro</button></div>}
-        </div>)}
-      </div>
-    </div>
-    <p className="text-[10px] leading-relaxed text-muted-foreground">Especificações, frequências e planos de reação devem ser validados com o dono do processo antes de se tornarem padrão operacional.</p>
-  </div>;
-}
-
-const EMPTY_CONTROL_PLAN_ROW: ControlPlanRow = { parameter: '', specification: '', measurementFreq: '', responsible: '', reactionPlan: '' };
-
-const SOLUTION_FIELDS: { key: keyof SolutionRow; label: string; hint: string }[] = [
-  { key: 'what', label: 'O quê', hint: 'A solução proposta' },
-  { key: 'why', label: 'Por quê', hint: 'A causa ou hipótese que ela ataca' },
-  { key: 'where', label: 'Onde', hint: 'Etapa do processo' },
-  { key: 'when', label: 'Quando', hint: 'Prazo ou sprint' },
-  { key: 'who', label: 'Quem', hint: 'Responsáveis' },
-  { key: 'how', label: 'Como', hint: 'Forma de implementação' },
-  { key: 'howMuch', label: 'Quanto custa', hint: 'Esforço ou investimento estimado' },
-];
-
-const exampleGutRows: GutRow[] = [
-  { cause: 'Documentação incompleta na abertura da solicitação', gravity: '5', urgency: '4', tendency: '4', gutScore: '80' },
-  { cause: 'Retrabalho na validação manual de dados do bureau', gravity: '4', urgency: '4', tendency: '3', gutScore: '48' },
-  { cause: 'Fila de integração entre sistemas na aprovação', gravity: '3', urgency: '3', tendency: '3', gutScore: '27' },
-];
-
-const EMPTY_MSA_ROW: MsaRow = { variable: '', gageRrStatus: '', recommendation: '' };
-
-function normalizeRow<T extends Record<string, string>>(row: DmaicRow | undefined, template: T): T {
-  const result = { ...template };
-  (Object.keys(template) as (keyof T)[]).forEach((key) => {
-    const value = row?.[key as string];
-    if (typeof value === 'string') result[key] = value as T[keyof T];
-  });
-  return result;
-}
-
-const exampleControlPlanRows: ControlPlanRow[] = [
-  { parameter: 'Tempo total até aprovação', specification: '≤ 11,0 min (meta)', measurementFreq: 'Diário, por amostragem de 10 solicitações', responsible: 'Líder de operações', reactionPlan: 'Escalar para o Belt se ficar acima do limite por 3 dias seguidos' },
-  { parameter: 'Taxa de retrabalho por documentação', specification: '≤ 5%', measurementFreq: 'Semanal', responsible: 'Supervisor de triagem', reactionPlan: 'Reforçar checklist e revisar treinamento da equipe' },
-];

@@ -16,13 +16,22 @@ type Props = {
   onSave: () => void;
 };
 
+type ArtifactStatus = 'ai' | 'edited' | 'validated' | 'approved' | 'stale';
+
+function ArtifactBadge({ status }: { status: ArtifactStatus }) {
+  const labels: Record<ArtifactStatus, string> = { ai: 'Sugestão da IA', edited: 'Editado pelo usuário', validated: 'Validado', approved: 'Aprovado', stale: 'Desatualizado' };
+  const colors: Record<ArtifactStatus, string> = { ai: 'bg-slate-100 text-slate-600', edited: 'bg-amber-100 text-amber-900', validated: 'bg-emerald-100 text-emerald-800', approved: 'bg-emerald-100 text-emerald-800', stale: 'bg-red-100 text-red-800' };
+  return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.1em] ${colors[status]}`}><span className="h-1.5 w-1.5 rounded-full bg-current" />{labels[status]}</span>;
+}
+
 export function IshikawaDiagramEditor({ sourceText, value, dirty, saved, generating, error, onSourceTextChange, onGenerate, onChange, onSave }: Props) {
   const matrix = value ?? Object.fromEntries(CATEGORIES.map((category) => [category, []]));
+  const artifactStatus: ArtifactStatus = dirty ? 'edited' : saved ? 'validated' : value ? 'ai' : 'edited';
   const updateCategory = (category: string, causes: string[]) => onChange({ ...matrix, [category]: causes });
 
   return <div data-testid="panel-ishikawa-editor" className="space-y-5">
     <section className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-      <div><p className="mono-label text-primary">Contexto fornecido pela equipe</p><h3 className="mt-1 font-serif text-lg font-bold">Descreva o efeito e as possíveis causas</h3><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Escreva livremente o problema observado, sintomas, condições, evidências e hipóteses. A IA organizará a versão inicial nos 6Ms; depois, a equipe poderá revisar tudo.</p></div>
+      <div><p className="mono-label text-primary">Contexto fornecido pela equipe</p><h3 className="mt-1 font-serif text-lg font-bold">Descreva o efeito e as possíveis causas</h3><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Escreva livremente o problema observado, sintomas, condições, evidências e hipóteses. A Suíte organizará a versão inicial nos 6Ms; depois, a equipe poderá revisar tudo.</p></div>
       <div className="mt-4 grid items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_230px]">
         <textarea data-testid="input-ishikawa-source-text" value={sourceText} onChange={(event) => onSourceTextChange(event.target.value)} rows={7} maxLength={12000} placeholder="Ex.: O efeito observado é o aumento do tempo de atendimento. Há relatos de sistema lento, documentos incompletos, procedimentos diferentes entre operadores e falta de medição do tempo por etapa..." className="min-h-[164px] w-full resize-y rounded-xl border border-border bg-background px-4 py-3 text-xs leading-relaxed outline-none transition-colors focus:border-primary/60" />
         <button data-testid="button-generate-ishikawa" type="button" onClick={onGenerate} disabled={generating || sourceText.trim().length < 10} className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-center text-xs font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50">
@@ -35,7 +44,7 @@ export function IshikawaDiagramEditor({ sourceText, value, dirty, saved, generat
     </section>
 
     {value ? <section className="rounded-xl border border-border bg-card p-4">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><p className="mono-label text-accent-foreground">Diagrama de causa e efeito · 6M</p><h3 className="mt-1 font-serif text-lg font-bold">Espinha de peixe para discussão com o time</h3><p className="mt-1 text-xs text-muted-foreground">A leitura visual segue o padrão clássico; os campos editáveis ficam logo abaixo de cada ramo.</p></div><button data-testid="button-save-ishikawa" type="button" onClick={onSave} disabled={!dirty} className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold hover:border-primary disabled:opacity-50"><Save size={14} /> {saved ? 'Salvo no Neon' : 'Salvar matriz'}</button></div>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><p className="mono-label text-accent-foreground">Diagrama de causa e efeito · 6M</p><h3 className="mt-1 font-serif text-lg font-bold">Espinha de peixe para discussão com o time</h3><p className="mt-1 text-xs text-muted-foreground">A leitura visual segue o padrão clássico; os campos editáveis ficam logo abaixo de cada ramo.</p></div><div className="flex items-center gap-2"><ArtifactBadge status={artifactStatus} /><button data-testid="button-save-ishikawa" type="button" onClick={onSave} disabled={!dirty} className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold hover:border-primary disabled:opacity-50"><Save size={14} /> {saved ? 'Salvo no Repositório' : 'Salvar no Repositório'}</button></div></div>
       <FishboneDiagram matrix={matrix} effect={sourceText} />
       <div className="mt-5 border-t border-border pt-5"><p className="mono-label text-muted-foreground">Edição das causas</p><div className="mt-3 grid gap-4 lg:grid-cols-2">{CATEGORIES.map((category, categoryIndex) => <CategoryCard key={category} category={category} causes={matrix[category] ?? []} side={categoryIndex % 2 === 0 ? 'left' : 'right'} onChange={(causes) => updateCategory(category, causes)} />)}</div></div>
     </section> : <div className="rounded-xl border border-dashed border-border p-6 text-center"><Sparkles size={22} className="mx-auto text-primary" /><p className="mt-3 text-sm font-bold">A matriz ainda não foi gerada</p><p className="mt-1 text-xs text-muted-foreground">Preencha o texto acima e use o botão para criar a primeira versão.</p></div>}

@@ -43,13 +43,44 @@ const createInput = (
   problemStatement: string,
   expectedRevision: number,
   projectKey?: number,
+  analysisArtifacts?: unknown,
 ) => ({
   problemStatement,
   projectCharterContext: charterContext,
   aiCharterSuggestions: null,
   expectedRevision,
+  ...(analysisArtifacts === undefined ? {} : { analysisArtifacts }),
   ...(projectKey === undefined ? {} : { projectKey }),
 });
+
+const matrixArtifacts = {
+  version: 1,
+  dataset: null,
+  analysisMonths: 12,
+  selectedIndicator: '',
+  indicatorAnalysis: null,
+  exploratorySummary: null,
+  diagnosis: null,
+  diagnosisInput: null,
+  pipelineAnalysisContext: null,
+  pareto: [],
+  imr: [],
+  pipeline: null,
+  causeAndEffectMatrix: {
+    outputs: [{ id: 'y1', name: 'Qualidade', weight: 10 }],
+    rows: [
+      { id: 'c1', cause: 'Primeira causa', scores: { y1: 5 } },
+      { id: 'c2', cause: 'Segunda causa', scores: { y1: 3 } },
+    ],
+  },
+  solutionPrioritizationMatrix: {
+    criteria: [{ id: 'crit1', name: 'Baixo Custo', weight: 7 }],
+    solutions: [
+      { id: 's1', description: 'Primeira solução', scores: { crit1: 5 } },
+      { id: 's2', description: 'Segunda solução', scores: { crit1: 3 } },
+    ],
+  },
+};
 
 function cloneWorkspace(workspace: DmaicWorkspaceRow): DmaicWorkspaceRow {
   return {
@@ -204,5 +235,120 @@ test("preserva revisões monotônicas em uma corrida de salvamentos isolada", as
     assert.equal(finalWorkspace.payload.problemStatement, "Terceira edição feita depois do conflito");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  }
+});
+
+test("persiste todas as linhas das matrizes da Sprint 3", async () => {
+  const repository = createInMemoryWorkspaceRepository();
+  const app = createApp(createDmaicRouter(repository));
+  const server = createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+
+  try {
+    const saved = await requestWorkspace(
+      baseUrl,
+      "PUT",
+      createInput("Problema das matrizes com mais de dez caracteres", 0, undefined, matrixArtifacts),
+    );
+    assert.equal(saved.response.status, 200);
+    assert.deepEqual(
+      (saved.payload.analysisArtifacts as Record<string, unknown>).causeAndEffectMatrix,
+      matrixArtifacts.causeAndEffectMatrix,
+    );
+    assert.deepEqual(
+      (saved.payload.analysisArtifacts as Record<string, unknown>).solutionPrioritizationMatrix,
+      matrixArtifacts.solutionPrioritizationMatrix,
+    );
+
+    const loaded = await requestWorkspace(baseUrl, "GET");
+    assert.equal(loaded.response.status, 200);
+    assert.deepEqual(
+      (loaded.payload.analysisArtifacts as Record<string, unknown>).causeAndEffectMatrix,
+      matrixArtifacts.causeAndEffectMatrix,
+    );
+    assert.deepEqual(
+      (loaded.payload.analysisArtifacts as Record<string, unknown>).solutionPrioritizationMatrix,
+      matrixArtifacts.solutionPrioritizationMatrix,
+    );
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("persiste datasets e resultados estatísticos de Medição e Controle", async () => {
+  const repository = createInMemoryWorkspaceRepository();
+  const app = createApp(createDmaicRouter(repository));
+  const server = createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  const dataset = {
+    fileName: "medicao.csv",
+    headers: ["Periodo", "Unidade", "Valor"],
+    rows: [{ Periodo: "2026-01", Unidade: "A", Valor: "10" }],
+    dateColumn: "Periodo",
+    indicatorColumns: ["Valor"],
+  };
+  const controlPhase = {
+    dataset: { ...dataset, fileName: "controle.csv" },
+    months: 12,
+    selectedIndicators: ["Valor"],
+    statistics: [{
+      indicator: "Valor",
+      count: 1,
+      omitted: 0,
+      mean: 10,
+      standardDeviation: 0,
+      minimum: 10,
+      maximum: 10,
+      movingRangeMean: 0,
+      upperControlLimit: 10,
+      lowerControlLimit: 10,
+      latestValue: 10,
+      baseline: 12,
+      target: 10,
+      improvementPp: -2,
+      values: [10],
+    }],
+    evaluation: null,
+  };
+  const analysisArtifacts = {
+    version: 1,
+    dataset: null,
+    measurementDataset: dataset,
+    analysisMonths: 12,
+    selectedIndicator: "Valor",
+    indicatorAnalysis: null,
+    exploratorySummary: null,
+    diagnosis: "Leitura estatística gerada para a série.",
+    diagnosisInput: null,
+    pipelineAnalysisContext: null,
+    pareto: [],
+    imr: [],
+    pipeline: null,
+    whatIfAnalyses: [],
+    ishikawa: null,
+    ishikawaInputText: "",
+    controlPhase,
+  };
+
+  try {
+    const saved = await requestWorkspace(baseUrl, "PUT", createInput("Problema com dados estatísticos", 0, undefined, analysisArtifacts));
+    assert.equal(saved.response.status, 200);
+    const savedArtifacts = saved.payload.analysisArtifacts as Record<string, unknown>;
+    assert.deepEqual(savedArtifacts.measurementDataset, dataset);
+    assert.deepEqual(savedArtifacts.controlPhase, controlPhase);
+
+    const loaded = await requestWorkspace(baseUrl, "GET");
+    assert.equal(loaded.response.status, 200);
+    const loadedArtifacts = loaded.payload.analysisArtifacts as Record<string, unknown>;
+    assert.deepEqual(loadedArtifacts.measurementDataset, dataset);
+    assert.deepEqual(loadedArtifacts.controlPhase, controlPhase);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 });
