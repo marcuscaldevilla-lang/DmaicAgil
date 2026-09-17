@@ -159,9 +159,15 @@ export const runDmaicPipeline = async (dmaicPipelineInput: DmaicPipelineInput, o
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Array.isArray(h)) return Object.fromEntries(h);
-    return h;
+    if (typeof Headers !== 'undefined' && h instanceof Headers) {
+      const normalized: Record<string, string | readonly string[]> = {};
+      h.forEach((value, key) => {
+        normalized[key] = value;
+      });
+      return normalized;
+    }
+    if (Array.isArray(h)) return Object.fromEntries(h) as Record<string, string | readonly string[]>;
+    return h as Record<string, string | readonly string[]>;
   };
 return customFetch<DmaicPipeline>(getRunDmaicPipelineUrl(),
   {
@@ -325,9 +331,15 @@ export const saveDmaicWorkspace = async (dmaicWorkspaceInput: DmaicWorkspaceInpu
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Array.isArray(h)) return Object.fromEntries(h);
-    return h;
+    if (typeof Headers !== 'undefined' && h instanceof Headers) {
+      const normalized: Record<string, string | readonly string[]> = {};
+      h.forEach((value, key) => {
+        normalized[key] = value;
+      });
+      return normalized;
+    }
+    if (Array.isArray(h)) return Object.fromEntries(h) as Record<string, string | readonly string[]>;
+    return h as Record<string, string | readonly string[]>;
   };
 return customFetch<DmaicWorkspace>(getSaveDmaicWorkspaceUrl(),
   {
@@ -484,9 +496,15 @@ export const runDmaicExploratoryDiagnosis = async (dmaicExploratoryDiagnosisInpu
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Array.isArray(h)) return Object.fromEntries(h);
-    return h;
+    if (typeof Headers !== 'undefined' && h instanceof Headers) {
+      const normalized: Record<string, string | readonly string[]> = {};
+      h.forEach((value, key) => {
+        normalized[key] = value;
+      });
+      return normalized;
+    }
+    if (Array.isArray(h)) return Object.fromEntries(h) as Record<string, string | readonly string[]>;
+    return h as Record<string, string | readonly string[]>;
   };
 return customFetch<DmaicExploratoryDiagnosis>(getRunDmaicExploratoryDiagnosisUrl(),
   {
@@ -565,9 +583,15 @@ export const runDmaicMeasurementWhatIf = async (dmaicMeasurementWhatIfInput: Dma
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Array.isArray(h)) return Object.fromEntries(h);
-    return h;
+    if (typeof Headers !== 'undefined' && h instanceof Headers) {
+      const normalized: Record<string, string | readonly string[]> = {};
+      h.forEach((value, key) => {
+        normalized[key] = value;
+      });
+      return normalized;
+    }
+    if (Array.isArray(h)) return Object.fromEntries(h) as Record<string, string | readonly string[]>;
+    return h as Record<string, string | readonly string[]>;
   };
 return customFetch<DmaicMeasurementWhatIfResponse>(getRunDmaicMeasurementWhatIfUrl(),
   {
@@ -646,9 +670,15 @@ export const runDmaicIshikawa = async (dmaicIshikawaInput: DmaicIshikawaInput, o
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Array.isArray(h)) return Object.fromEntries(h);
-    return h;
+    if (typeof Headers !== 'undefined' && h instanceof Headers) {
+      const normalized: Record<string, string | readonly string[]> = {};
+      h.forEach((value, key) => {
+        normalized[key] = value;
+      });
+      return normalized;
+    }
+    if (Array.isArray(h)) return Object.fromEntries(h) as Record<string, string | readonly string[]>;
+    return h as Record<string, string | readonly string[]>;
   };
 return customFetch<DmaicIshikawaResponse>(getRunDmaicIshikawaUrl(),
   {
@@ -727,9 +757,15 @@ export const runDmaicControlEvaluation = async (dmaicControlEvaluationInput: Dma
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Array.isArray(h)) return Object.fromEntries(h);
-    return h;
+    if (typeof Headers !== 'undefined' && h instanceof Headers) {
+      const normalized: Record<string, string | readonly string[]> = {};
+      h.forEach((value, key) => {
+        normalized[key] = value;
+      });
+      return normalized;
+    }
+    if (Array.isArray(h)) return Object.fromEntries(h) as Record<string, string | readonly string[]>;
+    return h as Record<string, string | readonly string[]>;
   };
 return customFetch<DmaicControlEvaluation>(getRunDmaicControlEvaluationUrl(),
   {

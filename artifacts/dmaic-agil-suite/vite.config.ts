@@ -6,8 +6,8 @@ import { defineConfig } from 'vite';
 import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
 
 // Define valores padrão se as variáveis do Replit não existirem no Windows
-const port = Number(process.env.PORT) || 5173;
-const basePath = process.env.BASE_PATH || '/';
+const port = Number(process.env.PORT ?? 5173);
+const basePath = process.env.BASE_PATH ?? '/';
 
 export default defineConfig({
   base: basePath,
