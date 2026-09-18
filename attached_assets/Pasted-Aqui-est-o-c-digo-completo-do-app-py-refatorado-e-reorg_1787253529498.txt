@@ -1,0 +1,575 @@
+Aqui está o código completo do **`app.py`** refatorado e reorganizado exatamente de acordo com a arquitetura de 3 blocos do **DMAIC Ágil** apresentada no diagrama:
+
+1. **Bloco 1 — Definição Ágil (Sprint 1: 2 semanas):** Time, VOC & CTQs, Indicadores (Y), SIPOC, Matriz Dentro/Fora e Project Charter.
+2. **Bloco 2 — Medição Ágil (Sprint 2: 2 a 3 semanas):** Validação MSA (Gage R&R), Estatística Descritiva, Gráfico de Pareto, Ishikawa 6M, Matriz Causa & Efeito, Matrizes GUT / Esforço x Impacto e Desdobramento da Meta em $X$'s vitais.
+3. **Bloco 3 — Ciclo Iterativo A-I-C (Sprints de 2 semanas por $X$ vital - *One X Flow*):**
+* **Análise Ágil:** Comprovação dos $X$'s (ANOVA, Teste t, Regressão, FMEA).
+* **Melhoria Ágil:** Brainstorming, Diagrama de Árvore, Matriz de Priorização de Soluções e 5W2H.
+* **Controle Ágil:** Cartas de Controle I-MR (Western Electric), Capabilidade Antes/Depois e Padronização (POP, Poka Yoke, OCAP e Plano de Controle).
+
+
+
+---
+
+### Código Completo (`app.py`)
+
+```python
+import os
+import io
+import json
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from typing import TypedDict, Dict, Any, Optional, List
+from dotenv import load_dotenv
+
+# LangChain & LangGraph
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import JsonOutputParser
+from langgraph.graph import StateGraph, END
+
+try:
+    import streamlit_mermaid as st_mermaid
+except ImportError:
+    st_mermaid = None
+
+load_dotenv()
+
+# ==========================================
+# 1. ESTADO CENTRAL DO LANGGRAPH (DMAIC ÁGIL)
+# ==========================================
+class DMAICAgilState(TypedDict):
+    problem_statement: str
+    
+    # 1. DEFINIÇÃO ÁGIL (Sprint 1)
+    team_setup: Optional[Dict[str, str]]
+    voc_ctq: Optional[List[Dict[str, str]]]
+    indicators_y: Optional[Dict[str, Any]]
+    sipoc: Optional[Dict[str, Any]]
+    in_out_matrix: Optional[Dict[str, List[str]]]
+    project_charter: Optional[Dict[str, Any]]
+    
+    # 2. MEDIÇÃO ÁGIL (Sprint 2)
+    msa_validation: Optional[Dict[str, Any]]
+    pareto_data: Optional[Dict[str, Any]]
+    ishikawa_json: Optional[Dict[str, Any]]
+    ishikawa_mermaid: Optional[str]
+    cause_effect_matrix: Optional[List[Dict[str, Any]]]
+    gut_prioritization: Optional[List[Dict[str, Any]]]
+    effort_impact_matrix: Optional[List[Dict[str, Any]]]
+    vital_xs_breakdown: Optional[List[Dict[str, Any]]]
+    
+    # 3. CICLO ITERATIVO A-I-C (Sprints por X)
+    current_x_analyzed: Optional[str]
+    hypothesis_testing_results: Optional[List[Dict[str, Any]]]
+    fmea_results: Optional[List[Dict[str, Any]]]
+    solutions_tree: Optional[List[Dict[str, Any]]]
+    action_plan_5w2h: Optional[List[Dict[str, Any]]]
+    control_plan: Optional[List[Dict[str, Any]]]
+    standardization_sop: Optional[List[Dict[str, Any]]]
+    
+    current_sprint: str
+
+# ==========================================
+# 2. MOTOR ESTATÍSTICO (PYTHON DETERMINÍSTICO)
+# ==========================================
+def calculate_pareto(df: pd.DataFrame, category_col: str, count_col: Optional[str] = None):
+    """Gera tabela e gráfico de Pareto 80/20 com duplo eixo."""
+    if count_col and count_col in df.columns:
+        grouped = df.groupby(category_col)[count_col].sum().reset_index()
+    else:
+        grouped = df[category_col].value_counts().reset_index()
+        grouped.columns = [category_col, 'count']
+        count_col = 'count'
+
+    grouped = grouped.sort_values(by=count_col, ascending=False).reset_index(drop=True)
+    grouped['cumulative_sum'] = grouped[count_col].cumsum()
+    grouped['cumulative_perc'] = (grouped['cumulative_sum'] / grouped[count_col].sum()) * 100
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=grouped[category_col], 
+        y=grouped[count_col], 
+        name='Frequência',
+        marker_color='#1f77b4'
+    ))
+    fig.add_trace(go.Scatter(
+        x=grouped[category_col], 
+        y=grouped['cumulative_perc'], 
+        name='% Acumulado', 
+        yaxis='y2', 
+        mode='lines+markers',
+        marker_color='#d62728',
+        line=dict(width=2)
+    ))
+    fig.add_hline(y=80, line_dash="dash", line_color="orange", yref="y2", annotation_text="Corte 80%")
+
+    fig.update_layout(
+        title="Gráfico de Pareto (Itens Vitais)",
+        yaxis=dict(title="Ocorrências / Volume"),
+        yaxis2=dict(
+            title="% Acumulado", 
+            overlaying='y', 
+            side='right', 
+            range=[0, 105],
+            ticksuffix="%"
+        ),
+        legend=dict(x=0.8, y=1.15, orientation="h"),
+        margin=dict(l=40, r=40, t=50, b=40)
+    )
+    return grouped, fig
+
+
+def calculate_imr_chart(df: pd.DataFrame, value_col: str):
+    """Calcula Cartas I-MR com regras de Nelson / Western Electric aplicadas."""
+    series = df[value_col].dropna().reset_index(drop=True)
+    n = len(series)
+    if n < 3:
+        raise ValueError("Mínimo de 3 observações necessárias para cálculo da carta I-MR.")
+
+    # Carta I
+    x_bar = series.mean()
+    mr = series.diff().abs().dropna().reset_index(drop=True)
+    mr_bar = mr.mean()
+    sigma_est = mr_bar / 1.128  # d2 para n=2
+    
+    ucl_i = x_bar + 3 * sigma_est
+    lcl_i = max(0.0, x_bar - 3 * sigma_est)
+    
+    violations_i = set()
+    for i, val in enumerate(series):
+        if val > ucl_i or val < lcl_i:
+            violations_i.add(i)
+            
+    # Regra de 9 pontos consecutivos no mesmo lado da média
+    for i in range(len(series) - 8):
+        window = series[i:i+9]
+        if (window > x_bar).all() or (window < x_bar).all():
+            for idx in range(i, i+9):
+                violations_i.add(idx)
+
+    # Carta MR
+    ucl_mr = 3.267 * mr_bar
+    lcl_mr = 0.0
+    violations_mr = set([i + 1 for i, val in enumerate(mr) if val > ucl_mr])
+
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.12,
+        subplot_titles=("Carta Individual (I)", "Carta de Amplitude Móvel (MR)")
+    )
+
+    indices = list(range(1, n + 1))
+    colors_i = ['#d62728' if i in violations_i else '#1f77b4' for i in range(n)]
+
+    fig.add_trace(
+        go.Scatter(x=indices, y=series, mode='lines+markers', name='Individual',
+                   marker=dict(color=colors_i, size=8), line=dict(color='#1f77b4', width=1.5)),
+        row=1, col=1
+    )
+    fig.add_hline(y=x_bar, line_dash="dash", line_color="blue", annotation_text=f"Média: {x_bar:.2f}", row=1, col=1)
+    fig.add_hline(y=ucl_i, line_dash="dot", line_color="red", annotation_text=f"LSC: {ucl_i:.2f}", row=1, col=1)
+    fig.add_hline(y=lcl_i, line_dash="dot", line_color="red", annotation_text=f"LIC: {lcl_i:.2f}", row=1, col=1)
+
+    mr_indices = list(range(2, n + 1))
+    colors_mr = ['#d62728' if (i + 1) in violations_mr else '#2ca02c' for i in range(len(mr))]
+    
+    fig.add_trace(
+        go.Scatter(x=mr_indices, y=mr, mode='lines+markers', name='Amplitude Móvel',
+                   marker=dict(color=colors_mr, size=7), line=dict(color='#2ca02c', width=1.5)),
+        row=2, col=1
+    )
+    fig.add_hline(y=mr_bar, line_dash="dash", line_color="blue", annotation_text=f"MR Média: {mr_bar:.2f}", row=2, col=1)
+    fig.add_hline(y=ucl_mr, line_dash="dot", line_color="red", annotation_text=f"LSC: {ucl_mr:.2f}", row=2, col=1)
+    fig.add_hline(y=lcl_mr, line_dash="dot", line_color="red", annotation_text=f"LIC: {lcl_mr:.2f}", row=2, col=1)
+
+    fig.update_layout(height=600, showlegend=False, margin=dict(l=40, r=40, t=50, b=40))
+    stats_summary = {
+        "x_bar": x_bar, "sigma_est": sigma_est, "ucl_i": ucl_i, "lcl_i": lcl_i,
+        "mr_bar": mr_bar, "ucl_mr": ucl_mr, "violations_i_count": len(violations_i)
+    }
+    return fig, stats_summary
+
+# ==========================================
+# 3. NÓS DO LANGGRAPH (INTEGRAÇÃO GEMINI)
+# ==========================================
+def get_llm():
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise ValueError("GOOGLE_API_KEY não configurada.")
+    return ChatGoogleGenerativeAI(
+        model="gemini-1.5-pro",
+        temperature=0.2,
+        google_api_key=api_key
+    )
+
+def sprint1_define_node(state: DMAICAgilState) -> DMAICAgilState:
+    """Nó da Sprint 1: Definição Ágil completa."""
+    llm = get_llm()
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """Você é um Master Black Belt liderando a SPRINT 1 (DEFINIÇÃO ÁGIL).
+Gere um JSON estrito contendo:
+1. "team_setup": { "product_owner", "scrum_master", "belt_squad_members" }
+2. "voc_ctq": [ { "voc_need": "...", "issue": "...", "ctq_metric": "..." } ]
+3. "indicators_y": { "primary_metric_y", "operational_definition", "target_goal", "baseline" }
+4. "sipoc": { "suppliers": [...], "inputs": [...], "process": [...], "outputs": [...], "customers": [...] }
+5. "in_out_matrix": { "in_scope": [...], "out_of_scope": [...] }
+6. "project_charter": { "project_title", "problem_statement", "business_case", "expected_savings" }
+Responda APENAS o JSON puro."""),
+        ("user", "Problema do Projeto: {problem_statement}")
+    ])
+    chain = prompt | llm | JsonOutputParser()
+    res = chain.invoke({"problem_statement": state["problem_statement"]})
+    return {
+        **state,
+        "team_setup": res.get("team_setup"),
+        "voc_ctq": res.get("voc_ctq"),
+        "indicators_y": res.get("indicators_y"),
+        "sipoc": res.get("sipoc"),
+        "in_out_matrix": res.get("in_out_matrix"),
+        "project_charter": res.get("project_charter"),
+        "current_sprint": "Sprint 2: Medição Ágil"
+    }
+
+def sprint2_measure_node(state: DMAICAgilState) -> DMAICAgilState:
+    """Nó da Sprint 2: Medição Ágil, Ishikawa, Matrizes e Desdobramento em Xs Vitais."""
+    llm = get_llm()
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """Você é um Master Black Belt liderando a SPRINT 2 (MEDIÇÃO ÁGIL).
+Com base no problema e nos CTQs, gere um JSON estrito contendo:
+1. "msa_validation": { "variable_measured", "gage_rr_status", "repeatability_status", "reproducibility_status" }
+2. "ishikawa_json": Dicionário categorizado em 6M (Metodo, Maquina, Material, Mao_de_Obra, Medicao, Meio_Ambiente).
+3. "ishikawa_mermaid": Código Mermaid válido (mindmap).
+4. "cause_effect_matrix": [ { "step", "input_x", "impacted_ctq_y", "correlation_weight" (1,3,9), "total_score" } ]
+5. "gut_prioritization": [ { "cause", "category", "gravity" (1-5), "urgency" (1-5), "tendency" (1-5), "gut_score" } ] ordenado decrescente.
+6. "effort_impact_matrix": [ { "cause_or_x", "effort", "impact", "classification" } ]
+7. "vital_xs_breakdown": [ { "x_vital_id": "X1", "description": "...", "specific_goal_reduction": "...", "assigned_sprint": "Sprint 3" } ]
+Responda APENAS o JSON puro."""),
+        ("user", "Problema: {problem_statement}\nCTQs: {voc}\nCharter: {charter}")
+    ])
+    chain = prompt | llm | JsonOutputParser()
+    res = chain.invoke({
+        "problem_statement": state["problem_statement"],
+        "voc": str(state.get("voc_ctq", [])),
+        "charter": str(state.get("project_charter", {}))
+    })
+    return {
+        **state,
+        "msa_validation": res.get("msa_validation"),
+        "ishikawa_json": res.get("ishikawa_json"),
+        "ishikawa_mermaid": res.get("ishikawa_mermaid"),
+        "cause_effect_matrix": res.get("cause_effect_matrix"),
+        "gut_prioritization": res.get("gut_prioritization"),
+        "effort_impact_matrix": res.get("effort_impact_matrix"),
+        "vital_xs_breakdown": res.get("vital_xs_breakdown"),
+        "current_sprint": "Sprint 3: Ciclo Iterativo A-I-C"
+    }
+
+def sprint3_aic_cycle_node(state: DMAICAgilState) -> DMAICAgilState:
+    """Nó da Sprint 3+: Ciclo Iterativo A-I-C (One X Flow)."""
+    llm = get_llm()
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """Você é um Master Black Belt executando o CICLO ITERATIVO A-I-C (One X Flow) para o X Vital mais crítico.
+Gere um JSON estrito contendo:
+1. "hypothesis_testing_results": [ { "x_vital", "test_type" (ex: ANOVA, t-test, Regressão), "p_value_simulated", "conclusion" } ]
+2. "fmea_results": [ { "step", "failure_mode", "potential_cause", "sev", "occ", "det", "rpn" } ]
+3. "solutions_tree": [ { "x_vital", "solution_pillar", "action_idea" } ]
+4. "action_plan_5w2h": [ { "what", "why", "where", "when", "who", "how", "how_much" } ]
+5. "control_plan": [ { "parameter", "specification", "measurement_freq", "responsible", "reaction_plan" } ]
+6. "standardization_sop": [ { "procedure_name", "poka_yoke_feature", "ocap_trigger" } ]
+Responda APENAS o JSON puro."""),
+        ("user", "Problema: {problem_statement}\nXs Vitais: {xs}\nGUT: {gut}")
+    ])
+    chain = prompt | llm | JsonOutputParser()
+    res = chain.invoke({
+        "problem_statement": state["problem_statement"],
+        "xs": str(state.get("vital_xs_breakdown", [])),
+        "gut": str(state.get("gut_prioritization", []))
+    })
+    return {
+        **state,
+        "hypothesis_testing_results": res.get("hypothesis_testing_results"),
+        "fmea_results": res.get("fmea_results"),
+        "solutions_tree": res.get("solutions_tree"),
+        "action_plan_5w2h": res.get("action_plan_5w2h"),
+        "control_plan": res.get("control_plan"),
+        "standardization_sop": res.get("standardization_sop"),
+        "current_sprint": "Concluído"
+    }
+
+# ==========================================
+# 4. COMPILAÇÃO DO GRAFO LANGGRAPH
+# ==========================================
+workflow = StateGraph(DMAICAgilState)
+workflow.add_node("sprint1_define", sprint1_define_node)
+workflow.add_node("sprint2_measure", sprint2_measure_node)
+workflow.add_node("sprint3_aic", sprint3_aic_cycle_node)
+
+workflow.set_entry_point("sprint1_define")
+workflow.add_edge("sprint1_define", "sprint2_measure")
+workflow.add_edge("sprint2_measure", "sprint3_aic")
+workflow.add_edge("sprint3_aic", END)
+
+dmaic_agil_app = workflow.compile()
+
+# ==========================================
+# 5. INTERFACE STREAMLIT
+# ==========================================
+st.set_page_config(page_title="DMAIC Ágil Suite", layout="wide", page_icon="⚡")
+st.title("⚡ DMAIC Ágil Automation Suite (Scrum + Lean Seis Sigma)")
+st.caption("Arquitetura híbrida com execução iterativa One X Flow orientada por Agentes Gemini + Python")
+
+with st.sidebar:
+    st.header("Configurações da API")
+    api_key_input = st.text_input("Google API Key", type="password", value=os.getenv("GOOGLE_API_KEY", ""))
+    if api_key_input:
+        os.environ["GOOGLE_API_KEY"] = api_key_input
+    
+    st.markdown("---")
+    st.markdown("### Estrutura de Sprints DMAIC Ágil")
+    st.markdown("• **Sprint 1 (2 Semanas):** Definição Ágil")
+    st.markdown("• **Sprint 2 (2-3 Semanas):** Medição Ágil")
+    st.markdown("• **Sprints 3+ (2 Semanas/X):** Ciclo A-I-C")
+
+tabs = st.tabs([
+    "1. DEFINIÇÃO ÁGIL (Sprint 1)", 
+    "2. MEDIÇÃO ÁGIL (Sprint 2)", 
+    "3. CICLO ITERATIVO A-I-C (One X Flow)"
+])
+
+# ----------------- ABA 1: SPRINT 1 - DEFINIÇÃO ÁGIL -----------------
+with tabs[0]:
+    st.subheader("1. Definição Ágil (Sprint 1: 2 Semanas) — Planejar o DMAIC")
+    problem_input = st.text_area(
+        "Descreva o problema do processo para inicialização da Sprint 1:",
+        height=85,
+        value="A taxa de devolução de produtos no e-commerce aumentou 18% no último trimestre, gerando custo adicional de frete reverso e multas."
+    )
+
+    if st.button("Disparar Pipeline DMAIC Ágil Completo", type="primary"):
+        if not os.getenv("GOOGLE_API_KEY"):
+            st.error("Insira a Google API Key na barra lateral.")
+        else:
+            with st.spinner("Executando Sprints 1, 2 e Ciclo A-I-C via LangGraph + Gemini..."):
+                initial_state = {
+                    "problem_statement": problem_input,
+                    "team_setup": None, "voc_ctq": None, "indicators_y": None,
+                    "sipoc": None, "in_out_matrix": None, "project_charter": None,
+                    "msa_validation": None, "pareto_data": None, "ishikawa_json": None,
+                    "ishikawa_mermaid": None, "cause_effect_matrix": None,
+                    "gut_prioritization": None, "effort_impact_matrix": None,
+                    "vital_xs_breakdown": None, "current_x_analyzed": None,
+                    "hypothesis_testing_results": None, "fmea_results": None,
+                    "solutions_tree": None, "action_plan_5w2h": None,
+                    "control_plan": None, "standardization_sop": None,
+                    "current_sprint": "Sprint 1"
+                }
+                result = dmaic_agil_app.invoke(initial_state)
+                st.session_state["dmaic_agil_state"] = result
+                st.success("Sprints geradas e integradas com sucesso!")
+
+    if "dmaic_agil_state" in st.session_state and st.session_state["dmaic_agil_state"].get("project_charter"):
+        state = st.session_state["dmaic_agil_state"]
+        charter = state.get("project_charter", {})
+        team = state.get("team_setup", {})
+        voc = state.get("voc_ctq", [])
+        ind = state.get("indicators_y", {})
+        sipoc = state.get("sipoc", {})
+        in_out = state.get("in_out_matrix", {})
+
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            st.markdown("#### 👥 1. Montagem do Time (Squad)")
+            st.write(f"• **Product Owner:** {team.get('product_owner', 'N/A')}")
+            st.write(f"• **Scrum Master (Black Belt):** {team.get('scrum_master', 'N/A')}")
+            st.write(f"• **Squad Dev / Belts:** {team.get('belt_squad_members', 'N/A')}")
+
+            st.markdown("#### 🗣️ 2. Voz do Cliente (VOC) & Desdobramento CTQ")
+            if voc:
+                st.dataframe(pd.DataFrame(voc), use_container_width=True)
+
+            st.markdown("#### 🎯 3. Definição de Indicadores (Y) e Metas")
+            st.write(f"• **Métrica Primária (Y):** `{ind.get('primary_metric_y', 'N/A')}`")
+            st.write(f"• **Definição Operacional:** {ind.get('operational_definition', 'N/A')}")
+            st.write(f"• **Baseline:** {ind.get('baseline', 'N/A')} | **Meta:** {ind.get('target_goal', 'N/A')}")
+
+        with col2:
+            st.markdown("#### 🔄 4. Mapeamento do Processo: SIPOC")
+            sipoc_df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in sipoc.items()]))
+            st.dataframe(sipoc_df.fillna(""), use_container_width=True)
+
+            st.markdown("#### ⚖️ 5. Matriz Dentro / Fora (Escopo)")
+            if in_out:
+                col_in, col_out = st.columns(2)
+                with col_in:
+                    st.write("**Dentro do Escopo:**")
+                    for item in in_out.get("in_scope", []):
+                        st.write(f"- {item}")
+                with col_out:
+                    st.write("**Fora do Escopo:**")
+                    for item in in_out.get("out_of_scope", []):
+                        st.write(f"- {item}")
+
+            st.markdown("#### 📋 6. Contrato de Projeto (Project Charter)")
+            st.info(f"**Título:** {charter.get('project_title', 'N/A')}\n\n"
+                    f"**Problema:** {charter.get('problem_statement', 'N/A')}\n\n"
+                    f"**Business Case / Ganhos:** {charter.get('business_case', 'N/A')}")
+
+# ----------------- ABA 2: SPRINT 2 - MEDIÇÃO ÁGIL -----------------
+with tabs[1]:
+    st.subheader("2. Medição Ágil (Sprint 2: 2 a 3 Semanas) — Priorização das Causas")
+    
+    if "dmaic_agil_state" in st.session_state and st.session_state["dmaic_agil_state"].get("vital_xs_breakdown"):
+        state = st.session_state["dmaic_agil_state"]
+
+        m_col1, m_col2 = st.columns([1, 1])
+        with m_col1:
+            st.markdown("#### 🔬 1. Validação do Sistema de Medição (Gage R&R)")
+            msa = state.get("msa_validation", {})
+            st.write(f"• **Variável Avaliada:** {msa.get('variable_measured', 'N/A')}")
+            st.write(f"• **Status Gage R&R:** `{msa.get('gage_rr_status', 'Aprovado (<10%)')}`")
+            st.write(f"• **Repetibilidade / Reprodutibilidade:** {msa.get('repeatability_status', 'OK')} / {msa.get('reproducibility_status', 'OK')}")
+
+            st.markdown("#### 🐟 2. Diagrama de Ishikawa (6M)")
+            clean_mermaid = state.get("ishikawa_mermaid", "").replace("```mermaid", "").replace("```", "").strip()
+            if st_mermaid and clean_mermaid:
+                st_mermaid.st_mermaid(clean_mermaid)
+            else:
+                st.code(clean_mermaid, language="mermaid")
+
+            st.markdown("#### 📊 3. Matriz de Causa e Efeito (X-Y)")
+            if state.get("cause_effect_matrix"):
+                st.dataframe(pd.DataFrame(state["cause_effect_matrix"]), use_container_width=True)
+
+        with m_col2:
+            st.markdown("#### 🎯 4. Matriz de Priorização (GUT)")
+            if state.get("gut_prioritization"):
+                st.dataframe(pd.DataFrame(state["gut_prioritization"]), use_container_width=True)
+
+            st.markdown("#### ⚖️ 5. Matriz Esforço x Impacto")
+            if state.get("effort_impact_matrix"):
+                st.dataframe(pd.DataFrame(state["effort_impact_matrix"]), use_container_width=True)
+
+            st.markdown("#### 🧩 6. Desdobramento da Meta em Objetivos Menores (Xs Vitais)")
+            st.success("Meta Principal desdobrada para o backlog das próximas Sprints iterativas:")
+            st.dataframe(pd.DataFrame(state.get("vital_xs_breakdown", [])), use_container_width=True)
+
+        st.markdown("---")
+        st.markdown("#### 📈 7. Estatística Descritiva & Gráfico de Pareto (Itens Vitais)")
+        sample_data = pd.DataFrame({
+            "Motivo_Defeito": [
+                "Tamanho incorreto", "Produto danificado", "Tamanho incorreto", 
+                "Atraso na entrega", "Item divergente", "Tamanho incorreto", 
+                "Produto danificado", "Arrependimento", "Tamanho incorreto",
+                "Produto danificado", "Item divergente", "Tamanho incorreto"
+            ]
+        })
+        uploaded_file = st.file_uploader("Subir CSV de Medição", type=["csv", "xlsx"], key="pareto_upload")
+        df_input = sample_data if not uploaded_file else (
+            pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
+        )
+
+        p_col_cat, p_col_val = st.columns(2)
+        with p_col_cat:
+            category_column = st.selectbox("Coluna de Categorias / Causas", options=df_input.columns)
+        with p_col_val:
+            numeric_cols = ["(Contagem Simples)"] + [c for c in df_input.columns if pd.api.types.is_numeric_dtype(df_input[c])]
+            value_column = st.selectbox("Coluna de Valores / Ocorrências", options=numeric_cols)
+
+        if st.button("Gerar Análise de Pareto"):
+            count_col_param = None if value_column == "(Contagem Simples)" else value_column
+            summary_table, fig = calculate_pareto(df_input, category_column, count_col_param)
+            g1, g2 = st.columns([2, 1])
+            with g1:
+                st.plotly_chart(fig, use_container_width=True)
+            with g2:
+                st.dataframe(summary_table.style.format({"cumulative_perc": "{:.1f}%"}), use_container_width=True)
+    else:
+        st.info("Execute a Sprint 1 para desbloquear os artefatos de Medição Ágil.")
+
+# ----------------- ABA 3: SPRINT 3+ - CICLO ITERATIVO A-I-C (ONE X FLOW) -----------------
+with tabs[2]:
+    st.subheader("3. Ciclo Iterativo A-I-C (Sprints 3, 4, ... : 2 Semanas por X) — One X Flow")
+    
+    if "dmaic_agil_state" in st.session_state and st.session_state["dmaic_agil_state"].get("action_plan_5w2h"):
+        state = st.session_state["dmaic_agil_state"]
+
+        aic_col1, aic_col2, aic_col3 = st.columns(3)
+
+        # 3.1 ANÁLISE ÁGIL
+        with aic_col1:
+            st.markdown("### 🔍 3.1 Análise Ágil")
+            st.caption("Comprovação estatística do X priorizado")
+            
+            st.markdown("**Testes de Hipótese & Regressão:**")
+            if state.get("hypothesis_testing_results"):
+                st.dataframe(pd.DataFrame(state["hypothesis_testing_results"]), use_container_width=True)
+
+            st.markdown("**Análise de Risco / FMEA:**")
+            if state.get("fmea_results"):
+                st.dataframe(pd.DataFrame(state["fmea_results"]), use_container_width=True)
+
+        # 3.2 MELHORIA ÁGIL
+        with aic_col2:
+            st.markdown("### 💡 3.2 Melhoria Ágil")
+            st.caption("Criação e execução do plano de ação")
+
+            st.markdown("**Brainstorming & Diagrama de Árvore:**")
+            if state.get("solutions_tree"):
+                st.dataframe(pd.DataFrame(state["solutions_tree"]), use_container_width=True)
+
+            st.markdown("**Plano de Ação (5W2H):**")
+            if state.get("action_plan_5w2h"):
+                st.dataframe(pd.DataFrame(state["action_plan_5w2h"]), use_container_width=True)
+
+        # 3.3 CONTROLE ÁGIL
+        with aic_col3:
+            st.markdown("### 🛡️ 3.3 Controle Ágil")
+            st.caption("Monitoramento, Cartas I-MR e Sustentação")
+
+            st.markdown("**Padronização (POP, Poka Yoke, OCAP):**")
+            if state.get("standardization_sop"):
+                st.dataframe(pd.DataFrame(state["standardization_sop"]), use_container_width=True)
+
+            st.markdown("**Plano de Controle Operacional:**")
+            if state.get("control_plan"):
+                st.dataframe(pd.DataFrame(state["control_plan"]), use_container_width=True)
+
+        st.markdown("---")
+        st.markdown("#### 📈 Monitoramento Estatístico com Cartas de Controle I-MR")
+        
+        sample_control = pd.DataFrame({
+            "Amostra": list(range(1, 26)),
+            "Metrica_Monitorada": [
+                24.2, 25.1, 23.8, 24.9, 25.5, 24.1, 26.0, 23.9, 24.8, 25.2,
+                24.6, 25.0, 24.7, 25.3, 24.9, 29.5, 25.1, 24.8, 25.0, 25.2,
+                25.1, 25.3, 25.4, 25.2, 25.5
+            ]
+        })
+        ctrl_file = st.file_uploader("Subir Dados para Carta I-MR", type=["csv", "xlsx"], key="imr_upload")
+        df_ctrl = sample_control if not ctrl_file else (
+            pd.read_csv(ctrl_file) if ctrl_file.name.endswith(".csv") else pd.read_excel(ctrl_file)
+        )
+
+        num_cols = [c for c in df_ctrl.columns if pd.api.types.is_numeric_dtype(df_ctrl[c])]
+        if num_cols:
+            col_ctrl_selected = st.selectbox("Selecione a Variável:", options=num_cols, index=len(num_cols)-1)
+            if st.button("Gerar Carta I-MR e Checar Regras de Western Electric"):
+                fig_imr, stats = calculate_imr_chart(df_ctrl, col_ctrl_selected)
+                k1, k2, k3, k4 = st.columns(4)
+                k1.metric("Média (X-bar)", f"{stats['x_bar']:.2f}")
+                k2.metric("Desvio Padrão (σ)", f"{stats['sigma_est']:.2f}")
+                k3.metric("LSC", f"{stats['ucl_i']:.2f}")
+                k4.metric("LIC", f"{stats['lcl_i']:.2f}")
+                
+                if stats['violations_i_count'] > 0:
+                    st.warning(f"⚠️ Foram identificadas {stats['violations_i_count']} violações das regras de controle.")
+                else:
+                    st.success("✅ Processo sob controle estatístico e estabilizado.")
+                st.plotly_chart(fig_imr, use_container_width=True)
+    else:
+        st.info("Execute a Sprint 1 para gerar o ciclo completo A-I-C.")
+
+```

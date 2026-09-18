@@ -1,0 +1,15 @@
+- [Neon persistence](neon-persistence.md) — Use the dedicated Neon secret and leave Replit’s runtime-managed database variable untouched.
+- [CSV input integrity](csv-input-integrity.md) — Select one delimiter per file and reject mismatched rows before analyzing Brazilian numeric data.
+- [OpenAPI Zod codegen](openapi-zod-codegen.md) — Avoid integer schemas until the generator no longer emits an incompatible Zod call.
+- [Local draft recovery](local-draft-recovery.md) — Local browser drafts must be compared against Neon revision, never auto-overwritten.
+- [DMAIC project codes](dmaic-project-codes.md) — Neon generates numeric project codes on first Problem Statement save; clients reuse the returned code.
+- [AI financial estimates](ai-financial-suggestions.md) — Gemini may calculate a labeled estimate only from team-entered quantitative and financial inputs.
+- [Versioned workspace saves](versioned-workspace-saves.md) — Resolve revisions only at serialized execution, while isolating queued writes across project switches.
+- [Workspace concurrency test isolation](workspace-concurrency-test-isolation.md) — Exercise conflict saves through an injected in-memory repository, never a live active workspace.
+- [window.open print/export popups](window-open-print-export.md) — Never pass 'noopener'/'noreferrer' when you need the returned handle to write into the new tab.
+- [DMAIC deliverable editing pattern](dmaic-deliverable-editing-pattern.md) — Edit single-object AI deliverables in place in pipelineData; reserve VOC's separate manual-array pattern for pre-pipeline-editable row lists.
+- [Legacy schema migration, dual-sided](legacy-schema-migration-dual-sided.md) — Normalize old JSON shapes on both client AND server before the server's strict zod safeParse, or old rows 500 on load.
+- [Paired measurement analysis](paired-measurement-analysis.md) — Treat Measurement CSV rows as paired observations and keep its dataset separate from Definition input.
+- [Measurement What If snapshots](measurement-what-if-snapshots.md) — Persist each AI scenario with its statistical context snapshot, never raw CSV rows or automatic target changes.
+- [Process map persistence](process-map-persistence.md) — Seed missing maps from Define-phase SIPOC/VOC text, then preserve operator edits as project-owned structured JSON.
+- [Ishikawa persistence](ishikawa-persistence.md) — Store team source text and the editable 6M matrix per project; AI generation must never block later manual revision.

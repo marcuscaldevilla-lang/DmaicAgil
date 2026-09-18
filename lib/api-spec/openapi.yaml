@@ -1,0 +1,1139 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: dmaic
+    description: DMAIC Agile project operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /dmaic/pipeline:
+    post:
+      operationId: runDmaicPipeline
+      tags: [dmaic]
+      summary: Generate a complete DMAIC Agile pipeline
+      description: Creates structured Definition, Measurement, and A-I-C sprint artifacts from a project problem statement.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DmaicPipelineInput"
+      responses:
+        "200":
+          description: DMAIC artifacts generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DmaicPipeline"
+        "400":
+          description: Invalid problem statement
+        "502":
+          description: AI generation failed
+  /dmaic/workspace:
+    get:
+      operationId: getDmaicWorkspace
+      tags: [dmaic]
+      summary: Load the active DMAIC workspace
+      description: Loads the persisted Project Charter, problem statement, and any AI suggestions still awaiting review.
+      parameters:
+        - in: query
+          name: projectKey
+          description: Numeric project code to load. When omitted, the most recently updated project is returned.
+          required: false
+          schema:
+            type: number
+            minimum: 1
+      responses:
+        "200":
+          description: Persisted workspace, or an empty workspace when none exists yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DmaicWorkspace"
+    put:
+      operationId: saveDmaicWorkspace
+      tags: [dmaic]
+      summary: Save the active DMAIC workspace
+      description: Persists the Project Charter, problem statement, and the review status of AI suggestions in Neon Postgres.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DmaicWorkspaceInput"
+      responses:
+        "200":
+          description: Workspace saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DmaicWorkspace"
+        "409":
+          description: Workspace changed since it was last read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DmaicWorkspaceConflict"
+        "400":
+          description: Invalid workspace data
+        "500":
+          description: Workspace persistence failed
+  /dmaic/workspaces:
+    get:
+      operationId: listDmaicWorkspaces
+      tags: [dmaic]
+      summary: List saved DMAIC workspaces
+      description: Lists saved projects so the user can choose which workspace to load before starting a new project.
+      responses:
+        "200":
+          description: Saved workspaces ordered by most recent update
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DmaicWorkspaceSummary"
+        "500":
+          description: Workspace list failed
+  /dmaic/exploratory-diagnosis:
+    post:
+      operationId: runDmaicExploratoryDiagnosis
+      tags: [dmaic]
+      summary: Generate an exploratory time-series diagnosis
+      description: Generates a Gemini interpretation from the currently selected local indicator observations.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DmaicExploratoryDiagnosisInput"
+      responses:
+        "200":
+          description: Exploratory diagnosis generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DmaicExploratoryDiagnosis"
+        "400":
+          description: Invalid exploratory analysis data
+        "429":
+          description: Exploratory diagnosis rate limit reached
+        "503":
+          description: Gemini integration is not configured
+        "502":
+          description: AI generation failed
+  /dmaic/measurement-what-if:
+    post:
+      operationId: runDmaicMeasurementWhatIf
+      tags: [dmaic]
+      summary: Analyze a Measurement what-if scenario
+      description: Generates an evidence-based scenario answer from summarized Measurement statistics and project context.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DmaicMeasurementWhatIfInput"
+      responses:
+        "200":
+          description: What-if analysis generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DmaicMeasurementWhatIfResponse"
+        "400":
+          description: Invalid what-if analysis data
+        "429":
+          description: What-if analysis rate limit reached
+        "503":
+          description: Gemini integration is not configured
+        "502":
+          description: AI generation failed
+  /dmaic/ishikawa:
+    post:
+      operationId: runDmaicIshikawa
+      tags: [dmaic]
+      summary: Generate an Ishikawa cause-and-effect diagram
+      description: Generates an editable 6M cause structure from free-form team notes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DmaicIshikawaInput"
+      responses:
+        "200":
+          description: Ishikawa diagram generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DmaicIshikawaResponse"
+        "400":
+          description: Invalid cause-and-effect notes
+        "429":
+          description: Ishikawa generation rate limit reached
+        "503":
+          description: Gemini integration is not configured
+        "502":
+          description: AI generation failed
+  /dmaic/control-evaluation:
+    post:
+      operationId: runDmaicControlEvaluation
+      tags: [dmaic]
+      summary: Evaluate control-phase results and sustainability
+      description: Compares the project baseline and target with post-intervention control-chart statistics, estimates realized financial gain, and proposes a sustainability plan.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DmaicControlEvaluationInput"
+      responses:
+        "200":
+          description: Control-phase evaluation generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DmaicControlEvaluation"
+        "400":
+          description: Invalid control-phase data
+        "503":
+          description: Gemini integration is not configured
+        "502":
+          description: AI generation failed
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    DmaicPipelineInput:
+      type: object
+      required: [problemStatement]
+      properties:
+        problemStatement:
+          type: string
+          minLength: 10
+          maxLength: 4000
+        projectCharterContext:
+          $ref: "#/components/schemas/DmaicCharterContext"
+        analysisContext:
+          description: Resumo estatístico calculado localmente, sem linhas ou valores brutos do CSV.
+          $ref: "#/components/schemas/DmaicPipelineAnalysisContext"
+    DmaicPipelineIndicatorSummary:
+      type: object
+      required: [kind, indicator, rows]
+      properties:
+        kind: { type: string, enum: [continuous, discrete] }
+        indicator: { type: string, minLength: 1, maxLength: 120 }
+        rows: { type: number, minimum: 0 }
+        mean: { type: number }
+        median: { type: number }
+        minimum: { type: number }
+        maximum: { type: number }
+        standardDeviation: { type: number, minimum: 0 }
+        normality: { type: string, maxLength: 120 }
+        normalityDetail: { type: string, maxLength: 500 }
+        categoryCount: { type: number, minimum: 0 }
+        topCategory: { type: string, maxLength: 255 }
+        topCategoryCount: { type: number, minimum: 0 }
+        distribution:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            required: [label, count, percentage]
+            properties:
+              label: { type: string, maxLength: 255 }
+              count: { type: number, minimum: 0 }
+              percentage: { type: number, minimum: 0, maximum: 100 }
+    DmaicPipelineAnalysisContext:
+      type: object
+      description: Evidências estatísticas resumidas usadas para gerar o pipeline. Não contém o CSV bruto.
+      required: [indicator, analysisMonths, indicatorSummary]
+      properties:
+        indicator: { type: string, minLength: 1, maxLength: 120 }
+        analysisMonths: { type: number, minimum: 1, maximum: 120 }
+        indicatorSummary:
+          $ref: "#/components/schemas/DmaicPipelineIndicatorSummary"
+        exploratoryStatistics:
+          anyOf:
+            - $ref: "#/components/schemas/DmaicExploratoryStatistics"
+            - type: "null"
+        diagnosis:
+          anyOf:
+            - type: string
+              maxLength: 2000
+            - type: "null"
+    DmaicExploratoryPoint:
+      type: object
+      required: [period, value]
+      properties:
+        period: { type: string, maxLength: 120 }
+        value: { type: number }
+    DmaicExploratoryStatistics:
+      type: object
+      required: [count, mean, median, minimum, q1, q3, maximum, iqr, standardDeviation]
+      properties:
+        count: { type: number, minimum: 1 }
+        mean: { type: number }
+        median: { type: number }
+        minimum: { type: number }
+        q1: { type: number }
+        q3: { type: number }
+        maximum: { type: number }
+        iqr: { type: number }
+        standardDeviation: { type: number }
+        shapiroW: { type: number, minimum: 0, maximum: 1 }
+        shapiroPValue: { type: number, minimum: 0, maximum: 1 }
+    DmaicExploratoryDiagnosisInput:
+      type: object
+      required: [indicator, points, statistics]
+      properties:
+        indicator: { type: string, minLength: 1, maxLength: 120 }
+        timeColumn: { type: string, maxLength: 120 }
+        points:
+          type: array
+          minItems: 2
+          maxItems: 240
+          items:
+            $ref: "#/components/schemas/DmaicExploratoryPoint"
+        statistics:
+          $ref: "#/components/schemas/DmaicExploratoryStatistics"
+    DmaicExploratoryDiagnosis:
+      type: object
+      required: [diagnosis]
+      properties:
+        diagnosis: { type: string, minLength: 1, maxLength: 16000 }
+    DmaicMeasurementWhatIfVariable:
+      type: object
+      required: [name, count, mean, median, minimum, maximum, standardDeviation, q1, q3, iqr, normality]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        count: { type: number, minimum: 1 }
+        mean: { type: number }
+        median: { type: number }
+        minimum: { type: number }
+        maximum: { type: number }
+        standardDeviation: { type: number, minimum: 0 }
+        q1: { type: number }
+        q3: { type: number }
+        iqr: { type: number, minimum: 0 }
+        normality: { type: string, maxLength: 80 }
+    DmaicMeasurementWhatIfContext:
+      type: object
+      required: [xColumn, rowCount, variables, anova, pairwise, pairwiseTotal, priorities]
+      properties:
+        xColumn: { type: string, minLength: 1, maxLength: 160 }
+        rowCount: { type: number, minimum: 1 }
+        variables:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/DmaicMeasurementWhatIfVariable"
+        anova:
+          type: object
+          required: [available, fStatistic, pValue, numeratorDf, denominatorDf, epsilon]
+          properties:
+            available: { type: boolean }
+            fStatistic: { anyOf: [{ type: number }, { type: "null" }] }
+            pValue: { anyOf: [{ type: number }, { type: "null" }] }
+            numeratorDf: { anyOf: [{ type: number }, { type: "null" }] }
+            denominatorDf: { anyOf: [{ type: number }, { type: "null" }] }
+            epsilon: { anyOf: [{ type: number }, { type: "null" }] }
+        pairwise:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [left, right, observations, meanDifference, adjustedPValue, significant]
+            properties:
+              left: { type: string, maxLength: 160 }
+              right: { type: string, maxLength: 160 }
+              observations: { type: number, minimum: 1 }
+              meanDifference: { type: number }
+              adjustedPValue: { anyOf: [{ type: number }, { type: "null" }] }
+              significant: { type: boolean }
+        pairwiseTotal:
+          description: Total de comparações pareadas calculadas localmente; pairwise contém no máximo as 100 mais informativas.
+          type: number
+          minimum: 0
+        priorities:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            required: [name, score, explanation]
+            properties:
+              name: { type: string, maxLength: 160 }
+              score: { type: number }
+              explanation: { type: string, maxLength: 800 }
+        projectGoal: { type: string, maxLength: 2000 }
+        kpis: { type: string, maxLength: 2000 }
+        assumptions: { type: string, maxLength: 2000 }
+    DmaicMeasurementWhatIfInput:
+      type: object
+      required: [question, problemStatement, context]
+      properties:
+        question: { type: string, minLength: 8, maxLength: 3000 }
+        problemStatement: { type: string, minLength: 1, maxLength: 4000 }
+        context:
+          $ref: "#/components/schemas/DmaicMeasurementWhatIfContext"
+    DmaicMeasurementWhatIfResponse:
+      type: object
+      required: [answer]
+      properties:
+        answer: { type: string, minLength: 1, maxLength: 16000 }
+    DmaicMeasurementWhatIfRecord:
+      type: object
+      required: [id, question, answer, createdAt, context]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 100 }
+        question: { type: string, minLength: 8, maxLength: 3000 }
+        answer: { type: string, minLength: 1, maxLength: 16000 }
+        createdAt: { type: string, format: date-time }
+        context:
+          $ref: "#/components/schemas/DmaicMeasurementWhatIfContext"
+    DmaicProcessNode:
+      type: object
+      required: [id, type, label, position, processInputs, processOutputs]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 100 }
+        type: { type: string, enum: [start, end, activity, decision] }
+        label: { type: string, maxLength: 300 }
+        position:
+          type: object
+          required: [x, y]
+          properties:
+            x: { type: number, minimum: 0, maximum: 5000 }
+            y: { type: number, minimum: 0, maximum: 5000 }
+        processInputs:
+          type: array
+          maxItems: 20
+          items: { type: string, maxLength: 500 }
+        processOutputs:
+          type: array
+          maxItems: 20
+          items: { type: string, maxLength: 500 }
+    DmaicProcessEdge:
+      type: object
+      required: [id, source, target, label, condition]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 100 }
+        source: { type: string, minLength: 1, maxLength: 100 }
+        target: { type: string, minLength: 1, maxLength: 100 }
+        label: { type: string, maxLength: 120 }
+        condition: { type: string, maxLength: 240 }
+    DmaicProcessVariable:
+      type: object
+      required: [id, name, kind, classification, unit, measure, notes, nodeId]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 100 }
+        name: { type: string, maxLength: 240 }
+        kind: { type: string, enum: [Y, X] }
+        classification: { type: string, enum: [controlável, ruído, referência] }
+        unit: { type: string, maxLength: 80 }
+        measure: { type: string, maxLength: 240 }
+        notes: { type: string, maxLength: 500 }
+        nodeId: { type: string, maxLength: 100 }
+    DmaicProcessMap:
+      type: object
+      required: [version, nodes, edges, variables]
+      properties:
+        version: { type: number, minimum: 1 }
+        nodes:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/DmaicProcessNode"
+        edges:
+          type: array
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/DmaicProcessEdge"
+        variables:
+          type: array
+          maxItems: 300
+          items:
+            $ref: "#/components/schemas/DmaicProcessVariable"
+    DmaicCharterTeamMember:
+      type: object
+      required: [role, name, position, areaCompany]
+      properties:
+        role: { type: string }
+        name: { type: string }
+        position: { type: string }
+        areaCompany: { type: string }
+    DmaicCharterContext:
+      type: object
+      required:
+        - projectName
+        - client
+        - area
+        - leader
+        - sponsor
+        - date
+        - objective
+        - history
+        - goalDefinition
+        - kpis
+        - includedScope
+        - excludedScope
+        - assumptionsAndConstraints
+        - team
+        - customerRequirements
+        - businessContributions
+        - businessContributionsQuantitative
+        - businessContributionsQualitative
+        - financialGainValue
+        - financialInformation
+      properties:
+        projectName: { type: string }
+        client: { type: string }
+        area: { type: string }
+        leader: { type: string }
+        sponsor: { type: string }
+        date: { type: string, format: date }
+        objective: { type: string }
+        history: { type: string }
+        goalDefinition: { type: string }
+        kpis: { type: string }
+        includedScope: { type: string }
+        excludedScope: { type: string }
+        assumptionsAndConstraints: { type: string }
+        team:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicCharterTeamMember"
+        customerRequirements: { type: string }
+        businessContributions: { type: string }
+        businessContributionsQuantitative: { type: string }
+        businessContributionsQualitative: { type: string }
+        financialGainValue: { type: string }
+        financialInformation: { type: string }
+    DmaicWorkspaceInput:
+      type: object
+      required: [problemStatement, projectCharterContext, aiCharterSuggestions, expectedRevision]
+      properties:
+        projectKey:
+          description: Numeric project code returned after the first save. Omit it when creating a new project.
+          type: number
+          minimum: 1
+        problemStatement:
+          type: string
+          minLength: 10
+          maxLength: 4000
+        projectCharterContext:
+          $ref: "#/components/schemas/DmaicCharterContext"
+        aiCharterSuggestions:
+          description: AI-generated Charter content that remains pending team review. Send null when the Charter is confirmed.
+          anyOf:
+            - $ref: "#/components/schemas/DmaicGeneratedCharter"
+            - type: "null"
+        analysisArtifacts:
+          description: Current CSV-derived analysis data and generated artifacts. Omit for backwards-compatible saves without analysis data.
+          $ref: "#/components/schemas/DmaicAnalysisArtifacts"
+        expectedRevision:
+          description: Monotonic version returned by the last workspace read or save. Send 0 when creating the workspace for the first time.
+          type: number
+          minimum: 0
+    DmaicWorkspace:
+      type: object
+      required: [projectKey, hasSavedData, problemStatement, projectCharterContext, aiCharterSuggestions, analysisArtifacts, revision, createdAt, updatedAt]
+      properties:
+        projectKey:
+          description: Automatically generated numeric project code, or null before the first save.
+          anyOf:
+            - type: number
+              minimum: 1
+            - type: "null"
+        hasSavedData: { type: boolean }
+        problemStatement: { type: string }
+        projectCharterContext:
+          $ref: "#/components/schemas/DmaicCharterContext"
+        aiCharterSuggestions:
+          description: AI-generated Charter content that remains pending team review, or null after confirmation.
+          anyOf:
+            - $ref: "#/components/schemas/DmaicGeneratedCharter"
+            - type: "null"
+        analysisArtifacts:
+          $ref: "#/components/schemas/DmaicAnalysisArtifacts"
+        revision: { type: number, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    DmaicWorkspaceConflict:
+      type: object
+      required: [error, latestWorkspace]
+      properties:
+        error: { type: string }
+        latestWorkspace:
+          $ref: "#/components/schemas/DmaicWorkspace"
+    DmaicWorkspaceSummary:
+      type: object
+      required: [projectKey, projectName, problemStatement, revision, updatedAt]
+      properties:
+        projectKey:
+          type: number
+          minimum: 1
+        projectName: { type: string }
+        problemStatement: { type: string }
+        revision:
+          type: number
+          minimum: 0
+        updatedAt: { type: string, format: date-time }
+    DmaicCharter:
+      type: object
+      required: [projectTitle, problemStatement, businessCase, expectedSavings]
+      properties:
+        projectTitle: { type: string }
+        problemStatement: { type: string }
+        businessCase: { type: string }
+        expectedSavings: { type: string }
+    DmaicGeneratedCharter:
+      type: object
+      description: Editable Project Charter suggestions generated from the problem statement.
+      required:
+        - objective
+        - history
+        - goalDefinition
+        - kpis
+        - includedScope
+        - excludedScope
+        - assumptionsAndConstraints
+        - customerRequirements
+        - businessContributions
+        - businessContributionsQuantitative
+        - businessContributionsQualitative
+        - financialGainValue
+      properties:
+        objective: { type: string }
+        history: { type: string }
+        goalDefinition: { type: string }
+        kpis: { type: string }
+        includedScope: { type: string }
+        excludedScope: { type: string }
+        assumptionsAndConstraints: { type: string }
+        customerRequirements: { type: string }
+        businessContributions: { type: string }
+        businessContributionsQuantitative: { type: string }
+        businessContributionsQualitative: { type: string }
+        financialGainValue: { type: string }
+    DmaicCsvDataset:
+      type: object
+      description: Dataset interpretado localmente no navegador, sem os bytes do arquivo original.
+      required: [fileName, headers, rows, dateColumn, indicatorColumns]
+      properties:
+        fileName: { type: string, maxLength: 255 }
+        headers:
+          type: array
+          maxItems: 100
+          items: { type: string, maxLength: 255 }
+        rows:
+          type: array
+          maxItems: 10000
+          items:
+            $ref: "#/components/schemas/DmaicCsvRow"
+        dateColumn:
+          anyOf:
+            - type: string
+            - type: "null"
+        indicatorColumns:
+          type: array
+          maxItems: 100
+          items: { type: string, maxLength: 255 }
+    DmaicCsvRow:
+      type: object
+      additionalProperties:
+        type: string
+        maxLength: 4000
+    DmaicContinuousAnalysis:
+      type: object
+      required: [kind, indicator, rows, values, mean, median, minimum, maximum, standardDeviation, normality, normalityDetail]
+      properties:
+        kind: { type: string, enum: [continuous] }
+        indicator: { type: string }
+        rows: { type: number, minimum: 0 }
+        values:
+          type: array
+          items: { type: number }
+        mean: { type: number }
+        median: { type: number }
+        minimum: { type: number }
+        maximum: { type: number }
+        standardDeviation: { type: number, minimum: 0 }
+        normality: { type: string }
+        normalityDetail: { type: string }
+    DmaicDiscreteAnalysis:
+      type: object
+      required: [kind, indicator, rows, categoryCount, topCategory, topCategoryCount, distribution]
+      properties:
+        kind: { type: string, enum: [discrete] }
+        indicator: { type: string }
+        rows: { type: number, minimum: 0 }
+        categoryCount: { type: number, minimum: 0 }
+        topCategory: { type: string }
+        topCategoryCount: { type: number, minimum: 0 }
+        distribution:
+          type: array
+          items:
+            type: object
+            required: [label, count, percentage]
+            properties:
+              label: { type: string }
+              count: { type: number, minimum: 0 }
+              percentage: { type: number, minimum: 0 }
+    DmaicIndicatorAnalysis:
+      anyOf:
+        - $ref: "#/components/schemas/DmaicContinuousAnalysis"
+        - $ref: "#/components/schemas/DmaicDiscreteAnalysis"
+    DmaicExploratorySummary:
+      type: object
+      required: [points, minimum, q1, median, q3, maximum, iqr, mean, standardDeviation, shapiroW, shapiroPValue, shapiroDetail]
+      properties:
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicExploratoryPoint"
+        minimum: { type: number }
+        q1: { type: number }
+        median: { type: number }
+        q3: { type: number }
+        maximum: { type: number }
+        iqr: { type: number }
+        mean: { type: number }
+        standardDeviation: { type: number, minimum: 0 }
+        shapiroW:
+          anyOf:
+            - type: number
+              minimum: 0
+              maximum: 1
+            - type: "null"
+        shapiroPValue:
+          anyOf:
+            - type: number
+              minimum: 0
+              maximum: 1
+            - type: "null"
+        shapiroDetail: { type: string }
+    DmaicParetoItem:
+      type: object
+      required: [name, value]
+      properties:
+        name: { type: string }
+        value: { type: number, minimum: 0 }
+    DmaicAnalysisArtifacts:
+      type: object
+      description: Current derived data and generated artifacts associated with a DMAIC project.
+      required: [version, dataset, analysisMonths, selectedIndicator, indicatorAnalysis, exploratorySummary, diagnosis, diagnosisInput, pareto, imr, pipeline]
+      properties:
+        version: { type: number, minimum: 1 }
+        dataset:
+          anyOf:
+            - $ref: "#/components/schemas/DmaicCsvDataset"
+            - type: "null"
+        measurementDataset:
+          description: CSV separado da fase de Medição; a primeira coluna é o eixo X e as demais são séries pareadas do indicador.
+          anyOf:
+            - $ref: "#/components/schemas/DmaicCsvDataset"
+            - type: "null"
+        analysisMonths: { type: number, minimum: 1, maximum: 120 }
+        selectedIndicator: { type: string }
+        indicatorAnalysis:
+          anyOf:
+            - $ref: "#/components/schemas/DmaicIndicatorAnalysis"
+            - type: "null"
+        exploratorySummary:
+          anyOf:
+            - $ref: "#/components/schemas/DmaicExploratorySummary"
+            - type: "null"
+        diagnosis:
+          anyOf:
+            - type: string
+            - type: "null"
+        diagnosisInput:
+          anyOf:
+            - $ref: "#/components/schemas/DmaicExploratoryDiagnosisInput"
+            - type: "null"
+        pipelineAnalysisContext:
+          description: Cópia das evidências estatísticas usadas na última geração do pipeline.
+          anyOf:
+            - $ref: "#/components/schemas/DmaicPipelineAnalysisContext"
+            - type: "null"
+        pareto:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicParetoItem"
+        imr:
+          type: array
+          items: { type: number }
+        pipeline:
+          anyOf:
+            - $ref: "#/components/schemas/DmaicPipeline"
+            - type: "null"
+        manualVocCtq:
+          description: Indicadores VOC/CTQ adicionados e revisados manualmente pela equipe.
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicVocCqt"
+        whatIfAnalyses:
+          description: Histórico de perguntas e respostas de cenários What If da Medição.
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/DmaicMeasurementWhatIfRecord"
+        processMap:
+          description: Mapa de processo editável e parâmetros Y/X específicos do projeto.
+          anyOf:
+            - $ref: "#/components/schemas/DmaicProcessMap"
+            - type: "null"
+        ishikawa:
+          description: Diagrama de causa e efeito editável gerado a partir do texto da equipe.
+          anyOf:
+            - type: object
+              additionalProperties:
+                type: array
+                items: { type: string, maxLength: 500 }
+            - type: "null"
+        ishikawaInputText:
+          description: Texto livre fornecido pela equipe como base para a geração do diagrama de causa e efeito.
+          type: string
+          maxLength: 12000
+        causeAndEffectMatrix:
+          description: Matriz editável de causas X e saídas Y da Sprint 3.
+          $ref: "#/components/schemas/DmaicCauseAndEffectMatrix"
+        solutionPrioritizationMatrix:
+          description: Matriz editável de priorização de soluções da Sprint 3.
+          $ref: "#/components/schemas/DmaicSolutionPrioritizationMatrix"
+        effortImpactMatrix:
+          description: Classificação esforço x impacto das causas da Sprint 3.
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicEffortImpactRow"
+        controlPhase:
+          description: Dados, cartas X-AM, avaliação IA e plano de sustentabilidade da Fase de Controle.
+          anyOf:
+            - $ref: "#/components/schemas/DmaicControlPhase"
+            - type: "null"
+    DmaicCauseAndEffectMatrix:
+      type: object
+      required: [outputs, rows]
+      properties:
+        outputs:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicMatrixOutput"
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicCauseMatrixRow"
+    DmaicMatrixOutput:
+      type: object
+      required: [id, name, weight]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        weight: { type: number }
+    DmaicCauseMatrixRow:
+      type: object
+      required: [id, cause, scores]
+      properties:
+        id: { type: string }
+        cause: { type: string }
+        scores:
+          type: object
+          additionalProperties: { type: number }
+        totalScore: { type: number }
+    DmaicSolutionPrioritizationMatrix:
+      type: object
+      required: [criteria, solutions]
+      properties:
+        criteria:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicMatrixCriterion"
+        solutions:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicSolutionMatrixRow"
+    DmaicMatrixCriterion:
+      type: object
+      required: [id, name, weight]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        weight: { type: number }
+    DmaicSolutionMatrixRow:
+      type: object
+      required: [id, description, scores]
+      properties:
+        id: { type: string }
+        description: { type: string }
+        scores:
+          type: object
+          additionalProperties: { type: number }
+        totalScore: { type: number }
+    DmaicEffortImpactRow:
+      type: object
+      required: [cause, impact, effort, quadrant]
+      properties:
+        cause: { type: string }
+        impact: { type: string, enum: [Alto, Baixo] }
+        effort: { type: string, enum: [Alto, Baixo] }
+        quadrant:
+          type: string
+          enum: [Maior Interesse, Prioritário com Análise, Descartar, Ganhos Rápidos]
+    DmaicControlStatistic:
+      type: object
+      required: [indicator, count, omitted, mean, standardDeviation, minimum, maximum, movingRangeMean, upperControlLimit, lowerControlLimit, latestValue, baseline, target, improvementPp]
+      properties:
+        indicator: { type: string }
+        count: { type: number, minimum: 1 }
+        omitted: { type: number, minimum: 0 }
+        mean: { type: number }
+        standardDeviation: { type: number, minimum: 0 }
+        minimum: { type: number }
+        maximum: { type: number }
+        movingRangeMean: { type: number, minimum: 0 }
+        upperControlLimit: { type: number }
+        lowerControlLimit: { type: number }
+        latestValue: { type: number }
+        baseline: { type: number }
+        target: { type: number }
+        improvementPp: { type: number }
+        values:
+          type: array
+          items: { type: number }
+    DmaicSustainabilityPillar:
+      type: object
+      required: [title, owner, cadence, controls]
+      properties:
+        title: { type: string }
+        owner: { type: string }
+        cadence: { type: string }
+        controls:
+          type: array
+          items: { type: string }
+    DmaicControlEvaluation:
+      type: object
+      required: [success, summary, baseline, postControlMean, improvementPp, financialGainReal, financialCalculation, sustainabilityPlan]
+      properties:
+        success: { type: boolean }
+        summary: { type: string }
+        baseline: { type: number }
+        postControlMean: { type: number }
+        improvementPp: { type: number }
+        financialGainReal: { type: string }
+        financialCalculation: { type: string }
+        sustainabilityPlan:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items:
+            $ref: "#/components/schemas/DmaicSustainabilityPillar"
+    DmaicControlPhase:
+      type: object
+      required: [dataset, months, selectedIndicators, statistics, evaluation]
+      properties:
+        dataset:
+          anyOf:
+            - $ref: "#/components/schemas/DmaicCsvDataset"
+            - type: "null"
+        months: { type: number, minimum: 1, maximum: 120 }
+        selectedIndicators:
+          type: array
+          items: { type: string }
+        statistics:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicControlStatistic"
+        evaluation:
+          anyOf:
+            - $ref: "#/components/schemas/DmaicControlEvaluation"
+            - type: "null"
+    DmaicControlEvaluationInput:
+      type: object
+      required: [problemStatement, projectCharterContext, months, statistics]
+      properties:
+        problemStatement: { type: string, minLength: 1, maxLength: 4000 }
+        projectCharterContext:
+          $ref: "#/components/schemas/DmaicCharterContext"
+        months: { type: number, minimum: 1, maximum: 120 }
+        statistics:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/DmaicControlStatistic"
+    DmaicTeam:
+      type: object
+      required: [productOwner, scrumMaster, beltSquadMembers]
+      properties:
+        productOwner: { type: string }
+        scrumMaster: { type: string }
+        beltSquadMembers: { type: string }
+    DmaicVocCqt:
+      type: object
+      required: [vocNeed, clientType, client, sourceType, source, directioner, ctq, ctp, measure, issue, ctqMetric]
+      properties:
+        vocNeed: { type: string }
+        clientType: { type: string, enum: [internal, external] }
+        client: { type: string }
+        sourceType: { type: string, enum: [reactive, active] }
+        source: { type: string }
+        directioner: { type: string }
+        ctq: { type: string }
+        ctp: { type: string }
+        measure: { type: string }
+        issue: { type: string }
+        ctqMetric: { type: string }
+    DmaicIndicator:
+      type: object
+      required: [primaryMetricY, operationalDefinition, targetGoal, baseline]
+      properties:
+        primaryMetricY: { type: string }
+        operationalDefinition: { type: string }
+        targetGoal: { type: string }
+        baseline: { type: string }
+    DmaicSipocRow:
+      type: object
+      required: [suppliers, inputs, process, outputs, customers]
+      properties:
+        suppliers: { type: string }
+        inputs: { type: string }
+        process: { type: string }
+        outputs: { type: string }
+        customers: { type: string }
+    DmaicSipoc:
+      type: array
+      items:
+        $ref: "#/components/schemas/DmaicSipocRow"
+    DmaicScope:
+      type: object
+      required: [inScope, outOfScope]
+      properties:
+        inScope:
+          type: array
+          items: { type: string }
+        outOfScope:
+          type: array
+          items: { type: string }
+    DmaicRow:
+      type: object
+      additionalProperties:
+        type: string
+    DmaicPipeline:
+      type: object
+      required:
+        - generatedCharter
+        - projectCharter
+        - teamSetup
+        - vocCtq
+        - indicatorsY
+        - sipoc
+        - inOutMatrix
+        - msaValidation
+        - ishikawa
+        - gutPrioritization
+        - vitalXs
+        - hypotheses
+        - fmea
+        - actionPlan
+        - controlPlan
+        - standardizationSop
+      properties:
+        generatedCharter:
+          $ref: "#/components/schemas/DmaicGeneratedCharter"
+        projectCharter:
+          $ref: "#/components/schemas/DmaicCharter"
+        teamSetup:
+          $ref: "#/components/schemas/DmaicTeam"
+        vocCtq:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicVocCqt"
+        indicatorsY:
+          $ref: "#/components/schemas/DmaicIndicator"
+        sipoc:
+          $ref: "#/components/schemas/DmaicSipoc"
+        inOutMatrix:
+          $ref: "#/components/schemas/DmaicScope"
+        msaValidation:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicRow"
+        ishikawa:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+        gutPrioritization:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicRow"
+        vitalXs:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicRow"
+        hypotheses:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicRow"
+        fmea:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicRow"
+        actionPlan:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicRow"
+        controlPlan:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicRow"
+        standardizationSop:
+          type: array
+          items:
+            $ref: "#/components/schemas/DmaicRow"
+    DmaicIshikawaInput:
+      type: object
+      required: [sourceText]
+      properties:
+        sourceText:
+          type: string
+          minLength: 10
+          maxLength: 12000
+    DmaicIshikawaResponse:
+      type: object
+      required: [ishikawa]
+      properties:
+        ishikawa:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string, maxLength: 500 }
+
