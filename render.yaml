@@ -6,7 +6,7 @@ services:
     region: oregon
     rootDir: .
     buildCommand: "cd . && pnpm install && pnpm --dir artifacts/api-server build"
-    startCommand: "cd artifacts/api-server && node --env-file=.env --enable-source-maps ./dist/index.mjs"
+    startCommand: "cd artifacts/api-server && node --enable-source-maps ./dist/index.mjs"
     envVars:
       - key: NODE_ENV
         value: production
