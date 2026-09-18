@@ -54,6 +54,7 @@ import {
   Copy,
   Database,
   FileBarChart,
+  FileDown,
   FileText,
   FolderOpen,
   Gauge,
@@ -1041,6 +1042,8 @@ function Sidebar({ area, setArea, mobileOpen, setMobileOpen, activeProjectName, 
       </div>
       <div className="border-t border-sidebar-border p-4">
         <button data-testid="button-help" onClick={() => setArea('overview')} className="flex w-full items-center gap-3 rounded-lg p-2 text-left text-xs text-sidebar-foreground/60 hover:bg-sidebar-accent"><CircleHelp size={16} /><span>Guia da sala de melhoria</span></button>
+        <button data-testid="button-export-executive-manual" onClick={exportExecutiveManualPdf} className="mt-1 flex w-full items-center gap-3 rounded-lg p-2 text-left text-xs text-sidebar-foreground/60 hover:bg-sidebar-accent"><FileDown size={16} /><span>Exportar manual executivo</span></button>
+        <button data-testid="button-export-usage-manual" onClick={exportUsageManualPdf} className="mt-1 flex w-full items-center gap-3 rounded-lg p-2 text-left text-xs text-sidebar-foreground/60 hover:bg-sidebar-accent"><FileDown size={16} /><span>Exportar manual de utilização</span></button>
         <div className="mt-3 flex items-center gap-3 border-t border-sidebar-border pt-4"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-foreground">MC</div><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">Marina Costa</p><p className="truncate text-[10px] text-sidebar-foreground/45">Master Black Belt</p></div><Settings2 size={15} className="text-sidebar-foreground/40" /></div>
       </div>
     </aside>
