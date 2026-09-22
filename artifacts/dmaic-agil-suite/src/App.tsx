@@ -3524,8 +3524,8 @@ function Workspace() {
             },
           );
         },
-        onError: () => {
-          setPipelineError('Não foi possível gerar o pipeline agora. A integração Gemini pode estar indisponível temporariamente; tente novamente em instantes.');
+        onError: (error) => {
+          setPipelineError(`Não foi possível gerar o pipeline agora. ${getApiErrorMessage(error)}`);
         },
         onSettled: () => setPipelineLoading(false),
       },
