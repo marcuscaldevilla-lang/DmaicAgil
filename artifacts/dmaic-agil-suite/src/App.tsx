@@ -2762,7 +2762,7 @@ function Workspace() {
 
   const queueWorkspaceSave = (
     attempt: WorkspaceSaveAttempt,
-    callbacks: { onSuccess?: (savedWorkspace: DmaicWorkspace) => void; onConflict?: (latestWorkspace: DmaicWorkspace) => void; onError: () => void },
+    callbacks: { onSuccess?: (savedWorkspace: DmaicWorkspace) => void; onConflict?: (latestWorkspace: DmaicWorkspace) => void; onError: (error: unknown) => void },
   ) => {
     if (analysisArtifactsSizeInBytes(attempt.data.analysisArtifacts) > MAX_ANALYSIS_ARTIFACT_BYTES) {
       setWorkspaceError('Os dados da análise excedem o limite de 3 MB. Reduza as colunas ou filtre o período do CSV antes de salvar.');
@@ -2801,7 +2801,7 @@ function Workspace() {
         callbacks.onConflict?.(latestWorkspace);
         return;
       }
-      callbacks.onError();
+      callbacks.onError(error);
     });
   };
 
@@ -2893,9 +2893,9 @@ function Workspace() {
           }
         },
         onConflict: (latestWorkspace) => setWorkspaceConflict({ latest: latestWorkspace, source }),
-        onError: () => setWorkspaceError(source === 'what-if'
+        onError: (error) => setWorkspaceError(source === 'what-if'
           ? 'A resposta foi gerada, mas ainda não foi salva no Repositório.'
-          : 'Não foi possível salvar no Repositório. Confirme a conexão e tente novamente.'),
+          : `Não foi possível salvar no Repositório. ${getApiErrorMessage(error)}`),
       },
     );
   };
