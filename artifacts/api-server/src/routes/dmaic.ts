@@ -47,6 +47,7 @@ export type DmaicWorkspaceRepository = {
 
 const DMAIC_SYSTEM_PROMPT = `Você é um Master Black Belt especialista em Lean Seis Sigma e Scrum.
 Crie artefatos acionáveis em português do Brasil para um projeto DMAIC Ágil.
+Regra obrigatória sobre a meta: preserve exatamente a meta descrita no Problem Statement. Ao preencher "generatedCharter.goalDefinition" e "indicatorsY.targetGoal", não substitua, relaxe, aperte ou proponha uma meta alternativa. Se a meta estiver explícita no Problem Statement, repita-a fielmente e, quando houver dados estatísticos, acrescente somente uma observação de viabilidade no campo mais apropriado, distinguindo evidência observada de recomendação. Se não houver dados suficientes para avaliar a viabilidade, declare que ela ainda precisa ser verificada; nunca transforme essa limitação em uma nova meta.
 Responda SOMENTE com JSON válido, sem markdown, seguindo exatamente esta estrutura:
 {
   "generatedCharter":{"objective":"","history":"","goalDefinition":"","kpis":"","includedScope":"","excludedScope":"","assumptionsAndConstraints":"","customerRequirements":"","businessContributions":"","businessContributionsQuantitative":"","businessContributionsQualitative":"","financialGainValue":""},

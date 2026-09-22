@@ -551,6 +551,7 @@ const workspaceToLocalDraft = (workspace: DmaicWorkspace): WorkspaceLocalDraft =
 const applyGeneratedCharterFields = (charter: ProjectCharterDraft, generated: GeneratedCharterFields): ProjectCharterDraft => ({
   ...charter,
   ...generated,
+  goalDefinition: charter.goalDefinition.trim() ? charter.goalDefinition : generated.goalDefinition,
   businessContributionsQuantitative: charter.businessContributionsQuantitative,
   financialInformation: charter.financialInformation,
 });
