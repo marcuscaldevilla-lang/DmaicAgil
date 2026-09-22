@@ -1149,7 +1149,11 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
           { errors: pipeline.error.flatten() },
           "Gemini returned an invalid DMAIC pipeline structure",
         );
-        res.status(502).json({ error: "A geração ficou incompleta. Tente novamente." });
+        const details = pipeline.error.issues
+          .slice(0, 8)
+          .map((issue) => `${issue.path.join(".") || "resposta"}: ${issue.message}`)
+          .join("; ");
+        res.status(502).json({ error: `A resposta da IA não seguiu o formato esperado. ${details}` });
         return;
       }
       if (pipeline.data.vocCtq.length < 2 || pipeline.data.vocCtq.length > 5) {
