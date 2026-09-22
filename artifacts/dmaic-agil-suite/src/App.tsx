@@ -2815,6 +2815,10 @@ function Workspace() {
       setWorkspaceError('Descreva o problema com pelo menos 10 caracteres antes de salvar no Repositório.');
       return;
     }
+    if (statement.trim().length > 4000) {
+      setWorkspaceError('O problem statement deve ter no máximo 4.000 caracteres antes de salvar no Repositório.');
+      return;
+    }
     if (source === 'charter') charterReviewVersionRef.current += 1;
     setWorkspaceError(null);
     setWorkspaceConflict(null);

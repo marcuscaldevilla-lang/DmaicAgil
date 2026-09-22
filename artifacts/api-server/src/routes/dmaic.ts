@@ -648,7 +648,10 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
     const body = SaveDmaicWorkspaceBody.safeParse(req.body);
     if (!body.success) {
       req.log.warn({ errors: body.error.flatten() }, "Invalid DMAIC workspace save request");
-      res.status(400).json({ error: "Revise o problem statement e os campos do Project Charter." });
+      const details = body.error.issues
+        .map((issue) => `${issue.path.join(".") || "payload"}: ${issue.message}`)
+        .join("; ");
+      res.status(400).json({ error: `Revise os campos inválidos do workspace. ${details}` });
       return;
     }
     if (!Number.isSafeInteger(body.data.expectedRevision)) {
