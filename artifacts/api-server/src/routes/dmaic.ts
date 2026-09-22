@@ -477,6 +477,23 @@ function normalizePersistedPipeline(value: unknown) {
   };
 }
 
+function normalizePipelineModel(value: unknown) {
+  if (!isPlainRecord(value) || !Array.isArray(value.gutPrioritization)) return value;
+  return {
+    ...value,
+    gutPrioritization: value.gutPrioritization.map((row) => {
+      if (!isPlainRecord(row)) return row;
+      return {
+        ...row,
+        gravity: typeof row.gravity === "number" ? String(row.gravity) : row.gravity,
+        urgency: typeof row.urgency === "number" ? String(row.urgency) : row.urgency,
+        tendency: typeof row.tendency === "number" ? String(row.tendency) : row.tendency,
+        gutScore: typeof row.gutScore === "number" ? String(row.gutScore) : row.gutScore,
+      };
+    }),
+  };
+}
+
 function normalizeControlStatistics(value: unknown) {
   if (!Array.isArray(value)) return value;
   return value.map((record) => {
@@ -1143,7 +1160,7 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
         return;
       }
 
-      const pipeline = RunDmaicPipelineResponse.safeParse(parseModelJson(text));
+      const pipeline = RunDmaicPipelineResponse.safeParse(normalizePipelineModel(parseModelJson(text)));
       if (!pipeline.success) {
         req.log.error(
           { errors: pipeline.error.flatten() },
