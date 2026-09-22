@@ -478,10 +478,10 @@ function normalizePersistedPipeline(value: unknown) {
 }
 
 function normalizePipelineModel(value: unknown) {
-  if (!isPlainRecord(value) || !Array.isArray(value.gutPrioritization)) return value;
+  if (!isPlainRecord(value)) return value;
   return {
     ...value,
-    gutPrioritization: value.gutPrioritization.map((row) => {
+    gutPrioritization: Array.isArray(value.gutPrioritization) ? value.gutPrioritization.map((row) => {
       if (!isPlainRecord(row)) return row;
       return {
         ...row,
@@ -490,7 +490,17 @@ function normalizePipelineModel(value: unknown) {
         tendency: typeof row.tendency === "number" ? String(row.tendency) : row.tendency,
         gutScore: typeof row.gutScore === "number" ? String(row.gutScore) : row.gutScore,
       };
-    }),
+    }) : value.gutPrioritization,
+    fmea: Array.isArray(value.fmea) ? value.fmea.map((row) => {
+      if (!isPlainRecord(row)) return row;
+      return {
+        ...row,
+        sev: typeof row.sev === "number" ? String(row.sev) : row.sev,
+        occ: typeof row.occ === "number" ? String(row.occ) : row.occ,
+        det: typeof row.det === "number" ? String(row.det) : row.det,
+        rpn: typeof row.rpn === "number" ? String(row.rpn) : row.rpn,
+      };
+    }) : value.fmea,
   };
 }
 
