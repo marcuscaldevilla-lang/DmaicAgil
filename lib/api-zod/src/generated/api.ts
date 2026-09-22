@@ -366,6 +366,12 @@ export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContext
 
 export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax = 2000;
 
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextBusinessContributionsQuantitativeMax = 2000;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextFinancialGainValueMax = 2000;
+
+export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextFinancialInformationMax = 4000;
+
 export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesMax = 50;
 
 
@@ -743,7 +749,10 @@ export const GetDmaicWorkspaceResponse = zod.object({
 })).min(1).max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesMax),
   "projectGoal": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextProjectGoalMax).optional(),
   "kpis": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextKpisMax).optional(),
-  "assumptions": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax).optional()
+  "assumptions": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax).optional(),
+  "businessContributionsQuantitative": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextBusinessContributionsQuantitativeMax).optional(),
+  "financialGainValue": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextFinancialGainValueMax).optional(),
+  "financialInformation": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextFinancialInformationMax).optional()
 })
 })).max(getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesMax).optional().describe('Histórico de perguntas e respostas de cenários What If da Medição.'),
   "processMap": zod.union([zod.object({
@@ -1021,6 +1030,12 @@ export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextPro
 export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextKpisMax = 2000;
 
 export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax = 2000;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextBusinessContributionsQuantitativeMax = 2000;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextFinancialGainValueMax = 2000;
+
+export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextFinancialInformationMax = 4000;
 
 export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesMax = 50;
 
@@ -1398,7 +1413,10 @@ export const SaveDmaicWorkspaceBody = zod.object({
 })).min(1).max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesMax),
   "projectGoal": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextProjectGoalMax).optional(),
   "kpis": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextKpisMax).optional(),
-  "assumptions": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax).optional()
+  "assumptions": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax).optional(),
+  "businessContributionsQuantitative": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextBusinessContributionsQuantitativeMax).optional(),
+  "financialGainValue": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextFinancialGainValueMax).optional(),
+  "financialInformation": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemContextFinancialInformationMax).optional()
 })
 })).max(saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesMax).optional().describe('Histórico de perguntas e respostas de cenários What If da Medição.'),
   "processMap": zod.union([zod.object({
@@ -1666,6 +1684,12 @@ export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContex
 export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextKpisMax = 2000;
 
 export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax = 2000;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextBusinessContributionsQuantitativeMax = 2000;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextFinancialGainValueMax = 2000;
+
+export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextFinancialInformationMax = 4000;
 
 export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesMax = 50;
 
@@ -2044,7 +2068,10 @@ export const SaveDmaicWorkspaceResponse = zod.object({
 })).min(1).max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextPrioritiesMax),
   "projectGoal": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextProjectGoalMax).optional(),
   "kpis": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextKpisMax).optional(),
-  "assumptions": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax).optional()
+  "assumptions": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextAssumptionsMax).optional(),
+  "businessContributionsQuantitative": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextBusinessContributionsQuantitativeMax).optional(),
+  "financialGainValue": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextFinancialGainValueMax).optional(),
+  "financialInformation": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemContextFinancialInformationMax).optional()
 })
 })).max(saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesMax).optional().describe('Histórico de perguntas e respostas de cenários What If da Medição.'),
   "processMap": zod.union([zod.object({
@@ -2278,6 +2305,12 @@ export const runDmaicMeasurementWhatIfBodyContextKpisMax = 2000;
 
 export const runDmaicMeasurementWhatIfBodyContextAssumptionsMax = 2000;
 
+export const runDmaicMeasurementWhatIfBodyContextBusinessContributionsQuantitativeMax = 2000;
+
+export const runDmaicMeasurementWhatIfBodyContextFinancialGainValueMax = 2000;
+
+export const runDmaicMeasurementWhatIfBodyContextFinancialInformationMax = 4000;
+
 
 
 export const RunDmaicMeasurementWhatIfBody = zod.object({
@@ -2323,7 +2356,10 @@ export const RunDmaicMeasurementWhatIfBody = zod.object({
 })).min(1).max(runDmaicMeasurementWhatIfBodyContextPrioritiesMax),
   "projectGoal": zod.string().max(runDmaicMeasurementWhatIfBodyContextProjectGoalMax).optional(),
   "kpis": zod.string().max(runDmaicMeasurementWhatIfBodyContextKpisMax).optional(),
-  "assumptions": zod.string().max(runDmaicMeasurementWhatIfBodyContextAssumptionsMax).optional()
+  "assumptions": zod.string().max(runDmaicMeasurementWhatIfBodyContextAssumptionsMax).optional(),
+  "businessContributionsQuantitative": zod.string().max(runDmaicMeasurementWhatIfBodyContextBusinessContributionsQuantitativeMax).optional(),
+  "financialGainValue": zod.string().max(runDmaicMeasurementWhatIfBodyContextFinancialGainValueMax).optional(),
+  "financialInformation": zod.string().max(runDmaicMeasurementWhatIfBodyContextFinancialInformationMax).optional()
 })
 })
 

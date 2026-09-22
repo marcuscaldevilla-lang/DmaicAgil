@@ -42,4 +42,10 @@ export interface DmaicMeasurementWhatIfContext {
   kpis?: string;
   /** @maxLength 2000 */
   assumptions?: string;
+  /** @maxLength 2000 */
+  businessContributionsQuantitative?: string;
+  /** @maxLength 2000 */
+  financialGainValue?: string;
+  /** @maxLength 4000 */
+  financialInformation?: string;
 }

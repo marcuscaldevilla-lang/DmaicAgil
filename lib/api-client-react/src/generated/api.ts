@@ -159,11 +159,7 @@ export const runDmaicPipeline = async (dmaicPipelineInput: DmaicPipelineInput, o
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
-    if (h instanceof Headers) {
-      const normalized: Record<string, string> = {};
-      h.forEach((value, key) => { normalized[key] = value; });
-      return normalized;
-    }
+    if (h instanceof Headers) { const normalized: Record<string, string> = {}; h.forEach((value, key) => { normalized[key] = value; }); return normalized; }
     if (Array.isArray(h)) return Object.fromEntries(h);
     return h;
   };
@@ -329,11 +325,7 @@ export const saveDmaicWorkspace = async (dmaicWorkspaceInput: DmaicWorkspaceInpu
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
-    if (h instanceof Headers) {
-      const normalized: Record<string, string> = {};
-      h.forEach((value, key) => { normalized[key] = value; });
-      return normalized;
-    }
+    if (h instanceof Headers) { const normalized: Record<string, string> = {}; h.forEach((value, key) => { normalized[key] = value; }); return normalized; }
     if (Array.isArray(h)) return Object.fromEntries(h);
     return h;
   };
@@ -492,11 +484,7 @@ export const runDmaicExploratoryDiagnosis = async (dmaicExploratoryDiagnosisInpu
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
-    if (h instanceof Headers) {
-      const normalized: Record<string, string> = {};
-      h.forEach((value, key) => { normalized[key] = value; });
-      return normalized;
-    }
+    if (h instanceof Headers) { const normalized: Record<string, string> = {}; h.forEach((value, key) => { normalized[key] = value; }); return normalized; }
     if (Array.isArray(h)) return Object.fromEntries(h);
     return h;
   };
@@ -577,11 +565,7 @@ export const runDmaicMeasurementWhatIf = async (dmaicMeasurementWhatIfInput: Dma
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
-    if (h instanceof Headers) {
-      const normalized: Record<string, string> = {};
-      h.forEach((value, key) => { normalized[key] = value; });
-      return normalized;
-    }
+    if (h instanceof Headers) { const normalized: Record<string, string> = {}; h.forEach((value, key) => { normalized[key] = value; }); return normalized; }
     if (Array.isArray(h)) return Object.fromEntries(h);
     return h;
   };
@@ -662,11 +646,7 @@ export const runDmaicIshikawa = async (dmaicIshikawaInput: DmaicIshikawaInput, o
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
-    if (h instanceof Headers) {
-      const normalized: Record<string, string> = {};
-      h.forEach((value, key) => { normalized[key] = value; });
-      return normalized;
-    }
+    if (h instanceof Headers) { const normalized: Record<string, string> = {}; h.forEach((value, key) => { normalized[key] = value; }); return normalized; }
     if (Array.isArray(h)) return Object.fromEntries(h);
     return h;
   };
@@ -747,11 +727,7 @@ export const runDmaicControlEvaluation = async (dmaicControlEvaluationInput: Dma
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
-    if (h instanceof Headers) {
-      const normalized: Record<string, string> = {};
-      h.forEach((value, key) => { normalized[key] = value; });
-      return normalized;
-    }
+    if (h instanceof Headers) { const normalized: Record<string, string> = {}; h.forEach((value, key) => { normalized[key] = value; }); return normalized; }
     if (Array.isArray(h)) return Object.fromEntries(h);
     return h;
   };

@@ -396,6 +396,9 @@ components:
         projectGoal: { type: string, maxLength: 2000 }
         kpis: { type: string, maxLength: 2000 }
         assumptions: { type: string, maxLength: 2000 }
+        businessContributionsQuantitative: { type: string, maxLength: 2000 }
+        financialGainValue: { type: string, maxLength: 2000 }
+        financialInformation: { type: string, maxLength: 4000 }
     DmaicMeasurementWhatIfInput:
       type: object
       required: [question, problemStatement, context]

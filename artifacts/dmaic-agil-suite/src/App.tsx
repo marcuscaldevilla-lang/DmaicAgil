@@ -3110,6 +3110,9 @@ function Workspace() {
       projectGoal: confirmedCharter.goalDefinition.trim() || confirmedCharter.objective.trim(),
       kpis: confirmedCharter.kpis.trim(),
       assumptions: confirmedCharter.assumptionsAndConstraints.trim(),
+      businessContributionsQuantitative: confirmedCharter.businessContributionsQuantitative.trim(),
+      financialGainValue: confirmedCharter.financialGainValue.trim(),
+      financialInformation: confirmedCharter.financialInformation.trim(),
     };
     whatIfMutation.mutate(
       { data: { question: question.trim(), problemStatement: statement.trim() || DEFAULT_PROBLEM_STATEMENT, context } },
