@@ -46,7 +46,6 @@ import {
   ArrowRight,
   BarChart3,
   Check,
-  CircleHelp,
   ClipboardCheck,
   ClipboardList,
   Clock3,
@@ -54,6 +53,7 @@ import {
   Copy,
   Database,
   FileBarChart,
+  FileDown,
   FileText,
   FolderOpen,
   Gauge,
@@ -1040,7 +1040,8 @@ function Sidebar({ area, setArea, mobileOpen, setMobileOpen, activeProjectName, 
         {navGroups.map((group) => <div key={group.label} className="mb-7"><p className="mono-label mb-2 px-3 text-sidebar-foreground/35">{group.label}</p><div className="space-y-1">{group.items.map((item) => { const active = item.id === area; const Icon = item.icon; return <button key={item.id} data-testid={`nav-${item.id}`} onClick={() => { const destinations: Record<string, Area> = { overview: 'overview', executive: 'executive', decisions: 'decisions', definition: 'definition', measurement: 'measurement', aic: 'aic', charter: 'definition', analysis: 'measurement', control: 'control' }; setArea(destinations[item.id] ?? 'overview'); setMobileOpen(false); }} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[12px] font-semibold transition-colors ${active ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground'}`}><Icon size={16} strokeWidth={1.8} /><span>{item.label}</span>{active && <ArrowRight className="ml-auto" size={14} />}</button>; })}</div></div>)}
       </div>
       <div className="border-t border-sidebar-border p-4">
-        <button data-testid="button-help" onClick={() => setArea('overview')} className="flex w-full items-center gap-3 rounded-lg p-2 text-left text-xs text-sidebar-foreground/60 hover:bg-sidebar-accent"><CircleHelp size={16} /><span>Guia da sala de melhoria</span></button>
+        <button data-testid="button-export-executive-manual" onClick={exportExecutiveManualPdf} className="flex w-full items-center gap-3 rounded-lg p-2 text-left text-xs text-sidebar-foreground/60 hover:bg-sidebar-accent"><FileDown size={16} /><span>Exportar manual executivo</span></button>
+        <button data-testid="button-export-usage-manual" onClick={exportUsageManualPdf} className="mt-1 flex w-full items-center gap-3 rounded-lg p-2 text-left text-xs text-sidebar-foreground/60 hover:bg-sidebar-accent"><FileDown size={16} /><span>Exportar manual de utilização</span></button>
         <div className="mt-3 flex items-center gap-3 border-t border-sidebar-border pt-4"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-foreground">MC</div><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">Marina Costa</p><p className="truncate text-[10px] text-sidebar-foreground/45">Master Black Belt</p></div><Settings2 size={15} className="text-sidebar-foreground/40" /></div>
       </div>
     </aside>
