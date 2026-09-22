@@ -499,15 +499,20 @@ function storeWorkspaceLocalDraft(draft: WorkspaceLocalDraft): void {
   }
 }
 
-const toProjectCharterContext = (charter: ProjectCharterDraft): ProjectCharterContext => ({
-  ...charter,
-  team: [
-    { role: 'Líder', ...charter.team.leader },
-    { role: 'Patrocinador', ...charter.team.sponsor },
-    { role: 'Membros da equipe', ...charter.team.teamMembers },
-    { role: 'Especialistas para suporte técnico', ...charter.team.technicalSupport },
-  ],
-});
+const toProjectCharterContext = (charter: ProjectCharterDraft): ProjectCharterContext => {
+  const parsedDate = new Date(charter.date);
+  const date = Number.isNaN(parsedDate.getTime()) ? new Date().toISOString().slice(0, 10) : charter.date;
+  return {
+    ...charter,
+    date,
+    team: [
+      { role: 'Líder', ...charter.team.leader },
+      { role: 'Patrocinador', ...charter.team.sponsor },
+      { role: 'Membros da equipe', ...charter.team.teamMembers },
+      { role: 'Especialistas para suporte técnico', ...charter.team.technicalSupport },
+    ],
+  };
+};
 
 const toProjectCharterDraft = (context: ProjectCharterContext): ProjectCharterDraft => {
   const memberByRole = new Map(context.team.map((member) => [member.role, member]));
