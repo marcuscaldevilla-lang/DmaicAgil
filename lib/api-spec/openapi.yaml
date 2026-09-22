@@ -825,10 +825,14 @@ components:
           maxLength: 12000
         causeAndEffectMatrix:
           description: Matriz editável de causas X e saídas Y da Sprint 3.
-          $ref: "#/components/schemas/DmaicCauseAndEffectMatrix"
+          anyOf:
+            - $ref: "#/components/schemas/DmaicCauseAndEffectMatrix"
+            - type: "null"
         solutionPrioritizationMatrix:
           description: Matriz editável de priorização de soluções da Sprint 3.
-          $ref: "#/components/schemas/DmaicSolutionPrioritizationMatrix"
+          anyOf:
+            - $ref: "#/components/schemas/DmaicSolutionPrioritizationMatrix"
+            - type: "null"
         effortImpactMatrix:
           description: Classificação esforço x impacto das causas da Sprint 3.
           type: array

@@ -779,7 +779,7 @@ export const GetDmaicWorkspaceResponse = zod.object({
 }),zod.null()]).optional().describe('Mapa de processo editável e parâmetros Y\/X específicos do projeto.'),
   "ishikawa": zod.union([zod.record(zod.string(), zod.array(zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsIshikawaOneItemMax))),zod.null()]).optional().describe('Diagrama de causa e efeito editável gerado a partir do texto da equipe.'),
   "ishikawaInputText": zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsIshikawaInputTextMax).optional().describe('Texto livre fornecido pela equipe como base para a geração do diagrama de causa e efeito.'),
-  "causeAndEffectMatrix": zod.object({
+  "causeAndEffectMatrix": zod.union([zod.object({
   "outputs": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string(),
@@ -791,8 +791,8 @@ export const GetDmaicWorkspaceResponse = zod.object({
   "scores": zod.record(zod.string(), zod.number()),
   "totalScore": zod.number().optional()
 }))
-}).optional().describe('Matriz editável de causas X e saídas Y da Sprint 3.'),
-  "solutionPrioritizationMatrix": zod.object({
+}),zod.null()]).optional().describe('Matriz editável de causas X e saídas Y da Sprint 3.'),
+  "solutionPrioritizationMatrix": zod.union([zod.object({
   "criteria": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string(),
@@ -804,7 +804,7 @@ export const GetDmaicWorkspaceResponse = zod.object({
   "scores": zod.record(zod.string(), zod.number()),
   "totalScore": zod.number().optional()
 }))
-}).optional().describe('Matriz editável de priorização de soluções da Sprint 3.'),
+}),zod.null()]).optional().describe('Matriz editável de priorização de soluções da Sprint 3.'),
   "effortImpactMatrix": zod.array(zod.object({
   "cause": zod.string(),
   "impact": zod.enum(['Alto', 'Baixo']),
@@ -1434,7 +1434,7 @@ export const SaveDmaicWorkspaceBody = zod.object({
 }),zod.null()]).optional().describe('Mapa de processo editável e parâmetros Y\/X específicos do projeto.'),
   "ishikawa": zod.union([zod.record(zod.string(), zod.array(zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsIshikawaOneItemMax))),zod.null()]).optional().describe('Diagrama de causa e efeito editável gerado a partir do texto da equipe.'),
   "ishikawaInputText": zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsIshikawaInputTextMax).optional().describe('Texto livre fornecido pela equipe como base para a geração do diagrama de causa e efeito.'),
-  "causeAndEffectMatrix": zod.object({
+  "causeAndEffectMatrix": zod.union([zod.object({
   "outputs": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string(),
@@ -1446,8 +1446,8 @@ export const SaveDmaicWorkspaceBody = zod.object({
   "scores": zod.record(zod.string(), zod.number()),
   "totalScore": zod.number().optional()
 }))
-}).optional().describe('Matriz editável de causas X e saídas Y da Sprint 3.'),
-  "solutionPrioritizationMatrix": zod.object({
+}),zod.null()]).optional().describe('Matriz editável de causas X e saídas Y da Sprint 3.'),
+  "solutionPrioritizationMatrix": zod.union([zod.object({
   "criteria": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string(),
@@ -1459,7 +1459,7 @@ export const SaveDmaicWorkspaceBody = zod.object({
   "scores": zod.record(zod.string(), zod.number()),
   "totalScore": zod.number().optional()
 }))
-}).optional().describe('Matriz editável de priorização de soluções da Sprint 3.'),
+}),zod.null()]).optional().describe('Matriz editável de priorização de soluções da Sprint 3.'),
   "effortImpactMatrix": zod.array(zod.object({
   "cause": zod.string(),
   "impact": zod.enum(['Alto', 'Baixo']),
@@ -2080,7 +2080,7 @@ export const SaveDmaicWorkspaceResponse = zod.object({
 }),zod.null()]).optional().describe('Mapa de processo editável e parâmetros Y\/X específicos do projeto.'),
   "ishikawa": zod.union([zod.record(zod.string(), zod.array(zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsIshikawaOneItemMax))),zod.null()]).optional().describe('Diagrama de causa e efeito editável gerado a partir do texto da equipe.'),
   "ishikawaInputText": zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsIshikawaInputTextMax).optional().describe('Texto livre fornecido pela equipe como base para a geração do diagrama de causa e efeito.'),
-  "causeAndEffectMatrix": zod.object({
+  "causeAndEffectMatrix": zod.union([zod.object({
   "outputs": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string(),
@@ -2092,8 +2092,8 @@ export const SaveDmaicWorkspaceResponse = zod.object({
   "scores": zod.record(zod.string(), zod.number()),
   "totalScore": zod.number().optional()
 }))
-}).optional().describe('Matriz editável de causas X e saídas Y da Sprint 3.'),
-  "solutionPrioritizationMatrix": zod.object({
+}),zod.null()]).optional().describe('Matriz editável de causas X e saídas Y da Sprint 3.'),
+  "solutionPrioritizationMatrix": zod.union([zod.object({
   "criteria": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string(),
@@ -2105,7 +2105,7 @@ export const SaveDmaicWorkspaceResponse = zod.object({
   "scores": zod.record(zod.string(), zod.number()),
   "totalScore": zod.number().optional()
 }))
-}).optional().describe('Matriz editável de priorização de soluções da Sprint 3.'),
+}),zod.null()]).optional().describe('Matriz editável de priorização de soluções da Sprint 3.'),
   "effortImpactMatrix": zod.array(zod.object({
   "cause": zod.string(),
   "impact": zod.enum(['Alto', 'Baixo']),

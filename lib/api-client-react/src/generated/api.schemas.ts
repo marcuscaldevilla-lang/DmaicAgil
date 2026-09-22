@@ -792,9 +792,9 @@ export interface DmaicAnalysisArtifacts {
      */
   ishikawaInputText?: string;
   /** Matriz editável de causas X e saídas Y da Sprint 3. */
-  causeAndEffectMatrix?: DmaicCauseAndEffectMatrix;
+  causeAndEffectMatrix?: DmaicCauseAndEffectMatrix | null;
   /** Matriz editável de priorização de soluções da Sprint 3. */
-  solutionPrioritizationMatrix?: DmaicSolutionPrioritizationMatrix;
+  solutionPrioritizationMatrix?: DmaicSolutionPrioritizationMatrix | null;
   /** Classificação esforço x impacto das causas da Sprint 3. */
   effortImpactMatrix?: DmaicEffortImpactRow[];
   /** Dados, cartas X-AM, avaliação IA e plano de sustentabilidade da Fase de Controle. */
