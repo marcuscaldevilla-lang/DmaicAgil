@@ -414,7 +414,7 @@ function selectTopRawMeanVariables(variables: MeasurementVariableSummary[]): Mea
   return [...variables].sort((left, right) => right.mean - left.mean).slice(0, 3);
 }
 
-export function analyzeMeasurementDataset(dataset: DmaicCsvDataset): MeasurementAnalysis {
+export function analyzeMeasurementDataset(dataset: DmaicCsvDataset, anovaVariableNames?: string[]): MeasurementAnalysis {
   const xColumn = dataset.headers[0];
   const longRows = dataset.rows.flatMap((row) => dataset.indicatorColumns.map((groupingValue) => ({
     xValue: row[xColumn],
@@ -423,7 +423,12 @@ export function analyzeMeasurementDataset(dataset: DmaicCsvDataset): Measurement
   })));
   const variables = dataset.indicatorColumns.map((name) => summarizeVariable(longRows, name));
   const pairwise = pairedComparisons(variables);
-  const anovaVariables = selectTopRawMeanVariables(variables);
+  const selectedAnovaVariables = anovaVariableNames?.length
+    ? variables.filter((variable) => anovaVariableNames.includes(variable.name))
+    : [];
+  const anovaVariables = selectedAnovaVariables.length >= 2
+    ? selectedAnovaVariables
+    : selectTopRawMeanVariables(variables);
   return {
     xColumn,
     xValues: dataset.rows.map((row) => row[xColumn]),

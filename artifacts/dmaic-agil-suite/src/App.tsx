@@ -1802,6 +1802,10 @@ function GenericPreview({ tool, pipeline, solutionsDirty = false, solutionsSaved
 
 function ParetoChart({ data, source, cumulative: _legacyCumulative }: { data: { name: string; value: number }[]; source: 'example' | 'upload'; cumulative?: { name: string; value: number; pct: number }[] }) {
   const [selectedNames, setSelectedNames] = useState<string[]>(() => data.map((item) => item.name));
+  const publishSelection = (names: string[]) => {
+    setSelectedNames(names);
+    window.dispatchEvent(new CustomEvent('dmaic-pareto-selection', { detail: names }));
+  };
   useEffect(() => {
     setSelectedNames((current) => data.map((item) => item.name).filter((name) => current.includes(name)));
   }, [data]);
@@ -1813,7 +1817,7 @@ function ParetoChart({ data, source, cumulative: _legacyCumulative }: { data: { 
     result.push({ ...item, pct: prior + item.value });
     return result;
   }, []);
-  return <div><div className="mb-4 rounded-xl border border-border bg-muted/30 p-3"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-bold">Variáveis no gráfico</p><button type="button" className="text-[10px] font-bold text-primary" onClick={() => setSelectedNames(data.map((item) => item.name))}>Selecionar todas</button></div><div className="grid gap-2 sm:grid-cols-2">{data.map((item) => <label key={item.name} className="flex min-w-0 items-center gap-2 text-[11px]"><input type="checkbox" checked={selectedNames.includes(item.name)} onChange={(event) => setSelectedNames((current) => event.target.checked ? [...current, item.name] : current.filter((name) => name !== item.name))} /><span className="truncate">{item.name}</span></label>)}</div></div>{selectedData.length > 0 ? <ParetoChartBase data={normalizedData} cumulative={normalizedCumulative} source={source} /> : <p className="rounded-xl border border-border p-4 text-xs text-muted-foreground">Selecione ao menos uma variável para exibir o Pareto.</p>}</div>;
+  return <div><div className="mb-4 rounded-xl border border-border bg-muted/30 p-3"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-bold">Variáveis no gráfico</p><button type="button" className="text-[10px] font-bold text-primary" onClick={() => publishSelection(data.map((item) => item.name))}>Selecionar todas</button></div><div className="grid gap-2 sm:grid-cols-2">{data.map((item) => <label key={item.name} className="flex min-w-0 items-center gap-2 text-[11px]"><input type="checkbox" checked={selectedNames.includes(item.name)} onChange={(event) => publishSelection(event.target.checked ? [...selectedNames, item.name] : selectedNames.filter((name) => name !== item.name))} /><span className="truncate">{item.name}</span></label>)}</div></div>{selectedData.length > 0 ? <ParetoChartBase data={normalizedData} cumulative={normalizedCumulative} source={source} /> : <p className="rounded-xl border border-border p-4 text-xs text-muted-foreground">Selecione ao menos uma variável para exibir o Pareto.</p>}</div>;
 }
 
 function ParetoChartBase({ data, cumulative, source }: { data: { name: string; value: number }[]; cumulative: { name: string; value: number; pct: number }[]; source: 'example' | 'upload' }) {
@@ -2566,6 +2570,7 @@ function Workspace() {
   const [pipelineAnalysisContext, setPipelineAnalysisContext] = useState<DmaicPipelineAnalysisContext | null>(() => initialLocalDraft?.analysisArtifacts.pipelineAnalysisContext ?? null);
   const [csvError, setCsvError] = useState<string | null>(null);
   const [measurementCsvError, setMeasurementCsvError] = useState<string | null>(null);
+  const [paretoSelectedNames, setParetoSelectedNames] = useState<string[]>([]);
 
   const [causeAndEffectMatrix, setCauseAndEffectMatrix] = useState<any>(() => 
     (initialLocalDraft?.analysisArtifacts as any)?.causeAndEffectMatrix ?? null
@@ -2591,7 +2596,27 @@ function Workspace() {
   const createAnalysisArtifactsRef = useRef<() => DmaicAnalysisArtifacts>(() => createEmptyAnalysisArtifacts());
   const displayArea = area === 'overview' ? 'overview' : area;
   const inputAnalysis = useMemo(() => inputDataset ? summarizeIndicator(inputDataset, selectedIndicator, analysisMonths) : null, [analysisMonths, inputDataset, selectedIndicator]);
-  const measurementAnalysis = useMemo(() => measurementDataset ? analyzeMeasurementDataset(measurementDataset) : null, [measurementDataset]);
+  const measurementAnalysisBase = useMemo(() => measurementDataset ? analyzeMeasurementDataset(measurementDataset) : null, [measurementDataset]);
+  useEffect(() => {
+    if (!measurementAnalysisBase) {
+      setParetoSelectedNames([]);
+      return;
+    }
+    setParetoSelectedNames((current) => {
+      const available = measurementAnalysisBase.variables.map((variable) => variable.name);
+      const retained = current.filter((name) => available.includes(name));
+      return retained.length >= 2 ? retained : available;
+    });
+  }, [measurementAnalysisBase]);
+  useEffect(() => {
+    const handleParetoSelection = (event: Event) => {
+      const names = (event as CustomEvent<string[]>).detail;
+      if (Array.isArray(names)) setParetoSelectedNames(names);
+    };
+    window.addEventListener('dmaic-pareto-selection', handleParetoSelection);
+    return () => window.removeEventListener('dmaic-pareto-selection', handleParetoSelection);
+  }, []);
+  const measurementAnalysis = useMemo(() => measurementDataset ? analyzeMeasurementDataset(measurementDataset, paretoSelectedNames) : null, [measurementDataset, paretoSelectedNames]);
   const pareto = useMemo(() => {
     if (measurementAnalysis) {
       return measurementAnalysis.variables
