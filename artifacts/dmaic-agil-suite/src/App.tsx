@@ -1679,7 +1679,7 @@ function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDatas
     ? 'Não há observações disponíveis para o indicador e período selecionados.'
     : isPareto
       ? 'O Pareto será calculado com a Média de Valor de cada variável da análise de Medição.'
-      : inputAnalysis.kind === 'continuous' && inputAnalysis.values.length < 2
+      : inputAnalysis?.kind === 'continuous' && inputAnalysis.values.length < 2
         ? 'O I-MR precisa de pelo menos duas observações sequenciais no recorte selecionado.'
         : 'O I-MR é aplicável somente a indicadores contínuos. Selecione um indicador numérico compatível.';
   const detailDirty = hasManualChanges || sipocDirty || msaDirty || vitalXDirty || gutDirty || controlPlanDirty;
