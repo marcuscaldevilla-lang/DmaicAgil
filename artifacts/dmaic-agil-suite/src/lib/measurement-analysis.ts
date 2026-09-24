@@ -419,6 +419,9 @@ export function analyzeMeasurementDataset(dataset: DmaicCsvDataset): Measurement
   })));
   const variables = dataset.indicatorColumns.map((name) => summarizeVariable(longRows, name));
   const pairwise = pairedComparisons(variables);
+  const anovaVariables = [...variables]
+    .sort((left, right) => right.mean - left.mean)
+    .slice(0, 3);
   return {
     xColumn,
     xValues: dataset.rows.map((row) => row[xColumn]),
@@ -426,7 +429,7 @@ export function analyzeMeasurementDataset(dataset: DmaicCsvDataset): Measurement
     groupingColumn: 'Unidade',
     longRows,
     variables,
-    anova: repeatedMeasuresAnova(variables),
+    anova: repeatedMeasuresAnova(anovaVariables),
     pairwise,
     priorities: prioritizeVariables(variables, pairwise),
   };
