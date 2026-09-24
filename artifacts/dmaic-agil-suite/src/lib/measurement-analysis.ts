@@ -75,6 +75,7 @@ export type MeasurementAnalysis = {
   longRows: MeasurementLongRow[];
   variables: MeasurementVariableSummary[];
   anova: RepeatedMeasuresAnova;
+  anovaVariableNames: string[];
   pairwise: PairwiseComparison[];
   priorities: PrioritizedVariable[];
 };
@@ -437,6 +438,7 @@ export function analyzeMeasurementDataset(dataset: DmaicCsvDataset, anovaVariabl
     longRows,
     variables,
     anova: repeatedMeasuresAnova(anovaVariables),
+    anovaVariableNames: anovaVariables.map((variable) => variable.name),
     pairwise,
     priorities: prioritizeVariables(variables, pairwise),
   };

@@ -111,7 +111,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function AnovaMeanChart({ analysis }: { analysis: MeasurementAnalysis }) {
-  const variables = [...analysis.variables].sort((left, right) => right.mean - left.mean).slice(0, 3);
+  const selected = analysis.variables.filter((variable) => analysis.anovaVariableNames.includes(variable.name));
+  const variables = (selected.length >= 2 ? selected : [...analysis.variables].sort((left, right) => right.mean - left.mean).slice(0, 3)).slice(0, 3);
   const width = 640;
   const height = 280;
   const left = 58;

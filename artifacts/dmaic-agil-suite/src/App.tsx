@@ -176,6 +176,7 @@ const MAX_PERSISTED_CSV_CELL_CHARACTERS = 4_000;
 const MAX_ANALYSIS_ARTIFACT_BYTES = 3_000_000;
 const WORKSPACE_DRAFT_STORAGE_KEY = 'dmaic-agil-suite.workspace-draft.v1';
 const DEFAULT_PROBLEM_STATEMENT = 'O tempo entre a entrada da solicitação e a aprovação do crédito varia de 8 a 31 minutos, gerando retrabalho e previsibilidade baixa para as agências no fechamento do mês.';
+let paretoSelectionMemory: string[] = [];
 const charterTextFields = ['projectName', 'client', 'area', 'leader', 'sponsor', 'date', 'objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions', 'businessContributionsQuantitative', 'businessContributionsQualitative', 'financialGainValue', 'financialInformation'] as const satisfies readonly CharterTextField[];
 const legacyCharterTextFields = ['projectName', 'client', 'area', 'leader', 'sponsor', 'date', 'objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions'] as const;
 const generatedCharterFields = ['objective', 'history', 'goalDefinition', 'kpis', 'includedScope', 'excludedScope', 'assumptionsAndConstraints', 'customerRequirements', 'businessContributions', 'businessContributionsQuantitative', 'businessContributionsQualitative', 'financialGainValue'] as const satisfies readonly (keyof GeneratedCharterFields)[];
@@ -1801,9 +1802,14 @@ function GenericPreview({ tool, pipeline, solutionsDirty = false, solutionsSaved
 }
 
 function ParetoChart({ data, source, cumulative: _legacyCumulative }: { data: { name: string; value: number }[]; source: 'example' | 'upload'; cumulative?: { name: string; value: number; pct: number }[] }) {
-  const [selectedNames, setSelectedNames] = useState<string[]>(() => data.map((item) => item.name));
+  const [selectedNames, setSelectedNames] = useState<string[]>(() => {
+    const available = data.map((item) => item.name);
+    const remembered = paretoSelectionMemory.filter((name) => available.includes(name));
+    return remembered.length >= 2 ? remembered : available;
+  });
   const publishSelection = (names: string[]) => {
     setSelectedNames(names);
+    paretoSelectionMemory = names;
     window.dispatchEvent(new CustomEvent('dmaic-pareto-selection', { detail: names }));
   };
   useEffect(() => {
@@ -2605,7 +2611,9 @@ function Workspace() {
     setParetoSelectedNames((current) => {
       const available = measurementAnalysisBase.variables.map((variable) => variable.name);
       const retained = current.filter((name) => available.includes(name));
-      return retained.length >= 2 ? retained : available;
+      const next = retained.length >= 2 ? retained : available;
+      paretoSelectionMemory = next;
+      return next;
     });
   }, [measurementAnalysisBase]);
   useEffect(() => {
