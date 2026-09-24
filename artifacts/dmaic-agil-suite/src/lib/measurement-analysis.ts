@@ -410,6 +410,10 @@ function prioritizeVariables(variables: MeasurementVariableSummary[], pairwise: 
   }).sort((left, right) => right.score - left.score);
 }
 
+function selectTopRawMeanVariables(variables: MeasurementVariableSummary[]): MeasurementVariableSummary[] {
+  return [...variables].sort((left, right) => right.mean - left.mean).slice(0, 3);
+}
+
 export function analyzeMeasurementDataset(dataset: DmaicCsvDataset): MeasurementAnalysis {
   const xColumn = dataset.headers[0];
   const longRows = dataset.rows.flatMap((row) => dataset.indicatorColumns.map((groupingValue) => ({
@@ -419,9 +423,7 @@ export function analyzeMeasurementDataset(dataset: DmaicCsvDataset): Measurement
   })));
   const variables = dataset.indicatorColumns.map((name) => summarizeVariable(longRows, name));
   const pairwise = pairedComparisons(variables);
-  const anovaVariables = [...variables]
-    .sort((left, right) => right.mean - left.mean)
-    .slice(0, 3);
+  const anovaVariables = selectTopRawMeanVariables(variables);
   return {
     xColumn,
     xValues: dataset.rows.map((row) => row[xColumn]),
