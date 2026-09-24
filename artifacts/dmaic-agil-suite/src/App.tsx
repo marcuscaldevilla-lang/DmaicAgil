@@ -1997,12 +1997,6 @@ function sipocCellLines(value: string, deduplicate = false): string[] {
   });
 }
 
-function sipocSupplierLines(rows: DmaicSipoc, rowIndex: number): string[] {
-  const seen = new Set<string>();
-  rows.slice(0, rowIndex).forEach((row) => sipocCellLines(row.suppliers, true).forEach((line) => seen.add(line.toLocaleLowerCase('pt-BR'))));
-  return sipocCellLines(rows[rowIndex].suppliers, true).filter((line) => !seen.has(line.toLocaleLowerCase('pt-BR')));
-}
-
 function SipocGrid({ rows, readOnly, onUpdateCell, onAddRow, onRemoveRow }: { rows: DmaicSipoc; readOnly: boolean; onUpdateCell: (rowIndex: number, key: keyof DmaicSipocRow, value: string) => void; onAddRow: () => void; onRemoveRow: (rowIndex: number) => void }) {
   return <div data-testid="grid-sipoc" className="overflow-x-auto rounded-xl border border-border">
     <table className="w-full min-w-[860px] border-collapse text-xs">
@@ -2021,8 +2015,8 @@ function SipocGrid({ rows, readOnly, onUpdateCell, onAddRow, onRemoveRow }: { ro
           {SIPOC_COLUMNS.map((column) => <td key={column.key} data-testid={`cell-sipoc-${column.key}-${rowIndex}`} className="align-top px-2.5 py-2.5">
             {readOnly
               ? <ul className="space-y-1 text-[11px] leading-relaxed">
-                {(column.key === 'suppliers' ? sipocSupplierLines(rows, rowIndex) : sipocCellLines(row[column.key])).length > 0
-                  ? (column.key === 'suppliers' ? sipocSupplierLines(rows, rowIndex) : sipocCellLines(row[column.key])).map((item, itemIndex) => <li key={itemIndex} className="flex gap-1.5"><span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />{item}</li>)
+                sipocCellLines(row[column.key]).length > 0
+                  ? sipocCellLines(row[column.key]).map((item, itemIndex) => <li key={itemIndex} className="flex gap-1.5"><span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />{item}</li>)
                   : <li className="text-muted-foreground/70">—</li>}
               </ul>
               : <textarea data-testid={`input-sipoc-${column.key}-${rowIndex}`} value={row[column.key]} onChange={(event) => onUpdateCell(rowIndex, column.key, event.target.value)} rows={3} className="min-h-[64px] w-full min-w-[150px] resize-y rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] leading-relaxed outline-none transition-colors focus:border-primary/60" placeholder="Um item por linha..." />}
@@ -2358,15 +2352,8 @@ function exportUsageManualPdf() {
 }
 
 function buildSipocPrintDocument(sipoc: DmaicSipoc, projectName: string): string {
-  const seenSuppliers = new Set<string>();
   const cell = (value: string, deduplicate = false) => {
-    const lines = sipocCellLines(value, deduplicate).filter((line) => {
-      if (!deduplicate) return true;
-      const normalized = line.toLocaleLowerCase('pt-BR');
-      if (seenSuppliers.has(normalized)) return false;
-      seenSuppliers.add(normalized);
-      return true;
-    });
+    const lines = sipocCellLines(value, deduplicate);
     return lines.length > 0 ? `<ul>${lines.map((item) => `<li>${escapeCharterHtml(item)}</li>`).join('')}</ul>` : '<p class="empty">Não preenchido</p>';
   };
   return `<!doctype html>
@@ -2405,7 +2392,7 @@ function buildSipocPrintDocument(sipoc: DmaicSipoc, projectName: string): string
   <table class="sipoc-table">
     <thead><tr><th class="suppliers">Fornecedores</th><th class="inputs">Entradas</th><th class="process">Processo</th><th class="outputs">Saídas</th><th class="customers">Clientes</th></tr></thead>
     <tbody>
-      ${sipoc.length > 0 ? sipoc.map((row) => `<tr><td>${cell(row.suppliers, true)}</td><td>${cell(row.inputs)}</td><td class="process-cell">${row.process.trim() ? escapeCharterHtml(row.process.trim()) : '<span class="empty">Não preenchido</span>'}</td><td>${cell(row.outputs)}</td><td>${cell(row.customers)}</td></tr>`).join('') : '<tr><td colspan="5" class="empty" style="text-align:center;padding:20px;">Nenhuma etapa preenchida ainda.</td></tr>'}
+      ${sipoc.length > 0 ? sipoc.map((row) => `<tr><td>${cell(row.suppliers)}</td><td>${cell(row.inputs)}</td><td class="process-cell">${row.process.trim() ? escapeCharterHtml(row.process.trim()) : '<span class="empty">Não preenchido</span>'}</td><td>${cell(row.outputs)}</td><td>${cell(row.customers)}</td></tr>`).join('') : '<tr><td colspan="5" class="empty" style="text-align:center;padding:20px;">Nenhuma etapa preenchida ainda.</td></tr>'}
     </tbody>
   </table>
 </body></html>`;
