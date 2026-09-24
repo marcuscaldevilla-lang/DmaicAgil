@@ -1675,10 +1675,10 @@ function DetailDrawer({ tool, onClose, pareto, imr, inputAnalysis, hasInputDatas
   const total = pareto?.reduce((sum, item) => sum + item.value, 0) ?? 0;
   const cumulative = (pareto ?? []).reduce<{ name: string; value: number; pct: number }[]>((result, item) => { const prior = result[result.length - 1]?.pct ?? 0; result.push({ ...item, pct: prior + (item.value / Math.max(total, 1)) * 100 }); return result; }, []);
   const source = hasInputDataset ? 'upload' : 'example';
-  const unavailableMessage = !inputAnalysis
+  const unavailableMessage = !inputAnalysis && !pareto
     ? 'Não há observações disponíveis para o indicador e período selecionados.'
     : isPareto
-      ? 'O Pareto é aplicável somente a indicadores discretos ou categóricos. Selecione um indicador compatível.'
+      ? 'O Pareto será calculado com a Média de Valor de cada variável da análise de Medição.'
       : inputAnalysis.kind === 'continuous' && inputAnalysis.values.length < 2
         ? 'O I-MR precisa de pelo menos duas observações sequenciais no recorte selecionado.'
         : 'O I-MR é aplicável somente a indicadores contínuos. Selecione um indicador numérico compatível.';
@@ -1802,7 +1802,7 @@ function GenericPreview({ tool, pipeline, solutionsDirty = false, solutionsSaved
 
 function ParetoChart({ data, cumulative, source }: { data: { name: string; value: number }[]; cumulative: { name: string; value: number; pct: number }[]; source: 'example' | 'upload' }) {
   const max = Math.max(...data.map((item) => item.value));
-  return <div><div className="mb-5 flex items-start justify-between"><div><p className="mono-label text-accent-foreground">{source === 'upload' ? 'Dados do CSV' : 'Exemplo gerado'}</p><h3 className="mt-2 font-serif text-lg font-bold">Onde a fila realmente pesa</h3><p className="mt-1 text-xs text-muted-foreground">Pareto · causas por ocorrência</p></div><FileBarChart size={20} className="text-accent-foreground" /></div><div className="rounded-xl border border-border bg-card p-4"><div className="space-y-3">{data.map((item, index) => <div key={item.name} className="grid grid-cols-[minmax(0,1fr)_38px] items-center gap-3"><div><div className="mb-1 flex justify-between gap-2 text-[11px]"><span className="truncate font-semibold">{item.name}</span><span className="mono-label text-muted-foreground">{cumulative[index]?.pct.toFixed(0)}%</span></div><div className="h-5 overflow-hidden rounded-r-md bg-muted"><div className={`h-full rounded-r-md ${index === 0 ? 'bg-accent' : 'bg-primary/70'}`} style={{ width: `${(item.value / max) * 100}%` }} /></div></div><span className="text-right font-mono text-xs font-bold">{item.value}</span></div>)}</div><div className="mt-5 flex justify-between border-t border-border pt-3 mono-label text-muted-foreground"><span>Ocorrências</span><span>{data.reduce((sum, item) => sum + item.value, 0)} total</span></div></div></div>;
+  return <div><div className="mb-5 flex items-start justify-between"><div><p className="mono-label text-accent-foreground">{source === 'upload' ? 'Dados do CSV' : 'Exemplo gerado'}</p><h3 className="mt-2 font-serif text-lg font-bold">Médias por variável</h3><p className="mt-1 text-xs text-muted-foreground">Pareto · Média de Valor</p></div><FileBarChart size={20} className="text-accent-foreground" /></div><div className="rounded-xl border border-border bg-card p-4"><div className="space-y-3">{data.map((item, index) => <div key={item.name} className="grid grid-cols-[minmax(0,1fr)_58px] items-center gap-3"><div><div className="mb-1 flex justify-between gap-2 text-[11px]"><span className="truncate font-semibold">{item.name}</span><span className="mono-label text-muted-foreground">{cumulative[index]?.pct.toFixed(0)}%</span></div><div className="h-5 overflow-hidden rounded-r-md bg-muted"><div className={`h-full rounded-r-md ${index === 0 ? 'bg-accent' : 'bg-primary/70'}`} style={{ width: `${(item.value / max) * 100}%` }} /></div></div><span className="text-right font-mono text-xs font-bold">{formatMetric(item.value)}</span></div>)}</div><div className="mt-5 flex justify-between border-t border-border pt-3 mono-label text-muted-foreground"><span>Média total</span><span>{formatMetric(data.reduce((sum, item) => sum + item.value, 0))}</span></div></div></div>;
 }
 
 function ImrChart({ data, source }: { data: number[]; source: 'example' | 'upload' }) {
@@ -2576,7 +2576,18 @@ function Workspace() {
   const displayArea = area === 'overview' ? 'overview' : area;
   const inputAnalysis = useMemo(() => inputDataset ? summarizeIndicator(inputDataset, selectedIndicator, analysisMonths) : null, [analysisMonths, inputDataset, selectedIndicator]);
   const measurementAnalysis = useMemo(() => measurementDataset ? analyzeMeasurementDataset(measurementDataset) : null, [measurementDataset]);
-  const pareto = useMemo(() => !inputDataset ? initialPareto : inputAnalysis?.kind === 'discrete' ? inputAnalysis.distribution.map((item) => ({ name: item.label, value: item.count })) : null, [inputAnalysis, inputDataset]);
+  const pareto = useMemo(() => {
+    if (measurementAnalysis) {
+      return measurementAnalysis.variables
+        .map((variable) => ({ name: variable.name, value: variable.mean }))
+        .filter((item) => Number.isFinite(item.value))
+        .sort((left, right) => right.value - left.value);
+    }
+    if (!inputDataset) return initialPareto;
+    return inputAnalysis?.kind === 'discrete'
+      ? inputAnalysis.distribution.map((item) => ({ name: item.label, value: item.count }))
+      : null;
+  }, [inputAnalysis, inputDataset, measurementAnalysis]);
   const imr = useMemo(() => !inputDataset ? initialImr : inputAnalysis?.kind === 'continuous' && inputAnalysis.values.length >= 2 ? inputAnalysis.values : null, [inputAnalysis, inputDataset]);
   const activeProjectName = projectKey ? (workspacesQuery.data?.find((project) => project.projectKey === projectKey)?.projectName ?? (charter.projectName.trim() || `Projeto #${projectKey}`)) : (charter.projectName.trim() || 'Novo projeto');
   const projectMilestones = [
@@ -3959,7 +3970,7 @@ function Workspace() {
           pareto={pareto}
           imr={imr}
           inputAnalysis={inputAnalysis}
-          hasInputDataset={Boolean(inputDataset)}
+          hasInputDataset={Boolean(inputDataset || measurementDataset)}
           csvError={csvError}
           onRetry={retryUpload}
           pipeline={pipelineData}
