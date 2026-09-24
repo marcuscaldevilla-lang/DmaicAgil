@@ -1977,6 +1977,20 @@ const exampleSipoc: DmaicSipoc = [
   { suppliers: 'Modal / Transportadora', inputs: 'Produto transportado\nNota Fiscal', process: 'Entregar o produto', outputs: 'Produto armazenado no local da entrega', customers: 'Cliente' },
 ];
 
+const LEGACY_EXAMPLE_SIPOC_PROCESSES = [
+  'Retirar a senha de atendimento',
+  'Cadastrar o cliente',
+  'Verificar autorização dos exames',
+  'Imprimir guia para realização dos exames',
+  'Encaminhar cliente para o exame',
+];
+
+function replaceLegacyExampleSipoc(sipoc: DmaicSipoc | null): DmaicSipoc | null {
+  if (!sipoc || sipoc.length !== LEGACY_EXAMPLE_SIPOC_PROCESSES.length) return sipoc;
+  const processes = sipoc.map((row) => row.process.trim());
+  return LEGACY_EXAMPLE_SIPOC_PROCESSES.every((process, index) => processes[index] === process) ? exampleSipoc : sipoc;
+}
+
 const SIPOC_COLUMNS: { key: keyof DmaicSipocRow; label: string; hint: string; headerClass: string }[] = [
   { key: 'suppliers', label: 'Fornecedores', hint: 'Quem entrega o que a etapa precisa', headerClass: 'bg-chart-4/12 text-chart-4' },
   { key: 'inputs', label: 'Entradas', hint: 'O que alimenta a etapa', headerClass: 'bg-chart-3/12 text-chart-3' },
@@ -2059,7 +2073,7 @@ function SipocFlowDiagram({ sipoc }: { sipoc: DmaicSipoc }) {
 }
 
 function SipocMap({ sipoc, hasPipeline, dirty, saved, onChange, onSave }: { sipoc: DmaicSipoc | null; hasPipeline: boolean; dirty: boolean; saved: boolean; onChange: (next: DmaicSipoc) => void; onSave: () => void }) {
-  const displaySipoc = sipoc && sipoc.length > 0 ? sipoc : exampleSipoc;
+  const displaySipoc = replaceLegacyExampleSipoc(sipoc && sipoc.length > 0 ? sipoc : exampleSipoc) ?? exampleSipoc;
   const readOnly = !hasPipeline;
   const updateCell = (rowIndex: number, key: keyof DmaicSipocRow, value: string) => onChange(displaySipoc.map((row, index) => index === rowIndex ? { ...row, [key]: value } : row));
   const addRow = () => onChange([...displaySipoc, { suppliers: '', inputs: '', process: '', outputs: '', customers: '' }]);
