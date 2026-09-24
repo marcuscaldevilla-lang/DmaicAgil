@@ -2015,7 +2015,7 @@ function SipocGrid({ rows, readOnly, onUpdateCell, onAddRow, onRemoveRow }: { ro
           {SIPOC_COLUMNS.map((column) => <td key={column.key} data-testid={`cell-sipoc-${column.key}-${rowIndex}`} className="align-top px-2.5 py-2.5">
             {readOnly
               ? <ul className="space-y-1 text-[11px] leading-relaxed">
-                sipocCellLines(row[column.key]).length > 0
+                {sipocCellLines(row[column.key]).length > 0
                   ? sipocCellLines(row[column.key]).map((item, itemIndex) => <li key={itemIndex} className="flex gap-1.5"><span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />{item}</li>)
                   : <li className="text-muted-foreground/70">—</li>}
               </ul>
