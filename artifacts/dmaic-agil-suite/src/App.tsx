@@ -1970,11 +1970,11 @@ function VocCqtMap({ rows, hasPipeline, hasDiagnosis, manualRows, hasManualChang
 }
 
 const exampleSipoc: DmaicSipoc = [
-  { suppliers: 'Área de TI\nCliente', inputs: 'Totem de senha\nSistema de gerenciamento de fila\nNecessidade do cliente', process: 'Retirar a senha de atendimento', outputs: 'Senha impressa', customers: 'Cliente' },
-  { suppliers: 'Área de Operação\nÁrea de TI\nCliente', inputs: 'Operador de atendimento\nGuichê de atendimento\nSistema de cadastro\nDocumentos', process: 'Cadastrar o cliente', outputs: 'Cadastro do cliente completo\nGuia de exames', customers: 'Área de Operação\nÁrea Comercial' },
-  { suppliers: 'Área de Operação\nPlano de Saúde\nCliente', inputs: 'Operador de atendimento\nSite do plano de saúde\nDados do cliente\nPedido médico', process: 'Verificar autorização dos exames', outputs: 'Exames autorizados', customers: 'Área de Operação\nÁrea Comercial\nFinanceiro' },
-  { suppliers: 'Área de Operação\nÁrea de TI', inputs: 'Operador de atendimento\nGuichê de atendimento\nSistema de cadastro', process: 'Imprimir guia para realização dos exames', outputs: 'Guia de exames impressa', customers: 'Ilha de exames\nCliente' },
-  { suppliers: 'Área de Operação', inputs: 'Informações sobre localização dos exames\nAssistente de atendimento', process: 'Encaminhar cliente para o exame', outputs: 'Cliente conduzido até o local do exame', customers: 'Ilha de exames' },
+  { suppliers: 'Área de TI\nCliente', inputs: 'Portal do cliente\nQtd. de produto\nEspecificações do produto', process: 'Implantar pedido', outputs: 'Pedido implantado no sistema Voiitto Tubes', customers: 'Área Comercial' },
+  { suppliers: 'Área Comercial\nÁrea de TI\nCliente', inputs: 'Pedido implantado\nMapa de entregas\nDisponibilidade do produto', process: 'Acordar prazo de entrega com cliente', outputs: 'Prazo acordado\nPedido liberado para a expedição', customers: 'Área de Expedição' },
+  { suppliers: 'Área de Operação\nPlano de Saúde\nCliente', inputs: 'Pedido liberado\nSeparador\nMaterial para embalagem', process: 'Separar e embalar produto', outputs: 'Produto separado e embalado\nNota Fiscal emitida\nEtiqueta de identificação impressa e colada no produto', customers: 'Logística / modal de transporte' },
+  { suppliers: 'Logística', inputs: 'Produto separado e embalado\nNota Fiscal\nDefinição do modal', process: 'Transportar produto até o cliente', outputs: 'Produto em transporte', customers: 'Modal / Transportadora' },
+  { suppliers: 'Modal / Transportadora', inputs: 'Produto transportado\nNota Fiscal', process: 'Entregar o produto', outputs: 'Produto armazenado no local da entrega', customers: 'Cliente' },
 ];
 
 const SIPOC_COLUMNS: { key: keyof DmaicSipocRow; label: string; hint: string; headerClass: string }[] = [
