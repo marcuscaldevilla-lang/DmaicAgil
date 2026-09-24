@@ -44,6 +44,11 @@ export interface DmaicAnalysisArtifacts {
   pipelineAnalysisContext?: DmaicPipelineAnalysisContext | null;
   pareto: DmaicParetoItem[];
   imr: number[];
+  /**
+     * Variáveis selecionadas pelo operador no Pareto para a ANOVA.
+     * @items.maxLength 255
+     */
+  paretoSelectedNames?: string[];
   pipeline: DmaicPipeline | null;
   /** Indicadores VOC/CTQ adicionados e revisados manualmente pela equipe. */
   manualVocCtq?: DmaicVocCqt[];

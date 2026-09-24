@@ -324,6 +324,8 @@ export const getDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextOn
 
 export const getDmaicWorkspaceResponseAnalysisArtifactsParetoItemValueMin = 0;
 
+export const getDmaicWorkspaceResponseAnalysisArtifactsParetoSelectedNamesItemMax = 255;
+
 export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemIdMax = 100;
 
 export const getDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemQuestionMin = 8;
@@ -625,6 +627,7 @@ export const GetDmaicWorkspaceResponse = zod.object({
   "value": zod.number().min(getDmaicWorkspaceResponseAnalysisArtifactsParetoItemValueMin)
 })),
   "imr": zod.array(zod.number()),
+  "paretoSelectedNames": zod.array(zod.string().max(getDmaicWorkspaceResponseAnalysisArtifactsParetoSelectedNamesItemMax)).optional().describe('Variáveis selecionadas pelo operador no Pareto para a ANOVA.'),
   "pipeline": zod.union([zod.object({
   "generatedCharter": zod.object({
   "objective": zod.string(),
@@ -989,6 +992,8 @@ export const saveDmaicWorkspaceBodyAnalysisArtifactsPipelineAnalysisContextOneDi
 
 export const saveDmaicWorkspaceBodyAnalysisArtifactsParetoItemValueMin = 0;
 
+export const saveDmaicWorkspaceBodyAnalysisArtifactsParetoSelectedNamesItemMax = 255;
+
 export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemIdMax = 100;
 
 export const saveDmaicWorkspaceBodyAnalysisArtifactsWhatIfAnalysesItemQuestionMin = 8;
@@ -1289,6 +1294,7 @@ export const SaveDmaicWorkspaceBody = zod.object({
   "value": zod.number().min(saveDmaicWorkspaceBodyAnalysisArtifactsParetoItemValueMin)
 })),
   "imr": zod.array(zod.number()),
+  "paretoSelectedNames": zod.array(zod.string().max(saveDmaicWorkspaceBodyAnalysisArtifactsParetoSelectedNamesItemMax)).optional().describe('Variáveis selecionadas pelo operador no Pareto para a ANOVA.'),
   "pipeline": zod.union([zod.object({
   "generatedCharter": zod.object({
   "objective": zod.string(),
@@ -1643,6 +1649,8 @@ export const saveDmaicWorkspaceResponseAnalysisArtifactsPipelineAnalysisContextO
 
 export const saveDmaicWorkspaceResponseAnalysisArtifactsParetoItemValueMin = 0;
 
+export const saveDmaicWorkspaceResponseAnalysisArtifactsParetoSelectedNamesItemMax = 255;
+
 export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemIdMax = 100;
 
 export const saveDmaicWorkspaceResponseAnalysisArtifactsWhatIfAnalysesItemQuestionMin = 8;
@@ -1944,6 +1952,7 @@ export const SaveDmaicWorkspaceResponse = zod.object({
   "value": zod.number().min(saveDmaicWorkspaceResponseAnalysisArtifactsParetoItemValueMin)
 })),
   "imr": zod.array(zod.number()),
+  "paretoSelectedNames": zod.array(zod.string().max(saveDmaicWorkspaceResponseAnalysisArtifactsParetoSelectedNamesItemMax)).optional().describe('Variáveis selecionadas pelo operador no Pareto para a ANOVA.'),
   "pipeline": zod.union([zod.object({
   "generatedCharter": zod.object({
   "objective": zod.string(),

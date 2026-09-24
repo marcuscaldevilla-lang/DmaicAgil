@@ -231,6 +231,7 @@ const createEmptyAnalysisArtifacts = (): DmaicAnalysisArtifacts => ({
   pipelineAnalysisContext: null,
   pareto: [],
   imr: [],
+  paretoSelectedNames: [],
   pipeline: null,
   manualVocCtq: [],
   whatIfAnalyses: [],
@@ -252,6 +253,7 @@ function parseAnalysisArtifacts(value: unknown): DmaicAnalysisArtifacts {
     measurementDataset: isObject(value.measurementDataset) ? value.measurementDataset as unknown as DmaicCsvDataset : null,
     analysisMonths: typeof value.analysisMonths === 'number' ? value.analysisMonths : empty.analysisMonths,
     selectedIndicator: typeof value.selectedIndicator === 'string' ? value.selectedIndicator : '',
+    paretoSelectedNames: Array.isArray((value as any).paretoSelectedNames) ? (value as any).paretoSelectedNames.filter((name: unknown): name is string => typeof name === 'string') : [],
     indicatorAnalysis: value.indicatorAnalysis ?? null,
     exploratorySummary: value.exploratorySummary ?? null,
     diagnosis: typeof value.diagnosis === 'string' ? value.diagnosis : null,
@@ -2576,7 +2578,7 @@ function Workspace() {
   const [pipelineAnalysisContext, setPipelineAnalysisContext] = useState<DmaicPipelineAnalysisContext | null>(() => initialLocalDraft?.analysisArtifacts.pipelineAnalysisContext ?? null);
   const [csvError, setCsvError] = useState<string | null>(null);
   const [measurementCsvError, setMeasurementCsvError] = useState<string | null>(null);
-  const [paretoSelectedNames, setParetoSelectedNames] = useState<string[]>([]);
+  const [paretoSelectedNames, setParetoSelectedNames] = useState<string[]>(() => (initialLocalDraft?.analysisArtifacts as any)?.paretoSelectedNames ?? []);
 
   const [causeAndEffectMatrix, setCauseAndEffectMatrix] = useState<any>(() => 
     (initialLocalDraft?.analysisArtifacts as any)?.causeAndEffectMatrix ?? null
@@ -2600,6 +2602,7 @@ function Workspace() {
   const draftWriteEnabledRef = useRef(Boolean(initialLocalDraft));
   const workspaceStateRef = useRef({ projectKey, statement, charter, confirmedCharter, aiCharterSuggestions });
   const createAnalysisArtifactsRef = useRef<() => DmaicAnalysisArtifacts>(() => createEmptyAnalysisArtifacts());
+  const persistedParetoSelectionRef = useRef<string>('');
   const displayArea = area === 'overview' ? 'overview' : area;
   const inputAnalysis = useMemo(() => inputDataset ? summarizeIndicator(inputDataset, selectedIndicator, analysisMonths) : null, [analysisMonths, inputDataset, selectedIndicator]);
   const measurementAnalysisBase = useMemo(() => measurementDataset ? analyzeMeasurementDataset(measurementDataset) : null, [measurementDataset]);
@@ -2731,6 +2734,7 @@ function Workspace() {
       pipelineAnalysisContext,
       pareto: inputDataset ? pareto ?? [] : [],
       imr: inputDataset ? imr ?? [] : [],
+      paretoSelectedNames,
       pipeline: pipelineData,
       manualVocCtq,
       whatIfAnalyses,
@@ -2749,6 +2753,14 @@ function Workspace() {
     } as any;
   };
   createAnalysisArtifactsRef.current = createAnalysisArtifacts;
+
+  useEffect(() => {
+    if (!workspaceHydrated || !measurementDataset || paretoSelectedNames.length < 2) return;
+    const selectionKey = paretoSelectedNames.join('|');
+    if (persistedParetoSelectionRef.current === selectionKey) return;
+    persistedParetoSelectionRef.current = selectionKey;
+    saveWorkspace('statement', undefined, { ...createAnalysisArtifactsRef.current(), paretoSelectedNames } as any);
+  }, [workspaceHydrated, measurementDataset, paretoSelectedNames]);
 
   const writeCurrentLocalDraft = (revision = workspaceRevisionRef.current) => {
     const current = workspaceStateRef.current;
@@ -2798,6 +2810,7 @@ function Workspace() {
     setIshikawaSaved(false);
     setAnalysisMonths(draft.analysisArtifacts.analysisMonths);
     setSelectedIndicator(draft.analysisArtifacts.selectedIndicator || draft.analysisArtifacts.dataset?.indicatorColumns[0] || '');
+    setParetoSelectedNames((draft.analysisArtifacts as any)?.paretoSelectedNames ?? []);
     setExploratoryDiagnosis(draft.analysisArtifacts.diagnosis);
     setExploratoryDiagnosisInput(draft.analysisArtifacts.diagnosisInput);
     setPipelineAnalysisContext(draft.analysisArtifacts.pipelineAnalysisContext ?? null);

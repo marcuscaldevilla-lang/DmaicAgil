@@ -794,6 +794,10 @@ components:
         imr:
           type: array
           items: { type: number }
+        paretoSelectedNames:
+          description: Variáveis selecionadas pelo operador no Pareto para a ANOVA.
+          type: array
+          items: { type: string, maxLength: 255 }
         pipeline:
           anyOf:
             - $ref: "#/components/schemas/DmaicPipeline"
