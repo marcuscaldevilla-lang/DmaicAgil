@@ -16,7 +16,7 @@ O **DMAIC Ágil Suite** é um workspace digital para organizar projetos de melho
 - ciclo DMAIC;
 - práticas de Scrum e ciclos curtos;
 - análise estruturada de causas;
-- geração assistida por IA;
+- geração assistida pela Suíte;
 - análises locais de Pareto e I-MR.
 
 A aplicação organiza o trabalho em quatro fases DMAIC:
@@ -63,7 +63,7 @@ Um bom enunciado contém quatro elementos:
 
 > O tempo entre a entrada da solicitação e a aprovação do crédito varia de 8 a 31 minutos nas agências, gerando retrabalho e baixa previsibilidade no fechamento mensal.
 
-### 2.3 Chave da IA
+### 2.3 Chave da Suíte
 
 O botão **Iniciar pipeline** utiliza a chave da Suíte configurada no ambiente seguro da aplicação. A chave não deve ser colada no campo do problema nem compartilhada com outros usuários.
 
@@ -180,7 +180,7 @@ O problem statement, Project Charter e os artefatos salvos são persistidos no R
 1. Verifique se o problema possui pelo menos 10 caracteres;
 2. clique em **Iniciar pipeline** no topo;
 3. aguarde a mensagem **Montando seu caminho DMAIC**;
-4. espere o retorno da IA;
+4. espere o retorno da Suíte;
 5. após a conclusão, a aplicação direcionará você para **Definição**.
 
 Durante a geração:
@@ -207,7 +207,7 @@ O pipeline gera uma estrutura completa com:
 
 ### Como interpretar o resultado da Suíte
 
-A IA, por meio da Suíte, propõe uma primeira estrutura a partir do enunciado informado. A saída deve ser tratada como:
+A Suíte propõe uma primeira estrutura a partir do enunciado informado. A saída deve ser tratada como:
 
 - ponto de partida para uma conversa;
 - hipótese de trabalho;
@@ -261,7 +261,7 @@ O formulário é dividido em cinco etapas recolhíveis:
 4. **Equipe:** membros, cargos, áreas e suporte técnico;
 5. **Valor financeiro:** contribuições quantitativas e qualitativas, ganho esperado e informações financeiras.
 
-Os estados dos artefatos distinguem autoria e aprovação: **Sugestão da IA**, **Editado pelo usuário**, **Validado**, **Aprovado** e **Desatualizado**. Uma sugestão gerada pela Suíte só se torna válida após revisão da equipe.
+Os estados dos artefatos distinguem autoria e aprovação: **Sugestão da Suíte**, **Editado pelo usuário**, **Validado**, **Aprovado** e **Desatualizado**. Uma sugestão gerada pela Suíte só se torna válida após revisão da equipe.
 
 ### 5.2 VOC → CTQ
 
@@ -820,7 +820,7 @@ Em telas menores:
 Verifique:
 
 1. se o problem statement possui pelo menos 10 caracteres;
-2. se a chave da IA está configurada;
+2. se a chave da Suíte está configurada;
 3. se a chave possui permissão para o modelo;
 4. se o serviço está disponível;
 5. se a mensagem de erro sugere tentar novamente.
@@ -831,7 +831,7 @@ Possíveis causas:
 
 - chave inválida;
 - limite ou cota da API;
-- serviço IA indisponível;
+- serviço da Suíte indisponível;
 - resposta incompleta;
 - problema temporário de rede.
 
@@ -847,7 +847,7 @@ Confira:
 - se há valores numéricos válidos no período;
 - se o navegador foi atualizado após uma alteração no servidor.
 
-Mensagens como **A integração com IA ainda não está configurada** indicam ausência da chave no servidor. Mensagens sobre formato inválido indicam resposta incompleta da Suíte ou instabilidade temporária; tente novamente após confirmar a conexão.
+Mensagens como **A integração com a Suíte ainda não está configurada** indicam ausência da chave no servidor. Mensagens sobre formato inválido indicam resposta incompleta da Suíte ou instabilidade temporária; tente novamente após confirmar a conexão.
 
 ### O botão Salvar no Repositório não mostra confirmação
 

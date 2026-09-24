@@ -147,9 +147,9 @@ O Charter é preenchido em cinco etapas recolhíveis: Contexto; Meta e escopo; C
 5. corrija o conteúdo com o time;
 6. salve as decisões relevantes.
 
-A chave Gemini deve permanecer configurada no servidor. Nunca a coloque no Charter, no CSV ou no código do navegador.
+A chave da Suíte deve permanecer configurada no servidor. Nunca a coloque no Charter, no CSV ou no código do navegador.
 
-As sugestões e artefatos exibem estados de confiança: **Sugestão da IA**, **Editado pelo usuário**, **Validado**, **Aprovado** e **Desatualizado**. Esses estados distinguem autoria, revisão e aprovação; uma sugestão da IA não é uma decisão executiva.
+As sugestões e artefatos exibem estados de confiança: **Sugestão da Suíte**, **Editado pelo usuário**, **Validado**, **Aprovado** e **Desatualizado**. Esses estados distinguem autoria, revisão e aprovação; uma sugestão da Suíte não é uma decisão executiva.
 
 ---
 
@@ -238,7 +238,7 @@ Quando aplicável:
 
 Sem algum componente, registre o dado ausente e não invente um valor.
 
-Use **Salvar no Repositório** para persistir arquivo, indicadores, estatísticas, avaliação e plano de sustentabilidade. O CSV de Medição, o diagnóstico de IA e os resultados de Controle são restaurados ao reabrir o projeto. Exporte o relatório em PDF somente depois que os gráficos e a avaliação estiverem disponíveis.
+Use **Salvar no Repositório** para persistir arquivo, indicadores, estatísticas, avaliação e plano de sustentabilidade. O CSV de Medição, o diagnóstico de Suíte e os resultados de Controle são restaurados ao reabrir o projeto. Exporte o relatório em PDF somente depois que os gráficos e a avaliação estiverem disponíveis.
 
 ---
 
@@ -286,7 +286,7 @@ Antes de apresentar o projeto à liderança, confirme:
 - processe CSVs localmente sempre que possível;
 - não inclua senhas, tokens ou dados pessoais desnecessários;
 - não versione arquivos `.env`;
-- mantenha a chave Gemini no ambiente do servidor;
+- mantenha a chave da Suíte no ambiente do servidor;
 - trate conteúdo gerado pela Suíte como hipótese ou rascunho;
 - valide decisões operacionais, financeiras, regulatórias e de segurança com os responsáveis.
 
@@ -296,7 +296,7 @@ Antes de apresentar o projeto à liderança, confirme:
 
 | Sintoma | Verificação |
 |---|---|
-| Pipeline não inicia | Problem statement, chave Gemini, permissão do modelo e serviço. |
+| Pipeline não inicia | Problem statement, chave da Suíte, permissão do modelo e serviço. |
 | CSV não é aceito | Extensão, cabeçalho, separador e valores válidos. |
 | I-MR não aparece | Pelo menos duas observações numéricas em ordem. |
 | Avaliação da Suíte ausente | Servidor, chave, variável selecionada e valores válidos. |

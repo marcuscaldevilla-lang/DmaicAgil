@@ -19,7 +19,7 @@ type Props = {
 type ArtifactStatus = 'ai' | 'edited' | 'validated' | 'approved' | 'stale';
 
 function ArtifactBadge({ status }: { status: ArtifactStatus }) {
-  const labels: Record<ArtifactStatus, string> = { ai: 'Sugestão da IA', edited: 'Editado pelo usuário', validated: 'Validado', approved: 'Aprovado', stale: 'Desatualizado' };
+  const labels: Record<ArtifactStatus, string> = { ai: 'Sugestão da Suíte', edited: 'Editado pelo usuário', validated: 'Validado', approved: 'Aprovado', stale: 'Desatualizado' };
   const colors: Record<ArtifactStatus, string> = { ai: 'bg-slate-100 text-slate-600', edited: 'bg-amber-100 text-amber-900', validated: 'bg-emerald-100 text-emerald-800', approved: 'bg-emerald-100 text-emerald-800', stale: 'bg-red-100 text-red-800' };
   return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.1em] ${colors[status]}`}><span className="h-1.5 w-1.5 rounded-full bg-current" />{labels[status]}</span>;
 }
@@ -39,7 +39,7 @@ export function IshikawaDiagramEditor({ sourceText, value, dirty, saved, generat
           {generating ? 'Gerando diagrama...' : 'Gerar Diagrama de Causa e Efeito'}
         </button>
       </div>
-      <div className="mt-2 flex justify-between text-[10px] text-muted-foreground"><span>O texto é salvo com o projeto e enviado ao Gemini somente ao gerar.</span><span>{sourceText.length}/12000</span></div>
+      <div className="mt-2 flex justify-between text-[10px] text-muted-foreground"><span>O texto é salvo com o projeto e enviado à Suíte somente ao gerar.</span><span>{sourceText.length}/12000</span></div>
       {error && <p data-testid="status-ishikawa-error" className="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs text-destructive">{error}</p>}
     </section>
 

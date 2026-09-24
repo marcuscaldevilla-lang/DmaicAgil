@@ -78,7 +78,7 @@ Responda SOMENTE com JSON válido, sem markdown, seguindo exatamente esta estrut
   "controlPlan":[{"parameter":"","specification":"","measurementFreq":"","responsible":"","reactionPlan":""}],
   "standardizationSop":[{"procedureName":"","pokaYokeFeature":"","ocapTrigger":""}]
 }
-Use 1 ou 2 itens concisos por lista. Todos os valores de texto devem ser strings e pesos/scores numéricos devem ser inteiros. Para "sipoc", gere de 4 a 6 linhas, uma por macroetapa do processo em ordem; em cada linha, "process" é o nome da etapa e "suppliers"/"inputs"/"outputs"/"customers" trazem os itens daquela etapa específica (não do processo inteiro), cada campo podendo ter uma ou mais linhas separadas por quebra de linha quando houver mais de um item. Em "generatedCharter", preencha todos os doze campos com sugestões diretamente derivadas do problema informado e do contexto do Charter. Reescreva "goalDefinition" como uma meta SMART coerente com objetivo, KPIs, baseline, escopo, contribuições quantitativas e informações financeiras coletadas; não repita automaticamente uma meta antiga se os dados coletados apontarem outra. Quando houver resumo estatístico, use a mediana/média, a dispersão, quartis, IQR, normalidade e categorias como evidências explícitas para o baseline, a meta proposta e as contribuições. Diferencie o que foi observado nos dados do que é uma recomendação: estatísticas não confirmam uma meta, uma causa ou um ganho. Não invente causalidade, tendência, distribuição ou números ausentes; se não houver análise, declare que a linha de base estatística ainda precisa ser medida. Quando as informações financeiras trouxerem uma meta ideal e um prazo, aplique primeiro o teste estatístico de viabilidade abaixo: confronte a meta ideal com a média, a mediana, o desvio-padrão, os quartis/IQR e a amplitude observados no resumo estatístico. Se a meta ideal passar nesse teste (estiver dentro ou próxima da variação histórica), ela define a meta principal do projeto: escreva explicitamente a evolução do baseline até a meta ideal no prazo informado, em vez de manter a meta antiga como objetivo principal e citar a meta ideal apenas como visão futura. Se a meta ideal NÃO passar nesse teste — por exemplo, estiver fora do intervalo mínimo-máximo observado, exigir uma mudança muito maior do que a dispersão sustenta, ou distar da média por muitos desvios-padrão — declare explicitamente em "goalDefinition" e em "indicatorsY.targetGoal" que a meta desejada pode não ser estatisticamente alcançável apenas com o processo atual nas condições observadas, cite os valores numéricos (média, mediana, desvio-padrão ou amplitude) que sustentam essa avaliação, e proponha uma meta intermediária realista compatível com a evidência como meta principal do prazo informado; não descarte a meta ideal da empresa, apresente-a como visão de longo prazo condicionada a uma mudança estrutural no processo, a ser validada pela equipe. Essa verificação de viabilidade estatística tem prioridade sobre a regra anterior: nunca escreva a evolução do baseline direto até uma meta ideal que falhe no teste, mesmo que as informações financeiras a apresentem como definida pela empresa. Sem resumo estatístico, não afirme nem negue viabilidade estatística: diga apenas que a viabilidade ainda precisa ser avaliada com dados. Para "financialGainValue", calcule uma estimativa somente a partir dos números, moeda, período, volume, custo unitário, percentual e premissas explicitamente presentes em "businessContributionsQuantitative" e "financialInformation". Mostre a fórmula ou a lógica usada e deixe claro o período, a moeda e as premissas. Quando uma fórmula informar um ganho por ponto percentual acima de um limiar e o contexto informar uma meta acima desse limiar, calcule os pontos elegíveis como (meta - limiar), multiplique pelo ganho por ponto e pelo volume informado, e prorrogue proporcionalmente ao período informado; não descarte a conta apenas porque o baseline está abaixo do limiar. Por exemplo, uma fórmula de ganho acima de 75%, com meta de 90%, volume anual de 192.000 clientes e prazo de 6 meses, usa 15 pontos percentuais, 192 lotes de 1.000 clientes e metade do valor anual. Se a meta usada nessa conta for a mesma meta desejada/ideal que você classificou em "goalDefinition"/"indicatorsY.targetGoal" como estatisticamente além da variação histórica, calcule o valor principal de "financialGainValue" usando a meta intermediária realista (não a meta ideal ainda não sustentada pelos dados), deixe explícito que o valor usa a meta intermediária, e informe à parte — sem somar ao valor principal — que atingir a meta ideal completa representaria um ganho adicional apenas potencial, condicionado à mudança estrutural do processo e a validar com a equipe; nunca apresente o ganho da meta ideal ainda não sustentada como o valor calculado principal. Se os campos realmente não trouxerem dados suficientes para uma conta defensável, diga que não foi possível calcular e liste o dado faltante. Nunca invente valor, custo, volume, receita, economia, ROI ou payback, nem apresente estimativa como valor confirmado. O campo de informações financeiras coletadas é factual e pertence ao time, não à IA. As contribuições quantitativas, qualitativas e o ganho financeiro devem permanecer como propostas para validação; valores calculados devem ser validados com Financeiro. Seja específico ao problema e realista, sem afirmar como medidos dados que não foram informados. Quando houver contexto de Project Charter fornecido pela equipe, trate-o como fonte prioritária e reaproveite seus termos, metas, responsáveis, limites e informações financeiras coletadas. Para "vocCtq", gere 2 a 5 linhas específicas ao problema usando o Project Charter e o diagnóstico detalhado quando disponíveis. Cada linha deve separar: "clientType" como "internal" (cliente interno / Voz do Negócio) ou "external" (cliente externo / Voz do Consumidor); "client"; "sourceType" como "reactive" (reclamações, suporte, devoluções, relatórios ou registros existentes) ou "active" (pesquisa, entrevista, grupo focal ou observação planejada); "source"; "vocNeed" em linguagem da necessidade; "directioner" como requisito orientador; "ctq" como Critical to Quality; "ctp" como Critical to Process; e "measure" como medida operacional ou critério de aceitação. Use "issue" para resumir a dor observada e "ctqMetric" como cópia concisa da medida principal. Não invente falas de clientes, fontes coletadas, metas ou evidências: quando algo for inferido a partir do Charter ou diagnóstico, indique que é hipótese para validação da equipe.
+Use 1 ou 2 itens concisos por lista. Todos os valores de texto devem ser strings e pesos/scores numéricos devem ser inteiros. Para "sipoc", gere de 4 a 6 linhas, uma por macroetapa do processo em ordem; em cada linha, "process" é o nome da etapa e "suppliers"/"inputs"/"outputs"/"customers" trazem os itens daquela etapa específica (não do processo inteiro), cada campo podendo ter uma ou mais linhas separadas por quebra de linha quando houver mais de um item. Em "generatedCharter", preencha todos os doze campos com sugestões diretamente derivadas do problema informado e do contexto do Charter. Reescreva "goalDefinition" como uma meta SMART coerente com objetivo, KPIs, baseline, escopo, contribuições quantitativas e informações financeiras coletadas; não repita automaticamente uma meta antiga se os dados coletados apontarem outra. Quando houver resumo estatístico, use a mediana/média, a dispersão, quartis, IQR, normalidade e categorias como evidências explícitas para o baseline, a meta proposta e as contribuições. Diferencie o que foi observado nos dados do que é uma recomendação: estatísticas não confirmam uma meta, uma causa ou um ganho. Não invente causalidade, tendência, distribuição ou números ausentes; se não houver análise, declare que a linha de base estatística ainda precisa ser medida. Quando as informações financeiras trouxerem uma meta ideal e um prazo, aplique primeiro o teste estatístico de viabilidade abaixo: confronte a meta ideal com a média, a mediana, o desvio-padrão, os quartis/IQR e a amplitude observados no resumo estatístico. Se a meta ideal passar nesse teste (estiver dentro ou próxima da variação histórica), ela define a meta principal do projeto: escreva explicitamente a evolução do baseline até a meta ideal no prazo informado, em vez de manter a meta antiga como objetivo principal e citar a meta ideal apenas como visão futura. Se a meta ideal NÃO passar nesse teste — por exemplo, estiver fora do intervalo mínimo-máximo observado, exigir uma mudança muito maior do que a dispersão sustenta, ou distar da média por muitos desvios-padrão — declare explicitamente em "goalDefinition" e em "indicatorsY.targetGoal" que a meta desejada pode não ser estatisticamente alcançável apenas com o processo atual nas condições observadas, cite os valores numéricos (média, mediana, desvio-padrão ou amplitude) que sustentam essa avaliação, e proponha uma meta intermediária realista compatível com a evidência como meta principal do prazo informado; não descarte a meta ideal da empresa, apresente-a como visão de longo prazo condicionada a uma mudança estrutural no processo, a ser validada pela equipe. Essa verificação de viabilidade estatística tem prioridade sobre a regra anterior: nunca escreva a evolução do baseline direto até uma meta ideal que falhe no teste, mesmo que as informações financeiras a apresentem como definida pela empresa. Sem resumo estatístico, não afirme nem negue viabilidade estatística: diga apenas que a viabilidade ainda precisa ser avaliada com dados. Para "financialGainValue", calcule uma estimativa somente a partir dos números, moeda, período, volume, custo unitário, percentual e premissas explicitamente presentes em "businessContributionsQuantitative" e "financialInformation". Mostre a fórmula ou a lógica usada e deixe claro o período, a moeda e as premissas. Quando uma fórmula informar um ganho por ponto percentual acima de um limiar e o contexto informar uma meta acima desse limiar, calcule os pontos elegíveis como (meta - limiar), multiplique pelo ganho por ponto e pelo volume informado, e prorrogue proporcionalmente ao período informado; não descarte a conta apenas porque o baseline está abaixo do limiar. Por exemplo, uma fórmula de ganho acima de 75%, com meta de 90%, volume anual de 192.000 clientes e prazo de 6 meses, usa 15 pontos percentuais, 192 lotes de 1.000 clientes e metade do valor anual. Se a meta usada nessa conta for a mesma meta desejada/ideal que você classificou em "goalDefinition"/"indicatorsY.targetGoal" como estatisticamente além da variação histórica, calcule o valor principal de "financialGainValue" usando a meta intermediária realista (não a meta ideal ainda não sustentada pelos dados), deixe explícito que o valor usa a meta intermediária, e informe à parte — sem somar ao valor principal — que atingir a meta ideal completa representaria um ganho adicional apenas potencial, condicionado à mudança estrutural do processo e a validar com a equipe; nunca apresente o ganho da meta ideal ainda não sustentada como o valor calculado principal. Se os campos realmente não trouxerem dados suficientes para uma conta defensável, diga que não foi possível calcular e liste o dado faltante. Nunca invente valor, custo, volume, receita, economia, ROI ou payback, nem apresente estimativa como valor confirmado. O campo de informações financeiras coletadas é factual e pertence ao time, não à Suíte. As contribuições quantitativas, qualitativas e o ganho financeiro devem permanecer como propostas para validação; valores calculados devem ser validados com Financeiro. Seja específico ao problema e realista, sem afirmar como medidos dados que não foram informados. Quando houver contexto de Project Charter fornecido pela equipe, trate-o como fonte prioritária e reaproveite seus termos, metas, responsáveis, limites e informações financeiras coletadas. Para "vocCtq", gere 2 a 5 linhas específicas ao problema usando o Project Charter e o diagnóstico detalhado quando disponíveis. Cada linha deve separar: "clientType" como "internal" (cliente interno / Voz do Negócio) ou "external" (cliente externo / Voz do Consumidor); "client"; "sourceType" como "reactive" (reclamações, suporte, devoluções, relatórios ou registros existentes) ou "active" (pesquisa, entrevista, grupo focal ou observação planejada); "source"; "vocNeed" em linguagem da necessidade; "directioner" como requisito orientador; "ctq" como Critical to Quality; "ctp" como Critical to Process; e "measure" como medida operacional ou critério de aceitação. Use "issue" para resumir a dor observada e "ctqMetric" como cópia concisa da medida principal. Não invente falas de clientes, fontes coletadas, metas ou evidências: quando algo for inferido a partir do Charter ou diagnóstico, indique que é hipótese para validação da equipe.
 Para as matrizes da Sprint 3:
 1. Em "causeAndEffectMatrix": determine de 2 a 4 saídas críticas (Y) baseadas no Charter com pesos inteiros de 5 a 10. Preencha as linhas com as principais causas (X) identificadas no 6M/Ishikawa. Para cada correlação entre causa e saída em "scores", atribua estritamente um destes valores numéricos: 0 (correlação ausente), 1 (fraca), 3 (moderada) ou 5 (forte). Em "totalScore", calcule a soma de (nota * peso da saída) para aquela linha.
 2. Em "effortImpactMatrix": liste as mesmas causas, classificando "impact" em "Alto" ou "Baixo" (derivado do totalScore da matriz anterior) e "effort" em "Alto" ou "Baixo" (estimativa de complexidade/recurso). Defina o "quadrant" correspondente: Alto Impacto x Baixo Esforço = "Maior Interesse"; Alto Impacto x Alto Esforço = "Prioritário com Análise"; Baixo Impacto x Alto Esforço = "Descartar"; Baixo Impacto x Baixo Esforço = "Ganhos Rápidos".
@@ -281,7 +281,7 @@ async function requestGemini(apiKey: string, body: unknown): Promise<Response> {
     }
     await wait(800);
   }
-  throw lastError instanceof Error ? lastError : new Error("Gemini request could not be completed.");
+  throw lastError instanceof Error ? lastError : new Error("Suíte request could not be completed.");
 }
 
 function parseModelJson(value: string): unknown {
@@ -358,7 +358,7 @@ function normalizeCharterContext(context: unknown) {
   };
 }
 
-const FINANCIAL_ESTIMATE_PREFIX = "Estimativa calculada pela IA com base nas informações fornecidas";
+const FINANCIAL_ESTIMATE_PREFIX = "Estimativa calculada pela Suíte com base nas informações fornecidas";
 const FINANCIAL_VALIDATION_NOTICE = "Validação obrigatória com Financeiro antes de tratar o valor como confirmado.";
 
 function normalizeGeneratedCharterSuggestions(
@@ -392,7 +392,7 @@ export function createFinancialGainSuggestion(
   }
   const suggestion = modelSuggestion?.trim();
   if (!suggestion || suggestion === "Valor a validar com Financeiro. Não há informações financeiras coletadas suficientes para propor um ganho.") {
-    return "A IA não retornou um cálculo defensável a partir dos dados fornecidos. Valide com Financeiro a fonte, período, moeda, volume, custo unitário, premissas e fórmula.";
+    return "A Suíte não retornou um cálculo defensável a partir dos dados fornecidos. Valide com Financeiro a fonte, período, moeda, volume, custo unitário, premissas e fórmula.";
   }
   const withoutRepeatedNotice = suggestion
     .replace(/\s*Validação obrigatória com(?: o setor)? Financeiro(?: antes de tratar o valor como confirmado)?\./gi, "")
@@ -403,12 +403,12 @@ export function createFinancialGainSuggestion(
 
 function createBusinessContributionSuggestion(kind: "summary" | "quantitative" | "qualitative"): string {
   if (kind === "quantitative") {
-    return "Proposta da IA para validação: descreva impactos mensuráveis ligados à VOC, à meta e ao escopo. Registre qualquer impacto financeiro somente depois da validação com Financeiro.";
+    return "Proposta da Suíte para validação: descreva impactos mensuráveis ligados à VOC, à meta e ao escopo. Registre qualquer impacto financeiro somente depois da validação com Financeiro.";
   }
   if (kind === "qualitative") {
-    return "Proposta da IA para validação: descreva ganhos não financeiros para cliente, operação, qualidade ou risco, sempre ligados à VOC e ao escopo.";
+    return "Proposta da Suíte para validação: descreva ganhos não financeiros para cliente, operação, qualidade ou risco, sempre ligados à VOC e ao escopo.";
   }
-  return "Proposta da IA para validação: relacione o benefício do projeto à VOC, à meta e ao escopo. Valores financeiros devem ser confirmados pelo time responsável.";
+  return "Proposta da Suíte para validação: relacione o benefício do projeto à VOC, à meta e ao escopo. Valores financeiros devem ser confirmados pelo time responsável.";
 }
 
 function normalizeBusinessContributionSuggestion(
@@ -418,7 +418,7 @@ function normalizeBusinessContributionSuggestion(
   const suggestion = typeof value === "string" ? value.trim() : "";
   if (!suggestion) return createBusinessContributionSuggestion(kind);
   if (/valida(?:r|ção)|proposta da ia/i.test(suggestion)) return suggestion;
-  return `${suggestion} Proposta da IA para validação com o time.`;
+  return `${suggestion} Proposta da Suíte para validação com o time.`;
 }
 
 function textValue(value: unknown, fallback: string): string {
@@ -783,7 +783,7 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
       req.log.error("GOOGLE_API_KEY is not configured");
-      res.status(503).json({ error: "A integração Gemini ainda não está configurada." });
+      res.status(503).json({ error: "A integração com a Suíte ainda não está configurada." });
       return;
     }
 
@@ -809,7 +809,7 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
         const details = await response.text();
         req.log.error(
           { status: response.status, details: details.slice(0, 500) },
-          "Gemini exploratory diagnosis request failed",
+          "Suíte exploratory diagnosis request failed",
         );
         res.status(502).json({ error: "Não foi possível gerar o diagnóstico agora. Tente novamente." });
         return;
@@ -823,14 +823,14 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
         .join("")
         .trim() ?? "");
       if (!diagnosis) {
-        req.log.error("Gemini returned no exploratory diagnosis");
+        req.log.error("Suíte returned no exploratory diagnosis");
         res.status(502).json({ error: "O diagnóstico retornou uma resposta vazia. Tente novamente." });
         return;
       }
 
       const parsed = RunDmaicExploratoryDiagnosisResponse.safeParse({ diagnosis });
       if (!parsed.success) {
-        req.log.error({ errors: parsed.error.flatten() }, "Gemini returned an invalid exploratory diagnosis");
+        req.log.error({ errors: parsed.error.flatten() }, "Suíte returned an invalid exploratory diagnosis");
         res.status(502).json({ error: "O diagnóstico ficou incompleto. Tente novamente." });
         return;
       }
@@ -878,7 +878,7 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
       req.log.error("GOOGLE_API_KEY is not configured");
-      res.status(503).json({ error: "A integração Gemini ainda não está configurada." });
+      res.status(503).json({ error: "A integração com a Suíte ainda não está configurada." });
       return;
     }
 
@@ -904,7 +904,7 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
         const details = await response.text();
         req.log.error(
           { status: response.status, details: details.slice(0, 500) },
-          "Gemini Measurement what-if request failed",
+          "Suíte Measurement what-if request failed",
         );
         res.status(502).json({ error: "Não foi possível realizar a análise What If agora. Tente novamente." });
         return;
@@ -918,14 +918,14 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
         .join("")
         .trim() ?? "");
       if (!answer) {
-        req.log.error("Gemini returned no Measurement what-if answer");
+        req.log.error("Suíte returned no Measurement what-if answer");
         res.status(502).json({ error: "A análise retornou uma resposta vazia. Tente novamente." });
         return;
       }
 
       const parsed = RunDmaicMeasurementWhatIfResponse.safeParse({ answer });
       if (!parsed.success) {
-        req.log.error({ errors: parsed.error.flatten() }, "Gemini returned an invalid Measurement what-if answer");
+        req.log.error({ errors: parsed.error.flatten() }, "Suíte returned an invalid Measurement what-if answer");
         res.status(502).json({ error: "A resposta da análise ficou incompleta. Tente novamente." });
         return;
       }
@@ -956,7 +956,7 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
       req.log.error("GOOGLE_API_KEY is not configured");
-      res.status(503).json({ error: "A integração Gemini ainda não está configurada." });
+      res.status(503).json({ error: "A integração com a Suíte ainda não está configurada." });
       return;
     }
 
@@ -977,7 +977,7 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
 
       if (!response.ok) {
         const details = await response.text();
-        req.log.error({ status: response.status, details: details.slice(0, 500) }, "Gemini Ishikawa request failed");
+        req.log.error({ status: response.status, details: details.slice(0, 500) }, "Suíte Ishikawa request failed");
         res.status(502).json({ error: "Não foi possível gerar o Diagrama de Causa e Efeito agora. Tente novamente." });
         return;
       }
@@ -987,14 +987,14 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
       };
       const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim() ?? "";
       if (!text) {
-        req.log.error("Gemini returned no Ishikawa content");
+        req.log.error("Suíte returned no Ishikawa content");
         res.status(502).json({ error: "A geração retornou uma resposta vazia. Tente novamente." });
         return;
       }
 
       const parsed = RunDmaicIshikawaResponse.safeParse({ ishikawa: normalizeIshikawa(parseModelJson(text)) });
       if (!parsed.success) {
-        req.log.error({ errors: parsed.error.flatten() }, "Gemini returned an invalid Ishikawa structure");
+        req.log.error({ errors: parsed.error.flatten() }, "Suíte returned an invalid Ishikawa structure");
         res.status(502).json({ error: "A matriz gerada ficou incompleta. Tente novamente." });
         return;
       }
@@ -1018,7 +1018,7 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
       req.log.error("GOOGLE_API_KEY is not configured");
-      res.status(503).json({ error: "A integração Gemini ainda não está configurada." });
+      res.status(503).json({ error: "A integração com a Suíte ainda não está configurada." });
       return;
     }
 
@@ -1065,7 +1065,7 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
       });
       if (!response.ok) {
         const details = await response.text();
-        req.log.error({ status: response.status, details: details.slice(0, 500) }, "Gemini control evaluation request failed");
+        req.log.error({ status: response.status, details: details.slice(0, 500) }, "Suíte control evaluation request failed");
         res.status(502).json({ error: "Não foi possível avaliar a Fase de Controle agora. Tente novamente." });
         return;
       }
@@ -1079,13 +1079,13 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
       try {
         modelJson = parseModelJson(text);
       } catch (error) {
-        req.log.error({ error: error instanceof Error ? { name: error.name, message: error.message } : error, responsePreview: text.slice(0, 1200) }, "Gemini returned malformed control evaluation JSON");
-        res.status(502).json({ error: "A IA retornou uma avaliação em formato inválido. Tente novamente." });
+        req.log.error({ error: error instanceof Error ? { name: error.name, message: error.message } : error, responsePreview: text.slice(0, 1200) }, "Suíte returned malformed control evaluation JSON");
+        res.status(502).json({ error: "A Suíte retornou uma avaliação em formato inválido. Tente novamente." });
         return;
       }
       const parsed = RunDmaicControlEvaluationResponse.safeParse(modelJson);
       if (!parsed.success) {
-        req.log.error({ errors: parsed.error.flatten(), responsePreview: text.slice(0, 1200) }, "Gemini returned an invalid control evaluation");
+        req.log.error({ errors: parsed.error.flatten(), responsePreview: text.slice(0, 1200) }, "Suíte returned an invalid control evaluation");
         res.status(502).json({ error: "A avaliação da Fase de Controle ficou incompleta. Tente novamente." });
         return;
       }
@@ -1114,7 +1114,7 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
       req.log.error("GOOGLE_API_KEY is not configured");
-      res.status(503).json({ error: "A integração Gemini ainda não está configurada." });
+      res.status(503).json({ error: "A integração com a Suíte ainda não está configurada." });
       return;
     }
 
@@ -1154,7 +1154,7 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
         const details = await response.text();
         req.log.error(
           { status: response.status, details: details.slice(0, 500) },
-          "Gemini pipeline request failed",
+          "Suíte pipeline request failed",
         );
         res.status(502).json({ error: "Não foi possível gerar o pipeline agora. Tente novamente." });
         return;
@@ -1166,7 +1166,7 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
       const text = payload.candidates?.[0]?.content?.parts?.[0]?.text;
 
       if (!text) {
-        req.log.error("Gemini returned no pipeline content");
+        req.log.error("Suíte returned no pipeline content");
         res.status(502).json({ error: "A geração retornou uma resposta vazia. Tente novamente." });
         return;
       }
@@ -1175,17 +1175,17 @@ export function createDmaicRouter(workspaceRepository: DmaicWorkspaceRepository)
       if (!pipeline.success) {
         req.log.error(
           { errors: pipeline.error.flatten() },
-          "Gemini returned an invalid DMAIC pipeline structure",
+          "Suíte returned an invalid DMAIC pipeline structure",
         );
         const details = pipeline.error.issues
           .slice(0, 8)
           .map((issue) => `${issue.path.join(".") || "resposta"}: ${issue.message}`)
           .join("; ");
-        res.status(502).json({ error: `A resposta da IA não seguiu o formato esperado. ${details}` });
+        res.status(502).json({ error: `A resposta da Suíte não seguiu o formato esperado. ${details}` });
         return;
       }
       if (pipeline.data.vocCtq.length < 2 || pipeline.data.vocCtq.length > 5) {
-        req.log.error({ count: pipeline.data.vocCtq.length }, "Gemini returned an invalid number of VOC/CTQ rows");
+        req.log.error({ count: pipeline.data.vocCtq.length }, "Suíte returned an invalid number of VOC/CTQ rows");
         res.status(502).json({ error: "O mapa VOC/CTQ retornou uma quantidade inválida de linhas. Tente novamente." });
         return;
       }
