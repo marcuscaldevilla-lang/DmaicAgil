@@ -1286,6 +1286,7 @@ function SprintView({
   setSolutionPrioritizationMatrix,
   onSaveMatrices,
   onExportMeasurementPdf,
+  measurementAnalysis,
 }: {
   area: 'definition' | 'measurement' | 'aic' | 'control';
   onOpenTool: (tool: Tool) => void;
@@ -1326,6 +1327,7 @@ function SprintView({
   setSolutionPrioritizationMatrix: (val: any) => void;
   onSaveMatrices: (causeData?: any, solData?: any) => void;
   onExportMeasurementPdf: () => void;
+  measurementAnalysis: MeasurementAnalysis | null;
 }) {
   const meta = areaMeta[area];
   const realVitalXs = (pipeline?.vitalXs ?? []).filter((row) => Object.values(row).some((value) => String(value ?? '').trim()));
@@ -1340,6 +1342,11 @@ function SprintView({
     : vitalXs;
   const isExampleVitalX = realVitalXs.length === 0;
   const selectedVital = vitalXOptions.find((vital) => vital.id === vitalId) ?? vitalXOptions[0];
+  const matchedMeasurementVariable = isExampleVitalX ? null : measurementAnalysis?.variables.find((variable) => {
+    const left = variable.name.trim().toLowerCase();
+    const right = selectedVital.label.trim().toLowerCase();
+    return left && right && (left === right || left.includes(right) || right.includes(left));
+  }) ?? null;
   useEffect(() => {
     if (area === 'measurement' && !vitalXOptions.some((vital) => vital.id === vitalId)) onChangeVital(vitalXOptions[0].id);
   }, [area, vitalXOptions, vitalId, onChangeVital]);
@@ -1401,7 +1408,7 @@ function SprintView({
               <p className="mt-1 text-[11px] font-bold text-primary">{isExampleVitalX ? `${selectedVital.delta} vs. baseline` : selectedVital.delta}</p>
             </div>
           </div>
-          {isExampleVitalX && <>
+          {isExampleVitalX ? <>
             <div className="mt-5 grid h-14 grid-cols-12 items-end gap-1.5 border-b border-border pb-0 sm:grid-cols-24">
               {[30, 36, 34, 42, 38, 45, 40, 49, 46, 54, 51, 48, 58, 53, 56, 62, 59, 64, 57, 68, 61, 65, 72, 66].map((height, index) => (
                 <div key={index} className="rounded-t-sm bg-chart-3/60 transition-all hover:bg-chart-3" style={{ height: `${height}%` }} />
@@ -1411,7 +1418,19 @@ function SprintView({
               <span>01 mai</span>
               <span>30 mai</span>
             </div>
-          </>}
+          </> : matchedMeasurementVariable ? <>
+            <div className="mt-5 grid h-14 items-end gap-1.5 border-b border-border pb-0" style={{ gridTemplateColumns: `repeat(${matchedMeasurementVariable.values.length}, minmax(0, 1fr))` }}>
+              {matchedMeasurementVariable.values.map((value, index) => {
+                const span = matchedMeasurementVariable.maximum - matchedMeasurementVariable.minimum || 1;
+                const height = Math.max(4, ((value - matchedMeasurementVariable.minimum) / span) * 100);
+                return <div key={index} className="rounded-t-sm bg-chart-3/60 transition-all hover:bg-chart-3" style={{ height: `${height}%` }} />;
+              })}
+            </div>
+            <div className="mt-2 flex justify-between mono-label text-muted-foreground">
+              <span>{measurementAnalysis?.xValues[0] ?? '—'}</span>
+              <span>{measurementAnalysis?.xValues.at(-1) ?? '—'}</span>
+            </div>
+          </> : <p className="mt-4 rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">Carregue o CSV de Medição com uma variável correspondente a "{selectedVital.label}" para ver a série aqui.</p>}
         </div>
       )}
 
@@ -3976,6 +3995,7 @@ function Workspace() {
                 setSolutionPrioritizationMatrix={setSolutionPrioritizationMatrix}
                 onSaveMatrices={saveMatrices}
                 onExportMeasurementPdf={() => exportMeasurementPdf(measurementDataset, measurementAnalysis, processMap, whatIfAnalyses, activeProjectName)}
+                measurementAnalysis={measurementAnalysis}
               />
             )}
 
