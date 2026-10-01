@@ -1328,7 +1328,21 @@ function SprintView({
   onExportMeasurementPdf: () => void;
 }) {
   const meta = areaMeta[area];
-  const selectedVital = vitalXs.find((vital) => vital.id === vitalId) ?? vitalXs[0];
+  const realVitalXs = (pipeline?.vitalXs ?? []).filter((row) => Object.values(row).some((value) => String(value ?? '').trim()));
+  const vitalXOptions = realVitalXs.length > 0
+    ? realVitalXs.map((row, index) => ({
+        id: row.id?.trim() || `vital-${index}`,
+        label: row.description?.trim() || `X vital ${index + 1}`,
+        value: row.specificGoalReduction?.trim() || '—',
+        delta: row.assignedSprint?.trim() || 'Sprint não atribuída',
+        note: row.description?.trim() || 'Sem descrição registrada.',
+      }))
+    : vitalXs;
+  const isExampleVitalX = realVitalXs.length === 0;
+  const selectedVital = vitalXOptions.find((vital) => vital.id === vitalId) ?? vitalXOptions[0];
+  useEffect(() => {
+    if (area === 'measurement' && !vitalXOptions.some((vital) => vital.id === vitalId)) onChangeVital(vitalXOptions[0].id);
+  }, [area, vitalXOptions, vitalId, onChangeVital]);
   const hypotheses = ishikawa
     ? Object.entries(ishikawa).flatMap(([category, causes]) =>
         (Array.isArray(causes) ? causes : [])
@@ -1361,14 +1375,14 @@ function SprintView({
           <div className="flex items-center gap-3">
             <IconBadge icon={Gauge} tone="chart-3" />
             <div>
-              <p className="text-sm font-bold">Indicador Y em foco</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">Tempo total até aprovação · <span className="font-bold text-foreground">12,8 min</span> mediana</p>
+              <p className="text-sm font-bold">{pipeline?.indicatorsY?.primaryMetricY?.trim() || 'Indicador Y em foco'}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{pipeline?.indicatorsY?.operationalDefinition?.trim() || 'Indicador Y ainda não definido no pipeline.'}{pipeline?.indicatorsY?.baseline?.trim() && <> · <span className="font-bold text-foreground">{pipeline.indicatorsY.baseline}</span> baseline</>}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <label htmlFor="vital-select" className="mono-label text-muted-foreground">Vital X</label>
-            <select id="vital-select" data-testid="select-vital-x" value={vitalId} onChange={(event) => onChangeVital(event.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold outline-none focus:border-primary/50">
-              {vitalXs.map((vital) => <option key={vital.id} value={vital.id}>{vital.label}</option>)}
+            <select id="vital-select" data-testid="select-vital-x" value={selectedVital.id} onChange={(event) => onChangeVital(event.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold outline-none focus:border-primary/50">
+              {vitalXOptions.map((vital) => <option key={vital.id} value={vital.id}>{vital.label}</option>)}
             </select>
           </div>
         </div>
@@ -1378,24 +1392,26 @@ function SprintView({
         <div className="reveal-3 panel rounded-xl p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="mono-label text-chart-3">Vital X selecionado</p>
+              <p className="mono-label text-chart-3">{isExampleVitalX ? 'Vital X selecionado · exemplo' : 'Vital X selecionado'}</p>
               <h3 className="mt-2 font-serif text-xl font-bold">{selectedVital.label}</h3>
-              <p className="mt-1 text-xs text-muted-foreground">{selectedVital.note} · janela de 30 dias</p>
+              <p className="mt-1 text-xs text-muted-foreground">{selectedVital.note}</p>
             </div>
             <div className="text-right">
               <p className="font-serif text-2xl font-bold">{selectedVital.value}</p>
-              <p className="mt-1 text-[11px] font-bold text-primary">{selectedVital.delta} vs. baseline</p>
+              <p className="mt-1 text-[11px] font-bold text-primary">{isExampleVitalX ? `${selectedVital.delta} vs. baseline` : selectedVital.delta}</p>
             </div>
           </div>
-          <div className="mt-5 grid h-14 grid-cols-12 items-end gap-1.5 border-b border-border pb-0 sm:grid-cols-24">
-            {[30, 36, 34, 42, 38, 45, 40, 49, 46, 54, 51, 48, 58, 53, 56, 62, 59, 64, 57, 68, 61, 65, 72, 66].map((height, index) => (
-              <div key={index} className="rounded-t-sm bg-chart-3/60 transition-all hover:bg-chart-3" style={{ height: `${height}%` }} />
-            ))}
-          </div>
-          <div className="mt-2 flex justify-between mono-label text-muted-foreground">
-            <span>01 mai</span>
-            <span>30 mai</span>
-          </div>
+          {isExampleVitalX && <>
+            <div className="mt-5 grid h-14 grid-cols-12 items-end gap-1.5 border-b border-border pb-0 sm:grid-cols-24">
+              {[30, 36, 34, 42, 38, 45, 40, 49, 46, 54, 51, 48, 58, 53, 56, 62, 59, 64, 57, 68, 61, 65, 72, 66].map((height, index) => (
+                <div key={index} className="rounded-t-sm bg-chart-3/60 transition-all hover:bg-chart-3" style={{ height: `${height}%` }} />
+              ))}
+            </div>
+            <div className="mt-2 flex justify-between mono-label text-muted-foreground">
+              <span>01 mai</span>
+              <span>30 mai</span>
+            </div>
+          </>}
         </div>
       )}
 
